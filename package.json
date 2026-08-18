@@ -12,6 +12,8 @@
     "errorlog:ui": "node tools/errorlog/errorlog.cjs --open",
     "merge": "node engine/ingest/merge.cjs",
     "merge:global": "node engine/ingest/merge.cjs --global",
+    "dashclaw:up": "npx dashclaw up --yes --no-browser",
+    "dashclaw:doctor": "npx dashclaw doctor",
     "recall": "node tools/recall/recall.cjs",
     "parity": "node tools/sync/parity.cjs --open"
   },

@@ -49,6 +49,12 @@
         "(?i)render\\s+deploy",
         "(?i)stripe\\s+(delete|refund|payout)"
       ]
+    },
+    "dashclaw": {
+      "enabled": true,
+      "autoDiscover": true,
+      "defaultRiskThreshold": 50,
+      "baseUrl": "http://localhost:3000"
     }
   }
 }

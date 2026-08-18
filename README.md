@@ -39,7 +39,14 @@ Claude Code only reads `CLAUDE.md`, Codex only reads `AGENTS.md`, and Antigravit
 - `node engine/ingest/merge.cjs` automatically discovers all `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and `SYSTEM.md` files in a repository or global home directory.
 - Deduplicates sections, aggregates all **Learned Rules** and lessons, and writes back the complete unified ruleset to all files so every agent shares 100% parity.
 
-### 5. Human-First Tooling Suite
+### 5. Governed Autonomy with DashClaw (`engine/hooks/dashclaw-guard.cjs`)
+For long-running unattended runs (nightly background tasks, CI pipelines, multi-agent swarms), `agnostic-harness` seamlessly integrates with **[DashClaw](https://github.com/ucsandman/DashClaw)** ([dashclaw.io](https://dashclaw.io)):
+- **Fail-Closed Seam**: Intercepts high-risk destructive actions (`git push --force`, `rmdir /s`, database drops, credential exfiltration) at the hook level before execution.
+- **Remote & Async Approvals**: Resolves pending approvals from anywhere via phone PWA, Telegram, Discord, or the web Approvals inbox without stalling unattended runs.
+- **Signed Audit Trail**: Cryptographically logs every granted or denied decision with Ed25519 signatures.
+- **Zero Configuration**: Automatically discovers local DashClaw instances (`npx dashclaw up`) and falls back cleanly to local guard policies if inactive.
+
+### 6. Human-First Tooling Suite
 Includes fast interactive CLI + Web UI surfaces:
 - **ErrorLog (`tools/errorlog/`)**: Interactive error explorer and ladder candidate viewer.
 - **Parity Monitor (`tools/sync/`)**: Multi-harness sync checker with one-click re-sync.
@@ -50,7 +57,7 @@ Includes fast interactive CLI + Web UI surfaces:
 ## Directory Structure
 
 ```
-agnostic-ai/
+agnostic-harness/
 ├── core/                               # Single Source of Truth (SSOT)
 │   ├── rules/global-rules.md           # Universal working agreement & rules
 │   ├── traits/traits.md                # Tier 3 ladder traits
@@ -58,9 +65,11 @@ agnostic-ai/
 │   └── templates/targets.json          # Target client mappings & preambles
 ├── engine/                             # Core execution engines
 │   ├── sync/sync.cjs                   # Polyglot rules compiler & skills linker
+│   ├── ingest/merge.cjs                # Rule & lesson merger across CLAUDE/AGENTS/GEMINI
 │   ├── hooks/                          # Protocol translation shims & guards
 │   │   ├── universal-adapter.cjs       # Hook dialect normalizer
 │   │   ├── secret-guard.cjs            # Secret scanning & file blocker
+│   │   ├── dashclaw-guard.cjs          # Governed autonomy & remote approval seam
 │   │   └── correction-tracker.cjs      # User correction harvester
 │   ├── distill/distill.cjs             # Daily self-maintenance & ladder evaluator
 │   └── tests/run-all.cjs               # Test runner
@@ -100,22 +109,42 @@ node engine/sync/sync.cjs --check
 node engine/sync/sync.cjs
 ```
 
-### 3. Run Self-Maintenance Distillation
+### 3. Ingest & Merge Rules Across All Agents
+```bash
+# Merge rules and lessons in the current repository:
+npm run merge
+
+# Merge global rules (~/.claude, ~/.codex, ~/.gemini):
+npm run merge:global
+```
+
+### 4. Enable Governed Autonomy with DashClaw
+```bash
+# Start local DashClaw instance:
+npm run dashclaw:up
+
+# Verify connection health:
+npm run dashclaw:doctor
+```
+
+### 5. Run Self-Maintenance Distillation
 ```bash
 node engine/distill/distill.cjs
 ```
 
-### 4. Open Error & Distillation Explorer
+### 6. Open Human-First Dashboards
 ```bash
+# Error & Distillation Explorer:
 node tools/errorlog/errorlog.cjs --open
-```
 
-### 5. Open Multi-Harness Parity Dashboard
-```bash
+# Multi-Harness Parity Monitor:
 node tools/sync/parity.cjs --open
+
+# Memory & Rule Recall:
+node tools/recall/recall.cjs --open
 ```
 
-### 6. Run Engine Tests
+### 7. Run Engine Tests
 ```bash
 npm test
 ```
