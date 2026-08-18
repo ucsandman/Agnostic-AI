@@ -1,11 +1,14 @@
 """
 agent/workflows/swarm.py — Parallel Multi-Subagent Swarm Engine (/swarm)
 Dispatches parallel worker subagents (Researcher, Implementer, Security Reviewer) concurrently
-and synthesizes their reports into a unified execution diff.
+with optional Git Worktree branch isolation, and synthesizes their reports into a unified execution diff.
 """
 
+import shutil
+import subprocess
 import concurrent.futures
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional
 from rich.console import Console
 from rich.panel import Panel
 
@@ -19,11 +22,49 @@ class SwarmCoordinator:
     def __init__(self, subagent_manager: SubagentManager, llm_client: LLMClient):
         self.subagents = subagent_manager
         self.client = llm_client
+        self.workspace_root = subagent_manager.workspace_root
 
-    def dispatch_swarm(self, objective: str) -> str:
+    def _create_isolated_worktree(self, role: str) -> Optional[Path]:
+        """Creates an isolated git worktree branch for subagent if git repo is clean/available."""
+        try:
+            wt_dir = self.workspace_root / ".agnostic" / "worktrees" / f"wt_{role}"
+            if wt_dir.exists():
+                shutil.rmtree(wt_dir, ignore_errors=True)
+            wt_dir.parent.mkdir(parents=True, exist_ok=True)
+
+            res = subprocess.run(
+                f'git worktree add --detach "{wt_dir}" HEAD',
+                cwd=self.workspace_root,
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
+            if res.returncode == 0 and wt_dir.exists():
+                return wt_dir
+        except Exception:
+            pass
+        return None
+
+    def _cleanup_worktree(self, wt_dir: Path):
+        try:
+            subprocess.run(
+                f'git worktree remove --force "{wt_dir}"',
+                cwd=self.workspace_root,
+                shell=True,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+
+    def dispatch_swarm(self, objective: str, use_worktrees: bool = False) -> str:
         console.print(
             Panel(
-                f"🐝 [bold cyan]Initiating Parallel Swarm Mode (3 Workers)[/bold cyan]\nObjective: {objective}",
+                f"🐝 [bold cyan]Initiating Parallel Swarm Mode (3 Workers)[/bold cyan]\nObjective: {objective}"
+                + (
+                    "\n[dim](Git Worktree Branch Isolation Active)[/dim]"
+                    if use_worktrees
+                    else ""
+                ),
                 border_style="cyan",
             )
         )
@@ -45,9 +86,23 @@ class SwarmCoordinator:
 
         results: Dict[str, str] = {}
 
+        def _run_worker(role: str, prompt: str) -> str:
+            wt = self._create_isolated_worktree(role) if use_worktrees else None
+            try:
+                if wt:
+                    manager = SubagentManager(
+                        client=self.client, workspace_root=str(wt)
+                    )
+                    return manager.spawn(role, prompt)
+                else:
+                    return self.subagents.spawn(role, prompt)
+            finally:
+                if wt:
+                    self._cleanup_worktree(wt)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             future_to_role = {
-                executor.submit(self.subagents.spawn, role, prompt): role
+                executor.submit(_run_worker, role, prompt): role
                 for role, prompt in worker_tasks
             }
             for future in concurrent.futures.as_completed(future_to_role):

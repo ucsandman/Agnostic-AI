@@ -2,15 +2,17 @@
 agent/cli.py — Rich Interactive Terminal UI for Agnostic AI Agent
 Provides an open-source Claude Code-style interactive shell with syntax highlighting,
 live loading spinners, real-time token streaming, context % meter, visual diffs,
-hotkeys, session memory, auto-completion, and multi-line modes.
+hotkeys, session memory, fuzzy @file and #symbol auto-completion, and multi-line modes.
 """
 
 import sys
 import os
+import re
 import time
 import argparse
 import subprocess
 from pathlib import Path
+from typing import List
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -20,19 +22,31 @@ from rich.prompt import Prompt
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.document import Document
 
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
 from agent.llm.detector import ModelDoctor
 from agent.governance.undo import undo_manager
 from agent.governance.context import context_manager
+from agent.governance.guard import guard
+from agent.governance.audit import audit_manager
+from agent.governance.session_manager import session_manager
+from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
 
 console = Console()
 
 SLASH_COMMANDS = [
     "/plan",
+    "/fix",
+    "/compact",
+    "/trust",
+    "/untrust",
+    "/session",
+    "/audit",
+    "/retro",
     "/research",
     "/review",
     "/swarm",
@@ -49,11 +63,75 @@ SLASH_COMMANDS = [
     "/loop",
     "/state",
     "/distill",
+    "/web",
     "/clear",
     "/multiline",
     "/help",
     "/exit",
 ]
+
+
+class AgnosticCompleter(Completer):
+    """Dynamic Completer for Slash commands, @file paths, and #symbol names."""
+
+    def __init__(self, commands: List[str], indexer: CodebaseIndexer):
+        self.commands = commands
+        self.indexer = indexer
+
+    def get_completions(self, document: Document, _complete_event=None):
+        text = document.text_before_cursor
+        word = document.get_word_before_cursor(WORD=True)
+
+        if text.startswith("/"):
+            for cmd in self.commands:
+                if cmd.startswith(text):
+                    yield Completion(cmd, start_position=-len(text))
+            return
+
+        if word.startswith("@"):
+            query = word[1:].lower()
+            files = self.indexer.get_indexed_files()
+            for f in files:
+                if not query or query in f.lower():
+                    yield Completion(
+                        f"@{f}", start_position=-len(word), display=f"@{f}"
+                    )
+
+        elif word.startswith("#"):
+            query = word[1:].lower()
+            symbols = self.indexer.get_all_symbols()
+            for s in symbols:
+                if not query or query in s.lower():
+                    yield Completion(
+                        f"#{s}", start_position=-len(word), display=f"#{s}"
+                    )
+
+
+def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
+    """Injects code snippets and references for any @file or #symbol found in prompt."""
+    file_refs = re.findall(r"@([a-zA-Z0-9_\-\.\/\\]+)", user_prompt)
+    symbol_refs = re.findall(r"#([a-zA-Z0-9_\.\:]+)", user_prompt)
+
+    injected_context = []
+    for f in file_refs:
+        res = indexer.resolve_file(f)
+        if res:
+            rel, content = res
+            injected_context.append(
+                f"### [Context Reference: @{rel}]:\n```\n{content[:2500]}\n```"
+            )
+
+    for s in symbol_refs:
+        res = indexer.resolve_symbol(s)
+        if res:
+            loc, snippet = res
+            injected_context.append(
+                f"### [Symbol Reference: #{s} ({loc})]:\n```\n{snippet}\n```"
+            )
+
+    if injected_context:
+        return user_prompt + "\n\n" + "\n\n".join(injected_context)
+    return user_prompt
 
 
 def print_banner():
@@ -66,7 +144,7 @@ def print_banner():
         style="dim white",
     )
     banner_text.append(
-        "Commands: /plan, /swarm <task>, /diagram, /pr, /test, /doctor, /undo, /commit, /learn, /grill-me, /exit",
+        "Commands: /plan, /fix, /swarm, /test, /compact, /session, /trust, /audit, /undo, /commit, /exit",
         style="yellow",
     )
     console.print(Panel(banner_text, border_style="cyan"))
@@ -177,6 +255,11 @@ def main():
         default=False,
         help="Enable manual confirmation gates for hard-stop commands (Default is fully autonomous)",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Start the real-time visual web companion on port 7843",
+    )
     args = parser.parse_args()
 
     # 1. Auto-discover active model from endpoint
@@ -204,12 +287,25 @@ def main():
     if use_compact:
         agent._load_harness_system_prompt(compact=True)
 
+    # Pre-index workspace for fast fuzzy autocomplete & symbol lookups
+    code_indexer.workspace_root = Path(os.getcwd()).resolve()
+    code_indexer.index_workspace()
+
+    if args.web:
+        from agent.web.server import start_companion_server
+
+        ok, web_url = start_companion_server(7843)
+        if ok:
+            console.print(
+                f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
+            )
+
     if args.prompt:
-        # Non-interactive CLI invocation
+        expanded_prompt = expand_prompt_references(args.prompt, code_indexer)
         with console.status(
             f"[bold cyan]Thinking ({detected_model})...[/bold cyan]", spinner="dots"
         ):
-            agent.run_turn(args.prompt)
+            agent.run_turn(expanded_prompt)
         sys.exit(0)
 
     print_banner()
@@ -222,7 +318,7 @@ def main():
             f"[dim yellow]⚠️ Local endpoint offline at {args.url} (Run LM Studio/Ollama)[/dim yellow]"
         )
 
-    # Setup persistent terminal history and command autocompletion
+    # Setup persistent terminal history and dynamic autocomplete
     history_dir = Path.home() / ".agnostic"
     history_dir.mkdir(parents=True, exist_ok=True)
     history_file = history_dir / "agent_history.txt"
@@ -230,7 +326,7 @@ def main():
     session = PromptSession(
         history=FileHistory(str(history_file)),
         auto_suggest=AutoSuggestFromHistory(),
-        completer=WordCompleter(SLASH_COMMANDS, ignore_case=True),
+        completer=AgnosticCompleter(SLASH_COMMANDS, code_indexer),
     )
 
     test_runner = AutoTestRunner(
@@ -268,9 +364,90 @@ def main():
                         lines.append(line)
                     except EOFError:
                         break
+                    except KeyboardInterrupt:
+                        break
                 user_input = "\n".join(lines).strip()
                 if not user_input:
                     continue
+
+            elif user_input == "/compact":
+                agent.history, ok, msg = context_manager.compact_messages(
+                    agent.history, force=True
+                )
+                console.print(f"[bold green]{msg}[/bold green]")
+                continue
+
+            elif user_input.startswith("/fix"):
+                custom_cmd = user_input.replace("/fix", "").strip() or None
+                test_runner.quick_fix(custom_command=custom_cmd)
+                continue
+
+            elif user_input.startswith("/trust"):
+                mode = user_input.replace("/trust", "").strip() or "reads"
+                msg = guard.set_trust_tier(mode)
+                console.print(f"[bold green]🛡️ {msg}[/bold green]")
+                continue
+
+            elif user_input == "/untrust":
+                msg = guard.set_trust_tier("strict")
+                console.print(f"[bold yellow]🛡️ {msg}[/bold yellow]")
+                continue
+
+            elif user_input.startswith("/session"):
+                parts = user_input.split()
+                subcmd = parts[1].lower() if len(parts) > 1 else "list"
+                sess_name = parts[2] if len(parts) > 2 else "latest"
+
+                if subcmd == "save":
+                    ok, msg = session_manager.save_session(sess_name, agent.history)
+                    console.print(f"[bold green]💾 {msg}[/bold green]")
+                elif subcmd == "load":
+                    hist, msg = session_manager.load_session(sess_name)
+                    if hist:
+                        agent.history = hist
+                        console.print(f"[bold green]📂 {msg}[/bold green]")
+                    else:
+                        console.print(f"[bold red]❌ {msg}[/bold red]")
+                elif subcmd == "list":
+                    sessions = session_manager.list_sessions()
+                    if not sessions:
+                        console.print(
+                            "[dim]No saved sessions found in .agnostic/sessions/[/dim]"
+                        )
+                    else:
+                        console.print("[bold cyan]Saved Sessions:[/bold cyan]")
+                        for s in sessions:
+                            console.print(
+                                f"• [bold green]{s['name']}[/bold green] ({s['turn_count']} turns, {s['saved_at']})"
+                            )
+                continue
+
+            elif user_input in ("/audit", "/retro"):
+                report = audit_manager.generate_retro_markdown()
+                console.print(
+                    Panel(
+                        Markdown(report),
+                        title="📋 Session Audit & Retrospective",
+                        border_style="cyan",
+                    )
+                )
+                path = audit_manager.export_audit_file()
+                console.print(f"[dim]Exported to {path}[/dim]")
+                continue
+
+            elif user_input == "/web":
+                from agent.web.server import start_companion_server
+
+                ok, web_url = start_companion_server(7843)
+                if ok:
+                    console.print(
+                        f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
+                    )
+                else:
+                    console.print(
+                        f"[yellow]Companion server is already running or error: {web_url}[/yellow]"
+                    )
+                continue
 
             elif user_input == "/doctor":
                 console.print(
@@ -352,6 +529,10 @@ def main():
                 from agent.governance.learn import learner
 
                 ok, msg = learner.record_lesson(lesson)
+                audit_manager.record(
+                    event_type="lesson_learned",
+                    description=lesson,
+                )
                 console.print(f"[bold green]🧠 {msg}[/bold green]")
                 continue
 
@@ -372,7 +553,6 @@ def main():
 
                 interviewer = DesignInterviewer(agent.llm_client)
                 aligned_summary = interviewer.interview(task)
-                # Feed aligned requirements into next agent turn
                 proceed = Prompt.ask(
                     "\nProceed to implement based on aligned choices?",
                     choices=["y", "n"],
@@ -471,14 +651,21 @@ def main():
             elif user_input == "/help":
                 console.print("""
 [bold]Available Commands & Slash Shortcuts:[/bold]
-• [bold cyan]/swarm <task>[/bold cyan]       - Dispatch 3 parallel subagents (Research, Test, Review) simultaneously
+• [bold cyan]/fix [cmd][/bold cyan]         - One-click diagnosis & automated test repair
+• [bold cyan]/compact[/bold cyan]           - Manual context compression & history distillation
+• [bold cyan]/session save <name>[/bold cyan] - Snapshot conversation turns & whiteboard state
+• [bold cyan]/session load <name>[/bold cyan] - Restore saved session snapshot
+• [bold cyan]/session list[/bold cyan]        - List saved snapshots
+• [bold cyan]/trust [reads|tests|all][/bold cyan] - Adjust session trust level
+• [bold cyan]/audit / /retro[/bold cyan]     - Compile & export session retrospective report
+• [bold cyan]/web[/bold cyan]                 - Start live visual browser companion (Port 7843)
+• [bold cyan]/swarm <task>[/bold cyan]       - Dispatch 3 parallel subagents simultaneously
 • [bold cyan]/diagram[/bold cyan]            - Generate instant Mermaid architecture dependency diagram
 • [bold cyan]/pr[/bold cyan]                 - Generate GitHub Pull Request summary and description
 • [bold cyan]/harvest[/bold cyan]            - Harvest corrections across local Claude, Cursor, and Codex transcripts
 • [bold cyan]/learn <lesson>[/bold cyan]    - Record candidate rule/lesson directly into harness SSOT
 • [bold cyan]/grill-me <task>[/bold cyan]   - Interactive lead architect interview to align on design & specs
 • [bold cyan]/schedule every 30s "cmd"[/bold cyan] - Run recurring background routine
-• [bold cyan]/loop 3 "cmd"[/bold cyan]       - Repeat a command N times sequentially
 • [bold cyan]/state[/bold cyan]              - View persistent state whiteboard (.agnostic/state.md)
 • [bold cyan]/distill[/bold cyan]            - Run 4-Tier Promotion Ladder & prune candidate rules
 • [bold cyan]/test [cmd][/bold cyan]         - Run autonomous test-and-repair loop until tests pass
@@ -492,12 +679,14 @@ def main():
                 """)
                 continue
 
-            # Standard agent turn with animated loading status
+            # Context reference expansion (@file, #symbol)
+            expanded_input = expand_prompt_references(user_input, code_indexer)
+
             start_time = time.time()
             with console.status(
                 f"[bold cyan]Thinking ({detected_model})...[/bold cyan]", spinner="dots"
             ):
-                agent.run_turn(user_input)
+                agent.run_turn(expanded_input)
             duration = time.time() - start_time
             console.print(f"[dim]⏱ Turn completed in {duration:.2f}s[/dim]")
 

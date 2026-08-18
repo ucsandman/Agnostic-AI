@@ -1,13 +1,55 @@
 """
-agent/tools/indexer.py — AST-Aware Repo Graph & Codebase Indexer (@symbol resolution)
+agent/tools/indexer.py — AST-Aware Repo Graph & Codebase Indexer (@file & #symbol resolution)
 Parses Python and JS/TS files to extract exact class and function ranges, enabling zero-waste token slicing.
+Supports .agentignore exclusion rules to preserve token context windows.
 """
 
 import ast
+import fnmatch
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Set
+
+
+DEFAULT_IGNORED_DIRS = {
+    "node_modules",
+    "venv",
+    ".venv",
+    "env",
+    "__pycache__",
+    "dist",
+    "build",
+    ".git",
+    ".hg",
+    ".svn",
+    ".turbo",
+    ".next",
+    ".nuxt",
+    "coverage",
+    ".pytest_cache",
+}
+
+DEFAULT_IGNORED_EXTS = {
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".lock",
+    ".sqlite",
+    ".sqlite3",
+    ".db",
+    ".min.js",
+    ".min.css",
+    ".map",
+    ".wasm",
+    ".bin",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".ico",
+    ".gif",
+    ".svg",
+}
 
 
 class SymbolInfo:
@@ -21,7 +63,7 @@ class SymbolInfo:
         docstring: Optional[str] = None,
     ):
         self.name = name
-        self.symbol_type = symbol_type  # 'class', 'function', 'method'
+        self.symbol_type = symbol_type  # 'class', 'function', 'method', 'symbol'
         self.file_path = file_path
         self.start_line = start_line
         self.end_line = end_line
@@ -40,24 +82,78 @@ class CodebaseIndexer:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or ".").resolve()
         self.symbols: Dict[str, List[SymbolInfo]] = {}
+        self.indexed_files: List[str] = []
+        self._ignore_patterns: Set[str] = set()
+        self._load_agentignore()
+
+    def _load_agentignore(self):
+        """Loads custom patterns from .agentignore if present in workspace root."""
+        self._ignore_patterns = set()
+        ignore_file = self.workspace_root / ".agentignore"
+        if ignore_file.exists():
+            try:
+                for line in ignore_file.read_text(encoding="utf-8").splitlines():
+                    clean = line.strip()
+                    if clean and not clean.startswith("#"):
+                        self._ignore_patterns.add(clean)
+            except Exception:
+                pass
+
+    def is_ignored(self, path: Path) -> bool:
+        """Determines if a path should be ignored by default or .agentignore rules."""
+        rel_str = str(path.relative_to(self.workspace_root)).replace("\\", "/")
+
+        # Check parent folder names
+        for part in path.parts:
+            if part in DEFAULT_IGNORED_DIRS or part.startswith("."):
+                if part != ".agentignore":
+                    return True
+
+        # Check extensions
+        if path.suffix.lower() in DEFAULT_IGNORED_EXTS:
+            return True
+
+        # Check explicit .agentignore glob patterns
+        for pattern in self._ignore_patterns:
+            if fnmatch.fnmatch(rel_str, pattern) or fnmatch.fnmatch(path.name, pattern):
+                return True
+
+        return False
 
     def index_workspace(self):
         """Scan workspace and index Python and JavaScript/TypeScript symbols."""
         self.symbols.clear()
+        self.indexed_files.clear()
+        self._load_agentignore()
+
         for root, dirs, files in os.walk(self.workspace_root):
-            # Ignore hidden and vendor directories
+            # Prune ignored directories in-place
             dirs[:] = [
                 d
                 for d in dirs
                 if not d.startswith(".")
-                and d not in ("node_modules", "venv", "__pycache__", "dist", "build")
+                and d not in DEFAULT_IGNORED_DIRS
+                and not any(fnmatch.fnmatch(d, p) for p in self._ignore_patterns)
             ]
             for f in files:
                 p = Path(root) / f
+                if self.is_ignored(p):
+                    continue
+
+                try:
+                    rel_path = str(p.relative_to(self.workspace_root)).replace(
+                        "\\", "/"
+                    )
+                    self.indexed_files.append(rel_path)
+                except ValueError:
+                    pass
+
                 if f.endswith(".py"):
                     self._index_python_file(p)
                 elif f.endswith((".js", ".ts", ".jsx", ".tsx")):
                     self._index_js_file(p)
+
+        self.indexed_files.sort()
 
     def _index_python_file(self, file_path: Path):
         try:
@@ -119,12 +215,27 @@ class CodebaseIndexer:
             self.symbols[name] = []
         self.symbols[name].append(sym)
 
+    def get_indexed_files(self) -> List[str]:
+        if not self.indexed_files:
+            self.index_workspace()
+        return self.indexed_files
+
+    def get_all_symbols(self) -> List[str]:
+        if not self.symbols:
+            self.index_workspace()
+        return sorted(list(self.symbols.keys()))
+
     def resolve_symbol(self, symbol_name: str) -> Optional[Tuple[str, str]]:
-        """Return (relative_file_path, extracted_code_snippet)."""
-        clean_name = symbol_name.lstrip("@").strip()
+        """Return (relative_file_path:start-end, extracted_code_snippet)."""
+        clean_name = symbol_name.lstrip("#@").strip()
         matches = self.symbols.get(clean_name)
         if not matches:
-            return None
+            # Try lazy re-index if not found
+            if not self.symbols:
+                self.index_workspace()
+                matches = self.symbols.get(clean_name)
+            if not matches:
+                return None
 
         sym = matches[0]
         try:
@@ -132,10 +243,32 @@ class CodebaseIndexer:
                 encoding="utf-8", errors="replace"
             ).splitlines()
             snippet = "\n".join(lines[sym.start_line - 1 : sym.end_line])
-            rel_path = sym.file_path.relative_to(self.workspace_root)
+            rel_path = str(sym.file_path.relative_to(self.workspace_root)).replace(
+                "\\", "/"
+            )
             return (f"{rel_path}:{sym.start_line}-{sym.end_line}", snippet)
         except Exception:
             return None
 
+    def resolve_file(self, file_path_str: str) -> Optional[Tuple[str, str]]:
+        """Resolves an @file reference and returns (relative_path, content)."""
+        clean_path = file_path_str.lstrip("@").strip()
+        target = (self.workspace_root / clean_path).resolve()
+        if not target.exists() or not target.is_file():
+            # Try matching against indexed files
+            for idx_f in self.get_indexed_files():
+                if idx_f.endswith(clean_path) or clean_path in idx_f:
+                    target = (self.workspace_root / idx_f).resolve()
+                    break
 
-code_indexer = CodebaseIndexer()  # noqa: vulture
+        if target.exists() and target.is_file():
+            try:
+                rel = str(target.relative_to(self.workspace_root)).replace("\\", "/")
+                content = target.read_text(encoding="utf-8", errors="replace")
+                return (rel, content)
+            except Exception:
+                return None
+        return None
+
+
+code_indexer = CodebaseIndexer()

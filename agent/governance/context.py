@@ -1,6 +1,6 @@
 """
-agent/governance/context.py — Context Window Estimator, Meter & Auto-Compaction
-Calculates approximate token usage across messages and handles graceful background compaction.
+agent/governance/context.py — Context Window Estimator, Meter & Smart Auto-Compaction
+Calculates approximate token usage across messages and handles graceful manual (/compact) and background compaction.
 """
 
 import json
@@ -13,6 +13,9 @@ class ContextManager:
     ):
         self.max_context_tokens = max_context_tokens
         self.compaction_threshold = compaction_threshold
+
+    def set_max_tokens(self, max_tokens: int):
+        self.max_context_tokens = max(1024, max_tokens)
 
     def estimate_tokens(self, messages: List[Dict[str, Any]]) -> int:
         """Estimate token count across conversation history (~4 chars per token)."""
@@ -51,21 +54,24 @@ class ContextManager:
 
         return f"[{bar_color}]Context: [{bar}] {pct:.1f}% ({used:,} / {total:,} tokens)[/{bar_color}]"
 
-    def auto_compact(
-        self, messages: List[Dict[str, Any]]
+    def compact_messages(
+        self, messages: List[Dict[str, Any]], force: bool = False
     ) -> Tuple[List[Dict[str, Any]], bool, str]:
-        """Compacts older turns if context exceeds threshold."""
+        """Compacts older turns into a dense summary."""
         st = self.get_status(messages)
-        if not st["near_limit"] or len(messages) <= 4:
-            return messages, False, ""
+        if not force and (not st["near_limit"] or len(messages) <= 4):
+            return messages, False, "Context usage is well within limits."
+
+        if len(messages) <= 3:
+            return messages, False, "Conversation is too short to compact."
 
         system_msg = (
             messages[0]
             if messages and messages[0]["role"] == "system"
             else {"role": "system", "content": "You are an autonomous AI coding agent."}
         )
-        recent_turns = messages[-4:]  # Retain last 4 turns verbatim
-        middle_turns = messages[1:-4]
+        recent_turns = messages[-3:]  # Retain last 3 turns verbatim
+        middle_turns = messages[1:-3]
 
         # Condense middle turns into dense summary
         summary_lines = []
@@ -73,11 +79,11 @@ class ContextManager:
             role = m.get("role", "msg").upper()
             content = (m.get("content") or "").strip()
             if content:
-                summary_lines.append(f"• [{role}]: {content[:140]}...")
+                summary_lines.append(f"• [{role}]: {content[:160]}...")
 
         condensed_text = (
             "### [Session Distillation / Compacted History]:\n"
-            + "\n".join(summary_lines[:8])
+            + "\n".join(summary_lines[:10])
             + f"\n(Compacted {len(middle_turns)} older turns to free memory)"
         )
 
@@ -89,8 +95,13 @@ class ContextManager:
         freed_estimate = max(
             0, st["used_tokens"] - self.estimate_tokens(compacted_messages)
         )
-        msg = f"🧹 Auto-Compacted session history (freed ~{freed_estimate:,} tokens)."
+        msg = f"🧹 Compacted {len(middle_turns)} turns (freed ~{freed_estimate:,} tokens)."
         return compacted_messages, True, msg
+
+    def auto_compact(
+        self, messages: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], bool, str]:
+        return self.compact_messages(messages, force=False)
 
 
 context_manager = ContextManager()

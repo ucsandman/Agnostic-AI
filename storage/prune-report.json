@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-18T23:22:51.312Z",
+  "timestamp": "2026-08-18T23:35:00.914Z",
   "activeCount": 4,
   "ceiling": 5,
   "status": "HEALTHY",
@@ -34,6 +34,22 @@
     }
   ],
   "candidateAnalyses": [
+    {
+      "id": "522e1bc0f80b7390",
+      "text": "The portfolio is one idea expressed four ways — when may a machine act without a human, and can the human read the reason.",
+      "sightings": 3,
+      "conflicts": [],
+      "recommendation": "promote_rule",
+      "rationale": "Healthy candidate under ceiling."
+    },
+    {
+      "id": "23f633b64c0038c0",
+      "text": "The axis is not boldness against restraint, it is whose account the cost lands in. A guard I choose freely is not free if the human pays its friction; the fix is to move the cost onto something other than him, not to drop the guard.",
+      "sightings": 3,
+      "conflicts": [],
+      "recommendation": "push_to_examples",
+      "rationale": "Rule contains high specific situational detail; better served as a few-shot example than a global rule."
+    },
     {
       "id": "15434078e0bd8613",
       "text": "A health signal that proves a mechanism CAN work gets read as proof it IS working. The canary is green, the pipe is empty, and nobody asks about volume because something answered.",

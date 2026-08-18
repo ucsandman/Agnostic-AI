@@ -1,5 +1,5 @@
 """
-agent/workflows/tester.py — Autonomous Test-and-Fix Loop (/test)
+agent/workflows/tester.py — Autonomous Test-and-Fix Loop (/test, /fix)
 Runs test suites (pytest, npm test, cargo, python unittest), parses error traces,
 and loops autonomous repairs until zero failures are observed.
 """
@@ -35,7 +35,11 @@ class AutoTestRunner:
         if (self.workspace_root / "Cargo.toml").exists():
             return "cargo test"
 
-        return "npm test"
+        return (
+            "node engine/tests/run-all.cjs"
+            if (self.workspace_root / "engine" / "tests" / "run-all.cjs").exists()
+            else "npm test"
+        )
 
     def run_suite(self, custom_command: Optional[str] = None) -> Dict[str, Any]:
         cmd = custom_command or self.detect_test_command() or "npm test"
@@ -64,6 +68,36 @@ class AutoTestRunner:
             }
         except Exception as e:
             return {"command": cmd, "passed": False, "returncode": -1, "output": str(e)}
+
+    def quick_fix(
+        self, custom_command: Optional[str] = None, error_trace: Optional[str] = None
+    ) -> bool:
+        """One-click fix: runs test or takes existing error trace, analyzes and applies surgical fix in one turn."""
+        console.print("[bold cyan]🔧 Quick-Fix Engine (/fix) Activated...[/bold cyan]")
+        if not error_trace:
+            result = self.run_suite(custom_command)
+            if result["passed"]:
+                console.print(
+                    Panel(
+                        "✅ All tests are already passing cleanly! No fixes needed.",
+                        border_style="green",
+                    )
+                )
+                return True
+            trace = result["output"][-2500:]
+        else:
+            trace = error_trace[-2500:]
+
+        console.print(
+            Panel(trace, title="Diagnosed Failure / Error Trace", border_style="red")
+        )
+        prompt = (
+            f"Diagnose and fix the following failure trace using surgical file edits:\n```\n{trace}\n```\n"
+            "Identify the root cause, verify file paths, make minimal edits, and report what was fixed."
+        )
+        console.print("[cyan]🤖 Dispatching Quick-Fix repair turn...[/cyan]")
+        self.agent_loop_func(prompt)
+        return True
 
     def auto_repair_loop(
         self, custom_command: Optional[str] = None, max_attempts: int = 4

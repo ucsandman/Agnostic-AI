@@ -1,6 +1,7 @@
 """
 agent/tools/registry.py — Typed Tool Registry & Execution Engine
 Provides safe terminal execution, surgical file editing, file viewing, search, and MCP tools.
+Integrated with Audit Logger, Diff Viewer, and Undo Manager.
 """
 
 import os
@@ -8,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
 from agent.governance.guard import guard
+from agent.governance.audit import audit_manager
 
 
 class ToolResult:
@@ -56,7 +58,7 @@ class ToolRegistry:
         args: Dict[str, Any],
         confirm_callback: Optional[Callable[[str], bool]] = None,
     ) -> ToolResult:
-        """Execute a registered tool with guardrail checks."""
+        """Execute a registered tool with guardrail checks and audit recording."""
         if name not in self._tools:
             return ToolResult(
                 f"Error: Unknown tool '{name}'. Available: {list(self._tools.keys())}",
@@ -65,12 +67,18 @@ class ToolRegistry:
 
         tool = self._tools[name]
         try:
-            return tool["func"](args, confirm_callback=confirm_callback)
+            res = tool["func"](args, confirm_callback=confirm_callback)
+            audit_manager.record(
+                event_type="tool_exec",
+                description=f"Executed tool: {name}",
+                details={"tool": name, "args": args, "is_error": res.is_error},
+            )
+            return res
         except Exception as e:
             return ToolResult(f"Error executing {name}: {str(e)}", is_error=True)
 
     def _register_default_tools(self):
-        # 1. run_command (Terminal execution)
+        # 1. run_command
         self.register(
             name="run_command",
             description="Run a shell command safely in the project environment. Commands are checked against safety guardrails.",
@@ -91,7 +99,7 @@ class ToolRegistry:
             func=self._tool_run_command,
         )
 
-        # 2. read_file (View file with lines)
+        # 2. read_file
         self.register(
             name="read_file",
             description="Read content of a file from disk with optional start and end line ranges (1-indexed).",
@@ -116,7 +124,7 @@ class ToolRegistry:
             func=self._tool_read_file,
         )
 
-        # 3. write_file (Create or replace entire file)
+        # 3. write_file
         self.register(
             name="write_file",
             description="Write content to a file. Overwrites if file exists, or creates new file and parent directories.",
@@ -134,7 +142,7 @@ class ToolRegistry:
             func=self._tool_write_file,
         )
 
-        # 4. edit_file (Surgical search and replace)
+        # 4. edit_file
         self.register(
             name="edit_file",
             description="Perform a surgical replacement of an exact block of text in an existing file.",
@@ -156,7 +164,7 @@ class ToolRegistry:
             func=self._tool_edit_file,
         )
 
-        # 5. grep_search (Ripgrep / regex pattern search)
+        # 5. grep_search
         self.register(
             name="grep_search",
             description="Search for exact text or regex pattern across files in directory.",
@@ -181,7 +189,7 @@ class ToolRegistry:
             func=self._tool_grep_search,
         )
 
-        # 6. find_files (Discover files by glob)
+        # 6. find_files
         self.register(
             name="find_files",
             description="Find files and directories matching a glob pattern.",
@@ -217,12 +225,27 @@ class ToolRegistry:
 
         is_blocked, req_approval, reason = guard.check_command_safety(cmd)
         if is_blocked:
+            audit_manager.record(
+                event_type="governance_hardstop",
+                description=f"Command BLOCKED: {cmd}",
+                details={"reason": reason},
+                approved=False,
+            )
             return ToolResult(f"BLOCKED by Safety Guard: {reason}", is_error=True)
 
         if req_approval:
-            if confirm_callback and not confirm_callback(
-                f"Command requires confirmation: {cmd}\nReason: {reason}"
-            ):
+            approved = True
+            if confirm_callback:
+                approved = confirm_callback(
+                    f"Command requires confirmation: {cmd}\nReason: {reason}"
+                )
+            audit_manager.record(
+                event_type="governance_hardstop",
+                description=f"Hard-Stop command: {cmd}",
+                details={"reason": reason},
+                approved=approved,
+            )
+            if not approved:
                 return ToolResult(
                     "Command execution was rejected by user.", is_error=True
                 )
@@ -247,7 +270,7 @@ class ToolRegistry:
         except Exception as e:
             return ToolResult(f"Error running command: {str(e)}", is_error=True)
 
-    def _tool_read_file(self, args: Dict[str, Any], **kwargs) -> ToolResult:
+    def _tool_read_file(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         raw_path = args["file_path"]
         safe, reason = guard.check_path_access(raw_path)
         if not safe:
@@ -273,7 +296,7 @@ class ToolRegistry:
         self,
         args: Dict[str, Any],
         confirm_callback: Optional[Callable[[str], bool]] = None,
-        **kwargs,
+        **_kwargs,
     ) -> ToolResult:
         raw_path = args["file_path"]
         content = args["content"]
@@ -307,6 +330,11 @@ class ToolRegistry:
                 new_content=content,
                 action="write" if prev_content is not None else "create",
             )
+            audit_manager.record(
+                event_type="file_write" if prev_content is not None else "file_create",
+                description=f"Wrote file {raw_path}",
+                details={"file": raw_path, "bytes": len(content)},
+            )
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(content)
             return ToolResult(
@@ -319,7 +347,7 @@ class ToolRegistry:
         self,
         args: Dict[str, Any],
         confirm_callback: Optional[Callable[[str], bool]] = None,
-        **kwargs,
+        **_kwargs,
     ) -> ToolResult:
         raw_path = args["file_path"]
         target = args["target_content"]
@@ -362,7 +390,7 @@ class ToolRegistry:
                 DiffViewer.render_diff(target_file.name, content, new_content)
             )
 
-            # Record in undo history
+            # Record in undo history & audit
             from agent.governance.undo import undo_manager
 
             undo_manager.record_change(
@@ -370,6 +398,11 @@ class ToolRegistry:
                 previous_content=content,
                 new_content=new_content,
                 action="edit",
+            )
+            audit_manager.record(
+                event_type="file_edit",
+                description=f"Surgically edited {raw_path}",
+                details={"file": raw_path},
             )
 
             with open(target_file, "w", encoding="utf-8") as f:
@@ -379,7 +412,7 @@ class ToolRegistry:
         except Exception as e:
             return ToolResult(f"Error editing file: {str(e)}", is_error=True)
 
-    def _tool_grep_search(self, args: Dict[str, Any], **kwargs) -> ToolResult:
+    def _tool_grep_search(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         query = args["query"]
         search_path = args.get("search_path", ".")
         file_pattern = args.get("file_pattern", "")
@@ -423,7 +456,7 @@ class ToolRegistry:
         except Exception as e:
             return ToolResult(f"Error during grep search: {str(e)}", is_error=True)
 
-    def _tool_find_files(self, args: Dict[str, Any], **kwargs) -> ToolResult:
+    def _tool_find_files(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         pattern = args["pattern"]
         search_path = args.get("search_path", ".")
         target_dir = (self.workspace_root / search_path).resolve()

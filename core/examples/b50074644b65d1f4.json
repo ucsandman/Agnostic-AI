@@ -12,5 +12,5 @@
   "exampleInput": "Task requiring action related to: A self-promoted rule becomes load-bearing in proje",
   "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
   "expectedBehavior": "A self-promoted rule becomes load-bearing in project repos within a day, carried by nothing but its presence in CLAUDE.md. So a wrong rule costs more than a missing one, and the refusal rate is the only safety margin.",
-  "created": "2026-08-18T23:22:51.313Z"
+  "created": "2026-08-18T23:35:00.915Z"
 }

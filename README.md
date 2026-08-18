@@ -25,7 +25,7 @@
 
 Agnostic AI is a two-in-one system designed for developers who want complete autonomy and zero vendor lock-in:
 
-1. **The Native Autonomous Coding Agent (`agnostic` CLI)**: An open-source, terminal coding agent that brings **Claude Code** capabilities (parallel subagents, AST symbol slicing, autonomous test-and-fix loops, `/swarm`, `/diagram`, visual diffs, and live context meters) to open-weight models (Qwen 2.5/3.8 Coder, DeepSeek, Llama 3) via LM Studio, Ollama, or OpenAI APIs.
+1. **The Native Autonomous Coding Agent (`agnostic` CLI)**: An open-source, terminal coding agent that brings **Claude Code** capabilities (parallel subagents, AST symbol slicing, autonomous test-and-fix loops, `/swarm`, `/diagram`, visual diffs, session snapshots, and live context meters) to open-weight models (Qwen 2.5/3.8 Coder, DeepSeek, Llama 3) via LM Studio, Ollama, or OpenAI APIs.
 2. **The 18-Target Universal SSOT Harness**: A single source of truth that keeps your rules, custom skills, safety guards, and learned lessons synchronized across Claude Code, Cursor, Codex, Windsurf, Copilot, Cline, and 12 other AI tools.
 
 ---
@@ -38,19 +38,27 @@ Run the autonomous coding agent in any directory or project:
 # Global interactive coding agent
 agnostic
 
-# Direct prompt execution
-agnostic -p "inspect the auth system and add token validation"
+# Direct prompt execution with fuzzy @file or #symbol reference
+agnostic -p "refactor #CodebaseIndexer in @agent/tools/indexer.py"
 
 # Run tests and auto-repair until green
 agnostic
 agnostic > /test
+agnostic > /fix
 ```
 
 ### 🏆 Built-in Agent Capabilities & Slash Shortcuts
 
-| Command | Capability | What It Does |
+| Command / Trigger | Capability | What It Does |
 |---|---|---|
-| `/swarm <task>` | **Parallel Worker Swarm** | Spawns 3 background subagents (Researcher, Implementer, Reviewer) concurrently and synthesizes a unified diff. |
+| `@<filename>` / `#<symbol>` | **AST Context Injection** | Dynamic fuzzy auto-completion in terminal; injects exact file content or AST class/function slice directly into prompt. |
+| `/fix [cmd]` | **One-Click Quick Fix** | Runs tests or inspects stack traces, diagnoses root cause, and executes a surgical fix in a single turn. |
+| `/compact` | **Smart Context Compaction** | Manually condenses older turns into a dense distillation to free context window memory. |
+| `/session save\|load\|list` | **Session Bookmarking** | Saves and restores conversation snapshots and whiteboard state across tasks and branches. |
+| `/trust [reads\|tests\|all]` | **Smart Trust Tiers** | Sets permission mode (`strict`, `trust-reads`, `trust-tests`, `trust-all`) while keeping secrets strictly protected. |
+| `/audit` / `/retro` | **Session Retro & Audit** | Compiles and exports an end-of-session Markdown report of all tool calls, hard stops, and file modifications. |
+| `/web` | **Live Web Companion** | Starts real-time browser companion on `http://localhost:7843` with telemetry, visual diffs, and REST API. |
+| `/swarm <task>` | **Parallel Worker Swarm** | Spawns 3 background subagents (Researcher, Implementer, Reviewer) with Git worktree isolation and synthesizes a unified diff. |
 | `/test [cmd]` | **Auto Test-and-Fix Loop** | Detects test runners (`npm test`, `pytest`, `cargo test`), catches failures, and loops surgical fixes until tests pass. |
 | `/diagram` / `/map` | **Mermaid Architecture** | Scans imports across the project and outputs clean Mermaid architecture dependency charts. |
 | `/learn <lesson>` | **Instant SSOT Learning** | Records candidate rules directly into the harness 4-Tier Promotion Ladder (`candidates.jsonl`). |
@@ -151,7 +159,7 @@ Optional integration with DashClaw for remote approval of high-risk actions (for
  
  ### Prerequisites
  - Node.js (v18+)
- - Python (3.10+, optional for `launch.py`)
+ - Python (3.10+, optional for `launch.py` and `agnostic` CLI)
  
  ### Installation & First Run
  
@@ -160,13 +168,14 @@ Optional integration with DashClaw for remote approval of high-risk actions (for
  git clone https://github.com/<your-username>/agnostic-harness.git
  cd agnostic-harness
  
- # 2. Copy and configure your environment (optional DashClaw / ports)
- cp .env.example .env
+ # 2. Install dependencies
+ npm install
+ pip install -e .
  
  # 3. Run the interactive single-command launcher
  python launch.py
- # or directly with Node:
- npm run dashboard
+ # or launch the agent directly:
+ agnostic
  ```
 
 ### Essential CLI Commands
@@ -189,19 +198,15 @@ npm run distill
 
 # Run all test suites:
 npm test
+pytest
 ```
 
 ---
 
-## 🖥️ Local Command Center (Port 7842)
+## 🖥️ Local Command Center (Port 7842 & Port 7843)
 
-Launch the visual command center via `npm run dashboard`:
-
-- **Overview:** Real-time metrics on harvested candidate errors, active skills, and target client health.
-- **Rule Explorer:** Inspect the master Single Source of Truth, Tier 3 Core Traits, and safety policy JSON.
-- **Skill Matrix & Project Workspaces:** 1-click tech-stack analyzer that matches project dependencies, recommends optimal skills with confidence scores, supports before/after diff reviews, and allows project-scoped activations directly from the global inventory.
-- **Error Explorer:** Filter and browse 800+ harvested real-world error traces to identify friction hotspots.
-- **Governance & Approvals:** Configure safety thresholds, simulate guard verdicts, or opt out completely.
+- **Port 7842 (`npm run dashboard`):** Master configuration, error explorer, skills matrix, and 18-target parity synchronization.
+- **Port 7843 (`agnostic --web` / `/web`):** Real-time agent companion dashboard with telemetry, visual diff inspection, context token progress meters, and REST API controls.
 
 ---
 
@@ -238,6 +243,13 @@ When opted out, the harness operates with zero external network requests, enforc
 
 ```
 agnostic-harness/
+├── agent/                              # Native Autonomous Coding Agent
+│   ├── cli.py                          # Interactive shell with @file / #symbol autocomplete
+│   ├── loop.py                         # Agent loop & tool execution engine
+│   ├── governance/                     # SafetyGuard, AuditManager, SessionManager, ContextManager
+│   ├── tools/                          # CodebaseIndexer, DiffViewer, Subagents, MCP Bridge
+│   ├── workflows/                      # Swarm, Tester (/fix, /test), Planner, Grill, PR Pilot
+│   └── web/                            # Real-time visual companion (port 7843)
 ├── core/                               # Single Source of Truth (SSOT)
 │   ├── rules/global-rules.md           # Universal working agreement & rules
 │   ├── traits/traits.md                # Tier 3 ladder traits
@@ -255,6 +267,7 @@ agnostic-harness/
 │   ├── errorlog/                       # Error harvester explorer
 │   ├── sync/                           # Harness parity monitor
 │   └── recall/                         # Rule and memory recall search
+├── tests/                              # Pytest test suites (Agent & QoL features)
 ├── skills/                             # Shared agent skills definitions
 ├── storage/                            # Candidate error records & digests
 ├── launch.py                           # Single-command launcher
