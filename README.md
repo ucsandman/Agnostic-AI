@@ -25,7 +25,7 @@
 
 Agnostic AI is a two-in-one system designed for developers who want complete autonomy and zero vendor lock-in:
 
-1. **The Native Autonomous Coding Agent (`agnostic` CLI)**: An open-source, terminal coding agent that brings **Claude Code** capabilities (parallel subagents, AST symbol slicing, autonomous test-and-fix loops, `/swarm`, `/diagram`, visual diffs, session snapshots, and live context meters) to open-weight models (Qwen 2.5/3.8 Coder, DeepSeek, Llama 3) via LM Studio, Ollama, or OpenAI APIs.
+1. **The Native Autonomous Coding Agent (`agnostic` CLI)**: An open-source, terminal coding agent that brings frontier capabilities (parallel subagents, AST symbol slicing, autonomous test-and-fix loops, `/swarm`, `/diagram`, visual diffs, atomic checkpoints, and live context meters) to any endpoint — whether running frontier flagships (**Google Antigravity Gemini 3.7**, **Claude 5**, **OpenAI GPT-5.6 Sol**, **DeepSeek V4-Pro**) or open-weight models (Qwen 3.8/2.5 Coder, DeepSeek V4, Llama 3) via LM Studio and Ollama.
 2. **The 18-Target Universal SSOT Harness**: A single source of truth that keeps your rules, custom skills, safety guards, and learned lessons synchronized across Claude Code, Cursor, Codex, Windsurf, Copilot, Cline, and 12 other AI tools.
 
 ---
@@ -37,6 +37,9 @@ Run the autonomous coding agent in any directory or project:
 ```bash
 # Global interactive coding agent
 agnostic
+
+# Switch to frontier models with interactive arrow-key picker
+agnostic > /model
 
 # Direct prompt execution with fuzzy @file or #symbol reference
 agnostic -p "refactor #CodebaseIndexer in @agent/tools/indexer.py"
@@ -52,7 +55,7 @@ agnostic > /fix
 | Command / Trigger | Capability | What It Does |
 |---|---|---|
 | `@<filename>` / `#<symbol>` | **AST Context Injection** | Dynamic fuzzy auto-completion in terminal; injects exact file content or AST class/function slice directly into prompt. |
-| `/model` | **Interactive Model & Effort Picker** | Arrow-key navigation to choose provider (Google Antigravity, Claude Code, OpenAI Codex, DeepSeek, Local) and reasoning effort (`low`, `medium`, `high`). |
+| `/model` | **Interactive Model & Effort Picker** | Arrow-key navigation across **Google Antigravity** (Gemini 3.7), **Claude Code** (Claude 5), **OpenAI Codex** (GPT-5.6 Sol, o3-pro), **DeepSeek** (V4-Pro), and **Local** with reasoning effort control (`low`, `medium`, `high`). |
 | `/fix [cmd]` | **One-Click Quick Fix** | Runs tests or inspects stack traces, diagnoses root cause, and executes a surgical fix in a single turn. |
 | `/compact` | **Smart Context Compaction** | Manually condenses older turns into structured distillation preserving touched files, test results, and symbol anchors. |
 | `/checkpoint save\|restore\|list` | **Atomic Multi-File Checkpoints** | Creates named checkpoints to atomically roll back multi-file transactions across refactors. |
