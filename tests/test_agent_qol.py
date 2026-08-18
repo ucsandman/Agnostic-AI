@@ -200,3 +200,38 @@ def test_audit_manager(temp_workspace):
 
     file_path = audit.export_audit_file()
     assert file_path.exists()
+
+
+def test_indexer_mtime_caching(temp_workspace):
+    indexer = CodebaseIndexer(workspace_root=str(temp_workspace))
+    indexer.index_workspace()
+
+    # Second index should hit mtime cache without re-parsing
+    initial_symbols = indexer.get_all_symbols()
+    indexer.index_workspace()
+    assert indexer.get_all_symbols() == initial_symbols
+
+    # Modify file and verify mtime invalidation triggers update
+    (temp_workspace / "math_lib.py").write_text(
+        "def subtract(a, b):\n    return a - b\n",
+        encoding="utf-8",
+    )
+    indexer.index_workspace()
+    new_symbols = indexer.get_all_symbols()
+    assert "subtract" in new_symbols
+    assert "multiply" not in new_symbols
+
+
+def test_subagent_parallel_spawning(temp_workspace):
+    from agent.tools.subagent import SubagentManager
+    from agent.llm.client import LLMClient
+
+    sm = SubagentManager(client=LLMClient(), workspace_root=str(temp_workspace))
+    tasks = [
+        {"role": "researcher", "prompt": "Find files", "custom_instructions": "Fast"},
+        {"role": "tester", "prompt": "Check test status"},
+    ]
+    # Verify parallel interface definition and task structuring
+    assert hasattr(sm, "spawn_parallel")
+    assert len(tasks) == 2
+

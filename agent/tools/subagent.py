@@ -133,3 +133,19 @@ class SubagentManager:
 
         # Distill response header
         return f"### [Subagent Report: {role.upper()}]\n{result}\n"
+
+    def spawn_parallel(self, tasks: list[dict[str, str]]) -> list[str]:
+        """Spawn multiple subagents in parallel using concurrent worker threads."""
+        import concurrent.futures
+
+        def _run_single(task_def: dict[str, str]) -> str:
+            return self.spawn(
+                role=task_def.get("role", "researcher"),
+                prompt=task_def["prompt"],
+                custom_instructions=task_def.get("custom_instructions"),
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(6, len(tasks))
+        ) as executor:
+            return list(executor.map(_run_single, tasks))

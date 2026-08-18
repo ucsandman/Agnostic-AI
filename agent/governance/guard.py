@@ -21,6 +21,8 @@ BLOCKED_PATTERNS = [
     r"\.dashclaw-local[\\/]secrets",
 ]
 
+COMPILED_BLOCKED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in BLOCKED_PATTERNS]
+
 # Actions requiring human confirmation (hard stops)
 HARD_STOP_PATTERNS = [
     (r"\bgit\s+push\b", "Git push / publishing remote changes"),
@@ -35,6 +37,21 @@ HARD_STOP_PATTERNS = [
     ),
     (r"\bnpm\s+audit\s+fix\s+--force\b", "Forced dependency upgrade"),
     (r"\bdeploy\b|\bvercel\s+--prod\b|\brailway\s+up\b", "Production deployment"),
+]
+
+COMPILED_HARD_STOP_PATTERNS = [
+    (re.compile(p, re.IGNORECASE), desc) for p, desc in HARD_STOP_PATTERNS
+]
+
+COMPILED_SECRET_COMMAND_PATTERNS = [
+    (
+        re.compile(
+            r"(type|cat|Get-Content|grep|findstr|head|tail|more|less)\s+.*" + p,
+            re.IGNORECASE,
+        ),
+        p,
+    )
+    for p in BLOCKED_PATTERNS
 ]
 
 
@@ -66,11 +83,11 @@ class SafetyGuard:
         norm_path = os.path.normpath(file_path)
 
         # Check against blocked sensitive file patterns
-        for pattern in BLOCKED_PATTERNS:
-            if re.search(pattern, norm_path, re.IGNORECASE):
+        for pattern in COMPILED_BLOCKED_PATTERNS:
+            if pattern.search(norm_path):
                 return (
                     False,
-                    f"Access blocked by Non-Negotiable Safety Rule: '{file_path}' matches protected secret pattern '{pattern}'.",
+                    f"Access blocked by Non-Negotiable Safety Rule: '{file_path}' matches protected secret pattern '{pattern.pattern}'.",
                 )
 
         return True, "Allowed"
@@ -81,22 +98,17 @@ class SafetyGuard:
         Returns: (is_blocked, requires_approval, reason)
         """
         # 1. Check if command attempts to cat/grep secrets (NEVER allowed)
-        for pattern in BLOCKED_PATTERNS:
-            if re.search(
-                r"(type|cat|Get-Content|grep|findstr|head|tail|more|less)\s+.*"
-                + pattern,
-                command,
-                re.IGNORECASE,
-            ):
+        for pattern, raw_pat in COMPILED_SECRET_COMMAND_PATTERNS:
+            if pattern.search(command):
                 return (
                     True,
                     False,
-                    f"Command attempts to inspect secret files matching '{pattern}'.",
+                    f"Command attempts to inspect secret files matching '{raw_pat}'.",
                 )
 
         # 2. Check for hard stops
-        for pattern, desc in HARD_STOP_PATTERNS:
-            if re.search(pattern, command, re.IGNORECASE):
+        for pattern, desc in COMPILED_HARD_STOP_PATTERNS:
+            if pattern.search(command):
                 # Hard stops always require explicit confirmation unless trust-all is active
                 if self.trust_tier != "trust-all":
                     return False, True, f"Hard Stop: {desc}"

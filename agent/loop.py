@@ -189,39 +189,91 @@ class AgentLoop:
                 if msg.content:
                     self.output_callback("assistant", msg.content)
 
-                # Process all tool calls
-                for tc in msg.tool_calls:
-                    fn_name = tc.function.name
-                    raw_args = tc.function.arguments
-                    try:
-                        args = (
-                            json.loads(raw_args)
-                            if isinstance(raw_args, str)
-                            else raw_args
+                # Process tool calls (parallel for read-only tools, sequential for mutating tools)
+                import concurrent.futures
+
+                read_only_tools = {
+                    "read_file",
+                    "grep_search",
+                    "find_files",
+                    "mcp_list_tools",
+                }
+                all_read_only = len(msg.tool_calls) > 1 and all(
+                    tc.function.name in read_only_tools for tc in msg.tool_calls
+                )
+
+                if all_read_only:
+                    # Execute concurrently using ThreadPoolExecutor
+                    def _exec_single(tc):
+                        fn_name = tc.function.name
+                        raw_args = tc.function.arguments
+                        try:
+                            args = (
+                                json.loads(raw_args)
+                                if isinstance(raw_args, str)
+                                else raw_args
+                            )
+                        except Exception:
+                            args = {}
+                        self.output_callback(
+                            "tool_start",
+                            f"⚡ [Parallel] {fn_name}({json.dumps(args, ensure_ascii=False)[:120]})",
                         )
-                    except Exception:
-                        args = {}
+                        res = self.registry.execute(
+                            fn_name,
+                            args,
+                            confirm_callback=self.confirm_callback,
+                        )
+                        return tc, res
 
-                    self.output_callback(
-                        "tool_start",
-                        f"{fn_name}({json.dumps(args, ensure_ascii=False)[:120]})",
-                    )
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=min(8, len(msg.tool_calls))
+                    ) as executor:
+                        results = list(executor.map(_exec_single, msg.tool_calls))
 
-                    res = self.registry.execute(
-                        fn_name,
-                        args,
-                        confirm_callback=self.confirm_callback,
-                    )
+                    for tc, res in results:
+                        self.output_callback("tool_end", res.output)
+                        self.history.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": res.output,
+                            }
+                        )
+                else:
+                    # Execute sequentially
+                    for tc in msg.tool_calls:
+                        fn_name = tc.function.name
+                        raw_args = tc.function.arguments
+                        try:
+                            args = (
+                                json.loads(raw_args)
+                                if isinstance(raw_args, str)
+                                else raw_args
+                            )
+                        except Exception:
+                            args = {}
 
-                    self.output_callback("tool_end", res.output)
+                        self.output_callback(
+                            "tool_start",
+                            f"{fn_name}({json.dumps(args, ensure_ascii=False)[:120]})",
+                        )
 
-                    self.history.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": res.output,
-                        }
-                    )
+                        res = self.registry.execute(
+                            fn_name,
+                            args,
+                            confirm_callback=self.confirm_callback,
+                        )
+
+                        self.output_callback("tool_end", res.output)
+
+                        self.history.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": res.output,
+                            }
+                        )
 
             except Exception as e:
                 err_msg = f"Turn execution error: {str(e)}"

@@ -116,7 +116,14 @@ A daily distillation pass analyzes errors, deviations, and human corrections acr
 - **Tier 2 · Universal Rule:** Sighted on 3+ distinct days; promoted to the universal rule set.
 - **Tier 3 · Core Trait:** Foundational agent disposition guiding decisions under ambiguity.
 
-### 5. 🛡️ Optional Governed Autonomy & 100% Local Fallback
+### 5. ⚡ High-Performance Execution & Zero-Latency Engine
+- **Parallel Multi-Tool Calling:** Read-only inspection tools (`read_file`, `grep_search`, `find_files`) run concurrently across background threads to minimize LLM tool turnaround latency.
+- **mtime AST Symbol & Codebase Caching:** Tracks filesystem timestamps so incremental codebase indexing and symbol lookups (@file, #symbol) are instantaneous without re-parsing unchanged files.
+- **Smart Token-Aware Output Truncation:** Large command output streams and test results (>120 lines) are automatically condensed, preserving context window tokens and head/tail exit diagnostics.
+- **Zero-Latency Pre-Compiled Security Guardrails:** Safety patterns and secret boundary regexes are pre-compiled in memory for real-time validation with zero runtime overhead.
+- **Concurrent Subagent Swarm Worker Dispatch:** Multi-task subagent routines execute asynchronously via threaded workers.
+
+### 6. 🛡️ Optional Governed Autonomy & 100% Local Fallback
 Optional integration with DashClaw for remote approval of high-risk actions (force pushes, DB migrations, secret access). **Never forced:** users can opt out with a single click in the dashboard or CLI for pure local execution.
 
 ---

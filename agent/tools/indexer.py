@@ -83,6 +83,7 @@ class CodebaseIndexer:
         self.workspace_root = Path(workspace_root or ".").resolve()
         self.symbols: Dict[str, List[SymbolInfo]] = {}
         self.indexed_files: List[str] = []
+        self._file_mtimes: Dict[str, float] = {}
         self._ignore_patterns: Set[str] = set()
         self._load_agentignore()
 
@@ -101,7 +102,10 @@ class CodebaseIndexer:
 
     def is_ignored(self, path: Path) -> bool:
         """Determines if a path should be ignored by default or .agentignore rules."""
-        rel_str = str(path.relative_to(self.workspace_root)).replace("\\", "/")
+        try:
+            rel_str = str(path.relative_to(self.workspace_root)).replace("\\", "/")
+        except ValueError:
+            rel_str = str(path).replace("\\", "/")
 
         # Check parent folder names
         for part in path.parts:
@@ -120,11 +124,12 @@ class CodebaseIndexer:
 
         return False
 
-    def index_workspace(self):
-        """Scan workspace and index Python and JavaScript/TypeScript symbols."""
-        self.symbols.clear()
-        self.indexed_files.clear()
+    def index_workspace(self, force: bool = False):
+        """Scan workspace and index Python and JavaScript/TypeScript symbols with mtime caching."""
         self._load_agentignore()
+        current_files: List[str] = []
+
+        found_files_set = set()
 
         for root, dirs, files in os.walk(self.workspace_root):
             # Prune ignored directories in-place
@@ -144,16 +149,42 @@ class CodebaseIndexer:
                     rel_path = str(p.relative_to(self.workspace_root)).replace(
                         "\\", "/"
                     )
-                    self.indexed_files.append(rel_path)
+                    current_files.append(rel_path)
+                    found_files_set.add(rel_path)
                 except ValueError:
-                    pass
+                    continue
 
-                if f.endswith(".py"):
-                    self._index_python_file(p)
-                elif f.endswith((".js", ".ts", ".jsx", ".tsx")):
-                    self._index_js_file(p)
+                try:
+                    mtime = p.stat().st_mtime
+                except Exception:
+                    mtime = 0.0
 
-        self.indexed_files.sort()
+                if force or self._file_mtimes.get(rel_path) != mtime:
+                    self._file_mtimes[rel_path] = mtime
+                    # Remove previous symbols for this file
+                    self._remove_symbols_for_file(p)
+
+                    if f.endswith(".py"):
+                        self._index_python_file(p)
+                    elif f.endswith((".js", ".ts", ".jsx", ".tsx")):
+                        self._index_js_file(p)
+
+        # Clean up deleted files
+        deleted_files = set(self._file_mtimes.keys()) - found_files_set
+        for del_f in deleted_files:
+            del self._file_mtimes[del_f]
+            self._remove_symbols_for_file(self.workspace_root / del_f)
+
+        current_files.sort()
+        self.indexed_files = current_files
+
+    def _remove_symbols_for_file(self, file_path: Path):
+        for name in list(self.symbols.keys()):
+            self.symbols[name] = [
+                sym for sym in self.symbols[name] if sym.file_path != file_path
+            ]
+            if not self.symbols[name]:
+                del self.symbols[name]
 
     def _index_python_file(self, file_path: Path):
         try:

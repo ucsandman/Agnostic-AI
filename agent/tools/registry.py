@@ -262,6 +262,17 @@ class ToolRegistry:
             output = (res.stdout or "") + (res.stderr or "")
             if not output.strip():
                 output = f"[Command completed with exit code {res.returncode}]"
+
+            # Smart output truncation to avoid context blowout while preserving crucial headers and errors
+            lines = output.splitlines()
+            if len(lines) > 120:
+                truncated_output = (
+                    "\n".join(lines[:40])
+                    + f"\n\n... [Truncated {len(lines) - 80} lines to preserve context] ...\n\n"
+                    + "\n".join(lines[-40:])
+                )
+                output = truncated_output
+
             return ToolResult(output, is_error=(res.returncode != 0))
         except subprocess.TimeoutExpired:
             return ToolResult(
