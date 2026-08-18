@@ -18,7 +18,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/adversarial-review",
-    "enabled": true
+    "enabled": false
   },
   "agent-browser": {
     "id": "agent-browser",
@@ -39,7 +39,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/agent-browser",
-    "enabled": true
+    "enabled": false
   },
   "audio-track": {
     "id": "audio-track",
@@ -60,7 +60,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/audio-track",
-    "enabled": true
+    "enabled": false
   },
   "blindspot": {
     "id": "blindspot",
@@ -116,7 +116,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/de-vibe",
-    "enabled": true
+    "enabled": false
   },
   "de-vibe-workspace": {
     "id": "de-vibe-workspace",
@@ -133,7 +133,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/de-vibe-workspace",
-    "enabled": true
+    "enabled": false
   },
   "deskclaw": {
     "id": "deskclaw",
@@ -154,7 +154,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/deskclaw",
-    "enabled": true
+    "enabled": false
   },
   "dispatch-blocks": {
     "id": "dispatch-blocks",
@@ -175,7 +175,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/dispatch-blocks",
-    "enabled": true
+    "enabled": false
   },
   "fable-gpt": {
     "id": "fable-gpt",
@@ -196,7 +196,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/fable-gpt",
-    "enabled": true
+    "enabled": false
   },
   "frontend-verify": {
     "id": "frontend-verify",
@@ -210,7 +210,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/frontend-verify",
-    "enabled": true
+    "enabled": false
   },
   "harness-health": {
     "id": "harness-health",
@@ -231,7 +231,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/harness-health",
-    "enabled": true
+    "enabled": false
   },
   "interview": {
     "id": "interview",
@@ -252,7 +252,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/interview",
-    "enabled": true
+    "enabled": false
   },
   "launch": {
     "id": "launch",
@@ -273,7 +273,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/launch",
-    "enabled": true
+    "enabled": false
   },
   "launch-video": {
     "id": "launch-video",
@@ -294,7 +294,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/launch-video",
-    "enabled": true
+    "enabled": false
   },
   "launch-workspace": {
     "id": "launch-workspace",
@@ -311,7 +311,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/launch-workspace",
-    "enabled": true
+    "enabled": false
   },
   "logo-reveal": {
     "id": "logo-reveal",
@@ -332,7 +332,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/logo-reveal",
-    "enabled": true
+    "enabled": false
   },
   "marketing": {
     "id": "marketing",
@@ -353,7 +353,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/marketing",
-    "enabled": true
+    "enabled": false
   },
   "marketing-studio": {
     "id": "marketing-studio",
@@ -374,7 +374,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/marketing-studio",
-    "enabled": true
+    "enabled": false
   },
   "meditate": {
     "id": "meditate",
@@ -395,7 +395,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/meditate",
-    "enabled": true
+    "enabled": false
   },
   "og-assets": {
     "id": "og-assets",
@@ -416,7 +416,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/og-assets",
-    "enabled": true
+    "enabled": false
   },
   "phone": {
     "id": "phone",
@@ -437,7 +437,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/phone",
-    "enabled": true
+    "enabled": false
   },
   "phone-gotchas": {
     "id": "phone-gotchas",
@@ -458,7 +458,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/phone-gotchas",
-    "enabled": true
+    "enabled": false
   },
   "preflight": {
     "id": "preflight",
@@ -500,7 +500,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/product-demo",
-    "enabled": true
+    "enabled": false
   },
   "secrets": {
     "id": "secrets",
@@ -542,7 +542,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/ship",
-    "enabled": true
+    "enabled": false
   },
   "ship-it": {
     "id": "ship-it",
@@ -563,7 +563,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/ship-it",
-    "enabled": true
+    "enabled": false
   },
   "skillfind": {
     "id": "skillfind",
@@ -584,7 +584,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/skillfind",
-    "enabled": true
+    "enabled": false
   },
   "social-clip": {
     "id": "social-clip",
@@ -605,7 +605,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/social-clip",
-    "enabled": true
+    "enabled": false
   },
   "team": {
     "id": "team",
@@ -626,7 +626,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/team",
-    "enabled": true
+    "enabled": false
   },
   "threejs-3d-generator": {
     "id": "threejs-3d-generator",
@@ -647,7 +647,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-3d-generator",
-    "enabled": true
+    "enabled": false
   },
   "threejs-aaa-graphics-builder": {
     "id": "threejs-aaa-graphics-builder",
@@ -668,7 +668,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-aaa-graphics-builder",
-    "enabled": true
+    "enabled": false
   },
   "threejs-audio-generator": {
     "id": "threejs-audio-generator",
@@ -689,7 +689,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-audio-generator",
-    "enabled": true
+    "enabled": false
   },
   "threejs-debug-profiler": {
     "id": "threejs-debug-profiler",
@@ -710,7 +710,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-debug-profiler",
-    "enabled": true
+    "enabled": false
   },
   "threejs-game-director": {
     "id": "threejs-game-director",
@@ -731,7 +731,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-game-director",
-    "enabled": true
+    "enabled": false
   },
   "threejs-game-ui-designer": {
     "id": "threejs-game-ui-designer",
@@ -752,7 +752,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-game-ui-designer",
-    "enabled": true
+    "enabled": false
   },
   "threejs-gameplay-systems": {
     "id": "threejs-gameplay-systems",
@@ -773,7 +773,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-gameplay-systems",
-    "enabled": true
+    "enabled": false
   },
   "threejs-image-generator": {
     "id": "threejs-image-generator",
@@ -794,7 +794,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-image-generator",
-    "enabled": true
+    "enabled": false
   },
   "threejs-qa-release": {
     "id": "threejs-qa-release",
@@ -815,7 +815,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/threejs-qa-release",
-    "enabled": true
+    "enabled": false
   },
   "top-one-percent": {
     "id": "top-one-percent",
@@ -837,7 +837,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/top-one-percent",
-    "enabled": true
+    "enabled": false
   },
   "wes-voice": {
     "id": "wes-voice",
@@ -879,7 +879,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/wrap",
-    "enabled": true
+    "enabled": false
   },
   "create-plan": {
     "id": "create-plan",
@@ -900,7 +900,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/create-plan",
-    "enabled": true
+    "enabled": false
   },
   "dashclaw-platform-intelligence": {
     "id": "dashclaw-platform-intelligence",
@@ -937,7 +937,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/emotional-design-engine",
-    "enabled": true
+    "enabled": false
   },
   "frontend-design": {
     "id": "frontend-design",
@@ -959,7 +959,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/frontend-design",
-    "enabled": true
+    "enabled": false
   },
   "linear": {
     "id": "linear",
@@ -980,7 +980,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/linear",
-    "enabled": true
+    "enabled": false
   },
   "react-best-practices": {
     "id": "react-best-practices",
@@ -1001,7 +1001,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/react-best-practices",
-    "enabled": true
+    "enabled": false
   },
   "senior-frontend": {
     "id": "senior-frontend",
@@ -1022,7 +1022,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/senior-frontend",
-    "enabled": true
+    "enabled": false
   },
   "senior-fullstack": {
     "id": "senior-fullstack",
@@ -1043,7 +1043,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/senior-fullstack",
-    "enabled": true
+    "enabled": false
   },
   "supergoal": {
     "id": "supergoal",
@@ -1064,7 +1064,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/supergoal",
-    "enabled": true
+    "enabled": false
   },
   "tailwind-patterns": {
     "id": "tailwind-patterns",
@@ -1078,7 +1078,7 @@
       "codex"
     ],
     "installedPath": "skills/definitions/tailwind-patterns",
-    "enabled": true
+    "enabled": false
   },
   "web-design-guidelines": {
     "id": "web-design-guidelines",
@@ -1100,7 +1100,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/web-design-guidelines",
-    "enabled": true
+    "enabled": false
   },
   "agy-customizations": {
     "id": "agy-customizations",
@@ -1114,7 +1114,7 @@
       "antigravity-builtin"
     ],
     "installedPath": "skills/definitions/agy-customizations",
-    "enabled": true
+    "enabled": false
   },
   "antigravity_guide": {
     "id": "antigravity_guide",
@@ -1135,7 +1135,7 @@
       "antigravity-builtin"
     ],
     "installedPath": "skills/definitions/antigravity_guide",
-    "enabled": true
+    "enabled": false
   },
   "permissioned-github": {
     "id": "permissioned-github",
@@ -1156,7 +1156,7 @@
       "antigravity-builtin"
     ],
     "installedPath": "skills/definitions/permissioned-github",
-    "enabled": true
+    "enabled": false
   },
   "adapt": {
     "id": "adapt",
@@ -1177,7 +1177,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/adapt",
-    "enabled": true
+    "enabled": false
   },
   "agentcash": {
     "id": "agentcash",
@@ -1191,7 +1191,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/agentcash",
-    "enabled": true
+    "enabled": false
   },
   "animate": {
     "id": "animate",
@@ -1212,7 +1212,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/animate",
-    "enabled": true
+    "enabled": false
   },
   "arrange": {
     "id": "arrange",
@@ -1233,7 +1233,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/arrange",
-    "enabled": true
+    "enabled": false
   },
   "audit": {
     "id": "audit",
@@ -1254,7 +1254,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/audit",
-    "enabled": true
+    "enabled": false
   },
   "bolder": {
     "id": "bolder",
@@ -1275,7 +1275,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/bolder",
-    "enabled": true
+    "enabled": false
   },
   "clarify": {
     "id": "clarify",
@@ -1296,7 +1296,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/clarify",
-    "enabled": true
+    "enabled": false
   },
   "claude-api": {
     "id": "claude-api",
@@ -1317,7 +1317,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/claude-api",
-    "enabled": true
+    "enabled": false
   },
   "colorize": {
     "id": "colorize",
@@ -1338,7 +1338,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/colorize",
-    "enabled": true
+    "enabled": false
   },
   "critique": {
     "id": "critique",
@@ -1359,7 +1359,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/critique",
-    "enabled": true
+    "enabled": false
   },
   "delight": {
     "id": "delight",
@@ -1380,7 +1380,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/delight",
-    "enabled": true
+    "enabled": false
   },
   "distill": {
     "id": "distill",
@@ -1401,7 +1401,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/distill",
-    "enabled": true
+    "enabled": false
   },
   "extract": {
     "id": "extract",
@@ -1422,7 +1422,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/extract",
-    "enabled": true
+    "enabled": false
   },
   "find-skills": {
     "id": "find-skills",
@@ -1443,7 +1443,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/find-skills",
-    "enabled": true
+    "enabled": false
   },
   "frontend-design-review": {
     "id": "frontend-design-review",
@@ -1457,7 +1457,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/frontend-design-review",
-    "enabled": true
+    "enabled": false
   },
   "frontend-ui-dark-ts": {
     "id": "frontend-ui-dark-ts",
@@ -1478,7 +1478,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/frontend-ui-dark-ts",
-    "enabled": true
+    "enabled": false
   },
   "harden": {
     "id": "harden",
@@ -1520,7 +1520,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/impeccable",
-    "enabled": true
+    "enabled": false
   },
   "improve": {
     "id": "improve",
@@ -1541,7 +1541,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/improve",
-    "enabled": true
+    "enabled": false
   },
   "improve-threejs": {
     "id": "improve-threejs",
@@ -1562,7 +1562,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/improve-threejs",
-    "enabled": true
+    "enabled": false
   },
   "install-anti-slop": {
     "id": "install-anti-slop",
@@ -1604,7 +1604,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/inversion",
-    "enabled": true
+    "enabled": false
   },
   "lateral": {
     "id": "lateral",
@@ -1625,7 +1625,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/lateral",
-    "enabled": true
+    "enabled": false
   },
   "make-interfaces-feel-better": {
     "id": "make-interfaces-feel-better",
@@ -1646,7 +1646,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/make-interfaces-feel-better",
-    "enabled": true
+    "enabled": false
   },
   "medeo-video": {
     "id": "medeo-video",
@@ -1667,7 +1667,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/medeo-video",
-    "enabled": true
+    "enabled": false
   },
   "normalize": {
     "id": "normalize",
@@ -1688,7 +1688,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/normalize",
-    "enabled": true
+    "enabled": false
   },
   "onboard": {
     "id": "onboard",
@@ -1709,7 +1709,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/onboard",
-    "enabled": true
+    "enabled": false
   },
   "optimize": {
     "id": "optimize",
@@ -1730,7 +1730,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/optimize",
-    "enabled": true
+    "enabled": false
   },
   "overdrive": {
     "id": "overdrive",
@@ -1751,7 +1751,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/overdrive",
-    "enabled": true
+    "enabled": false
   },
   "polish": {
     "id": "polish",
@@ -1772,7 +1772,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/polish",
-    "enabled": true
+    "enabled": false
   },
   "project-graveyard": {
     "id": "project-graveyard",
@@ -1786,7 +1786,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/project-graveyard",
-    "enabled": true
+    "enabled": false
   },
   "quieter": {
     "id": "quieter",
@@ -1807,7 +1807,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/quieter",
-    "enabled": true
+    "enabled": false
   },
   "react-flow-node-ts": {
     "id": "react-flow-node-ts",
@@ -1828,7 +1828,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/react-flow-node-ts",
-    "enabled": true
+    "enabled": false
   },
   "six-hats": {
     "id": "six-hats",
@@ -1849,7 +1849,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/six-hats",
-    "enabled": true
+    "enabled": false
   },
   "swap-integration": {
     "id": "swap-integration",
@@ -1870,7 +1870,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/swap-integration",
-    "enabled": true
+    "enabled": false
   },
   "tailwind-design-system": {
     "id": "tailwind-design-system",
@@ -1891,7 +1891,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/tailwind-design-system",
-    "enabled": true
+    "enabled": false
   },
   "teach-impeccable": {
     "id": "teach-impeccable",
@@ -1912,7 +1912,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/teach-impeccable",
-    "enabled": true
+    "enabled": false
   },
   "thermo-nuclear-code-quality-review": {
     "id": "thermo-nuclear-code-quality-review",
@@ -1933,7 +1933,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/thermo-nuclear-code-quality-review",
-    "enabled": true
+    "enabled": false
   },
   "typeset": {
     "id": "typeset",
@@ -1954,7 +1954,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/typeset",
-    "enabled": true
+    "enabled": false
   },
   "ui-animation": {
     "id": "ui-animation",
@@ -1975,7 +1975,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/ui-animation",
-    "enabled": true
+    "enabled": false
   },
   "web-accessibility": {
     "id": "web-accessibility",
@@ -1996,7 +1996,7 @@
       "agents"
     ],
     "installedPath": "skills/definitions/web-accessibility",
-    "enabled": true
+    "enabled": false
   },
   "zustand-store-ts": {
     "id": "zustand-store-ts",

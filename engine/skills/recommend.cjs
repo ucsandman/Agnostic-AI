@@ -62,27 +62,27 @@ function analyzeProjectTechStack(projectPath) {
 
   if (!info.exists) return info;
 
-  // Check package.json
-  const pkgPath = path.join(projectPath, 'package.json');
-  if (fs.existsSync(pkgPath)) {
+  // Helper to parse package.json files (root + subpackages/workspaces)
+  function inspectPackageJson(pkgPath) {
+    if (!fs.existsSync(pkgPath)) return;
     info.languages.add('JavaScript');
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
-      info.dependencies = allDeps;
+      const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}), ...(pkg.peerDependencies || {}) };
+      Object.assign(info.dependencies, allDeps);
 
-      if (allDeps.typescript || fs.existsSync(path.join(projectPath, 'tsconfig.json'))) {
+      if (allDeps.typescript || fs.existsSync(path.join(path.dirname(pkgPath), 'tsconfig.json'))) {
         info.languages.add('TypeScript');
       }
       if (allDeps.react || allDeps['react-dom']) info.frameworks.add('React');
       if (allDeps.next) info.frameworks.add('Next.js');
       if (allDeps.vue) info.frameworks.add('Vue');
       if (allDeps.svelte) info.frameworks.add('Svelte');
-      if (allDeps.tailwindcss || allDeps['@tailwindcss/postcss']) {
+      if (allDeps.tailwindcss || allDeps['@tailwindcss/postcss'] || allDeps['@tailwindcss/vite']) {
         info.frameworks.add('TailwindCSS');
         info.traits.add('tailwind');
       }
-      if (allDeps.three || allDeps['@react-three/fiber']) {
+      if (allDeps.three || allDeps['@types/three'] || allDeps['@react-three/fiber'] || allDeps['@react-three/drei']) {
         info.libraries.add('Three.js');
         info.traits.add('3d-graphics');
       }
@@ -106,11 +106,44 @@ function analyzeProjectTechStack(projectPath) {
         info.libraries.add('Testing Suite');
         info.traits.add('testing');
       }
-      if (allDeps.express || allDeps.fastify || allDeps.koa) {
+      if (allDeps.express || allDeps.fastify || allDeps.koa || allDeps.ws) {
         info.frameworks.add('Node Server');
         info.traits.add('backend-api');
       }
+      if (allDeps.vite) {
+        info.frameworks.add('Vite');
+      }
+
+      // Check monorepo workspace subdirectories
+      if (pkg.workspaces && Array.isArray(pkg.workspaces)) {
+        for (const wsPattern of pkg.workspaces) {
+          const wsClean = wsPattern.replace(/\/\*$/, '');
+          const wsDir = path.join(projectPath, wsClean);
+          if (fs.existsSync(wsDir)) {
+            const subPkg = path.join(wsDir, 'package.json');
+            if (fs.existsSync(subPkg) && subPkg !== pkgPath) {
+              inspectPackageJson(subPkg);
+            }
+          }
+        }
+      }
     } catch (_) {}
+  }
+
+  // Scan root package.json
+  inspectPackageJson(path.join(projectPath, 'package.json'));
+
+  // Also check common workspace subfolders if not already matched
+  for (const subDir of ['client', 'server', 'shared', 'packages', 'apps']) {
+    const subPkg = path.join(projectPath, subDir, 'package.json');
+    if (fs.existsSync(subPkg)) {
+      inspectPackageJson(subPkg);
+    }
+  }
+
+  // Check tsconfig at root
+  if (fs.existsSync(path.join(projectPath, 'tsconfig.json'))) {
+    info.languages.add('TypeScript');
   }
 
   // Check Python environment
@@ -135,9 +168,9 @@ function analyzeProjectTechStack(projectPath) {
   if (fs.existsSync(path.join(projectPath, 'Dockerfile'))) info.traits.add('docker');
 
   // Check UI presence
-  const hasAppDir = fs.existsSync(path.join(projectPath, 'app')) || fs.existsSync(path.join(projectPath, 'src', 'app')) || fs.existsSync(path.join(projectPath, 'pages'));
+  const hasAppDir = fs.existsSync(path.join(projectPath, 'app')) || fs.existsSync(path.join(projectPath, 'src', 'app')) || fs.existsSync(path.join(projectPath, 'pages')) || fs.existsSync(path.join(projectPath, 'client'));
   const hasComponents = fs.existsSync(path.join(projectPath, 'components')) || fs.existsSync(path.join(projectPath, 'src', 'components'));
-  if (hasAppDir || hasComponents || info.frameworks.has('React') || info.frameworks.has('Next.js')) {
+  if (hasAppDir || hasComponents || info.frameworks.has('React') || info.frameworks.has('Next.js') || info.libraries.has('Three.js')) {
     info.traits.add('web-ui');
   }
 
@@ -182,6 +215,14 @@ function recommendSkillsForProject(projectPath) {
       reasons.push('Essential safety, voice, and quality discipline');
     }
 
+    // 3D & Graphics Matching (Three.js language/framework stack)
+    if (tech.traits.includes('3d-graphics') || tech.libraries.includes('Three.js') || (tech.dependencies && (tech.dependencies.three || tech.dependencies['@types/three']))) {
+      if (id.includes('threejs') || id.includes('three') || id.includes('improve-threejs') || id === 'animate') {
+        score += 45;
+        reasons.push('Three.js / 3D WebGL game engine stack detected');
+      }
+    }
+
     // UI & Design Matching
     if (tech.traits.includes('web-ui') || tech.frameworks.includes('React') || tech.frameworks.includes('Next.js')) {
       if (id.includes('tailwind') && tech.traits.includes('tailwind')) {
@@ -202,10 +243,12 @@ function recommendSkillsForProject(projectPath) {
       }
     }
 
-    // 3D & Graphics Matching
-    if (tech.traits.includes('3d-graphics') && (id.includes('threejs') || id.includes('animate'))) {
-      score += 45;
-      reasons.push('Three.js / WebGL 3D canvas pipeline present');
+    // TypeScript / Language specific matches
+    if (tech.languages.includes('TypeScript') && id.includes('-ts')) {
+      if (tech.traits.includes('state-management') || tech.frameworks.includes('React')) {
+        score += 35;
+        reasons.push('TypeScript stack matching component types');
+      }
     }
 
     // Auth & Payments Matching

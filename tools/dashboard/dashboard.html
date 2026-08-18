@@ -2534,6 +2534,7 @@ dashclaw install claude --trial</code></pre>
       const container = document.getElementById('skills-grid-container');
       const search = (document.getElementById('skill-search').value || '').toLowerCase();
       const cat = document.getElementById('skill-cat-filter').value;
+      const selectedProjPath = document.getElementById('project-selector') ? document.getElementById('project-selector').value : '';
 
       const filtered = Object.values(allSkills).filter(s => {
         if (cat !== 'all' && s.category !== cat) return false;
@@ -2549,7 +2550,18 @@ dashclaw install claude --trial</code></pre>
       }
 
       container.innerHTML = filtered.map(s => {
-        const isEnabled = allSkillsConfig.globalEnabled[s.id] !== false;
+        let isEnabled = false;
+        if (selectedProjPath && currentSelectedProject && currentSelectedProject.recommendations) {
+          const recItem = currentSelectedProject.recommendations.find(r => r.skillId === s.id);
+          if (recItem) {
+            isEnabled = Boolean(recItem.activeForProject);
+          } else {
+            isEnabled = allSkillsConfig.globalEnabled[s.id] !== false;
+          }
+        } else {
+          isEnabled = allSkillsConfig.globalEnabled[s.id] !== false;
+        }
+
         return `
           <div class="skill-card">
             <div class="skill-card-top">
@@ -2557,18 +2569,28 @@ dashclaw install claude --trial</code></pre>
                 <div class="skill-name">${escapeHtml(s.name)}</div>
                 <span class="tag" style="margin-top: 4px;">${escapeHtml(s.category)}</span>
               </div>
-              <label class="switch">
-                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleSkillGlobal('${s.id}', this.checked)">
+              <label class="switch" title="${selectedProjPath ? 'Toggle for selected project workspace' : 'Toggle globally'}">
+                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleSkillCard('${s.id}', this.checked)">
                 <span class="slider"></span>
               </label>
             </div>
             <div class="skill-desc">${escapeHtml(s.description)}</div>
             <div class="skill-footer">
               <span class="tag">${(s.sources || []).join(', ') || 'harness'}</span>
+              ${selectedProjPath && isEnabled ? '<span class="tag tag-success" style="font-size: 10px;">Project Active</span>' : ''}
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    async function toggleSkillCard(skillId, enabled) {
+      const pPath = document.getElementById('project-selector') ? document.getElementById('project-selector').value : '';
+      if (pPath) {
+        await toggleSkillProject(skillId, pPath, enabled);
+      } else {
+        await toggleSkillGlobal(skillId, enabled);
+      }
     }
 
     async function toggleSkillGlobal(skillId, enabled) {
@@ -2579,6 +2601,7 @@ dashclaw install claude --trial</code></pre>
           body: JSON.stringify({ skillId, enabled })
         });
         allSkillsConfig.globalEnabled[skillId] = enabled;
+        showToast(`Updated '${skillId}' globally`, 'info');
       } catch (err) {
         console.error(err);
       }
@@ -2623,8 +2646,10 @@ dashclaw install claude --trial</code></pre>
     async function loadProjectRecommendations() {
       const pPath = document.getElementById('project-selector').value;
       if (!pPath) {
+        currentSelectedProject = null;
         document.getElementById('project-tech-box').style.display = 'none';
         document.getElementById('project-recommendations-list').innerHTML = '';
+        renderSkillsGrid();
         return;
       }
 
@@ -2652,30 +2677,40 @@ dashclaw install claude --trial</code></pre>
         }
 
         const listEl = document.getElementById('project-recommendations-list');
-        listEl.innerHTML = data.recommendations.filter(r => r.recommended).map(r => {
-          const isCurrentlyActive = Boolean(r.activeForProject);
-          const isRec = Boolean(r.recommended);
-          const stateTag = isCurrentlyActive
-            ? '<span class="state-pill active">● Active</span>'
-            : '<span class="state-pill inactive">○ Inactive (Proposed: Active)</span>';
+        // Show all skills that are either recommended OR active for this project
+        const projectSkills = data.recommendations.filter(r => r.recommended || r.activeForProject);
 
-          return `
-            <div class="rec-item">
-              <div style="flex: 1; padding-right: 12px;">
-                <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <span>${escapeHtml(r.skillName)}</span>
-                  <span class="tag tag-accent">${r.score}% Match</span>
-                  ${stateTag}
+        if (projectSkills.length === 0) {
+          listEl.innerHTML = '<div class="empty-state">No active or recommended skills for this project. Enable skills below in the inventory to add them.</div>';
+        } else {
+          listEl.innerHTML = projectSkills.map(r => {
+            const isCurrentlyActive = Boolean(r.activeForProject);
+            const stateTag = isCurrentlyActive
+              ? '<span class="state-pill active">● Active</span>'
+              : '<span class="state-pill inactive">○ Inactive (Proposed: Active)</span>';
+
+            const reasonText = (r.reasons && r.reasons.length > 0) ? r.reasons.join('; ') : 'Manually enabled for this project';
+
+            return `
+              <div class="rec-item">
+                <div style="flex: 1; padding-right: 12px;">
+                  <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span>${escapeHtml(r.skillName)}</span>
+                    <span class="tag tag-accent">${r.score}% Match</span>
+                    ${stateTag}
+                  </div>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(reasonText)}</div>
                 </div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(r.reasons.join('; '))}</div>
+                <label class="switch" title="Toggle active status for this project">
+                  <input type="checkbox" ${r.activeForProject ? 'checked' : ''} onchange="toggleSkillProject('${r.skillId}', '${pPath}', this.checked)">
+                  <span class="slider"></span>
+                </label>
               </div>
-              <label class="switch" title="Toggle active status for this project">
-                <input type="checkbox" ${r.activeForProject ? 'checked' : ''} onchange="toggleSkillProject('${r.skillId}', '${pPath}', this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
+        }
+
+        renderSkillsGrid();
       } catch (err) {
         console.error(err);
       }
@@ -2689,6 +2724,7 @@ dashclaw install claude --trial</code></pre>
           body: JSON.stringify({ skillId, projectPath, enabled })
         });
         showToast(`Updated '${skillId}' for project workspace`, 'info');
+        await loadProjectRecommendations();
       } catch (err) {
         console.error(err);
       }
