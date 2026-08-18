@@ -684,15 +684,200 @@
 
       <!-- DashClaw Sub-Navigation -->
       <div class="subnav-tabs">
-        <button class="subnav-btn active" data-subtab="settings" onclick="switchDcSubpanel('settings')">⚙️ Settings & Auth</button>
+        <button class="subnav-btn active" data-subtab="onboarding" onclick="switchDcSubpanel('onboarding')">🚀 First-Time Onboarding Ramp</button>
+        <button class="subnav-btn" data-subtab="settings" onclick="switchDcSubpanel('settings')">⚙️ Settings & Auth</button>
         <button class="subnav-btn" data-subtab="connections" onclick="switchDcSubpanel('connections')">🔌 Cloud & Connections (12)</button>
         <button class="subnav-btn" data-subtab="policies" onclick="switchDcSubpanel('policies')">📜 Policies & Safety Rules</button>
         <button class="subnav-btn" data-subtab="stream" onclick="switchDcSubpanel('stream')">🛡️ Decisions & Audit Stream</button>
         <button class="subnav-btn" data-subtab="simulator" onclick="switchDcSubpanel('simulator')">🧪 Guard Simulator</button>
       </div>
 
+      <!-- SUBPANEL 0: ONBOARDING RAMP -->
+      <div id="dc-subpanel-onboarding" class="dc-subpanel active">
+        <div class="panel-card" style="background: linear-gradient(135deg, rgba(88,166,255,0.08) 0%, rgba(22,27,34,1) 100%); border-color: rgba(88,166,255,0.3);">
+          <div class="panel-title" style="font-size: 18px; color: #58a6ff;">
+            <span>🚀 What is DashClaw & Why Do You Need It?</span>
+            <span class="tag tag-accent">Governed Autonomy</span>
+          </div>
+          <p style="font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 12px;">
+            An AI agent with credentials can deploy, delete, pay, and publish. The failure mode is not malice; it is an agent doing something expensive, irreversible, or catastrophic because nothing stood between its intent and the world. <strong>DashClaw is that runtime:</strong> it intercepts risky agent actions <em>before</em> execution, routes sensitive decisions to your phone or browser for one-click approval, and records a cryptographically signed evidence trail.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px;">
+            <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="font-weight: 600; font-size: 13px; color: #58a6ff; margin-bottom: 4px;">1. 🛡️ Guard (Policy Pre-Check)</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Evaluates tool intent against policies (risk score, regex, limits). Returns <code>allow</code>, <code>warn</code>, <code>require_approval</code>, or <code>block</code>.</div>
+            </div>
+            <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="font-weight: 600; font-size: 13px; color: #d29922; margin-bottom: 4px;">2. 📱 Remote Approvals</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Paused tool calls wait safely while you approve from Web UI, CLI, Phone PWA, Telegram, or Discord.</div>
+            </div>
+            <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="font-weight: 600; font-size: 13px; color: #3fb950; margin-bottom: 4px;">3. 📜 Cryptographic Audit</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Every action, assumption, and outcome is sealed in an immutable ledger with full decision replay.</div>
+            </div>
+            <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="font-weight: 600; font-size: 13px; color: #a371f7; margin-bottom: 4px;">4. 🔒 Fail-Closed & Standalone</div>
+              <div style="font-size: 11px; color: var(--text-muted);">If remote DashClaw is offline, local safety guards take over automatically to protect secret files & DBs.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-Door Setup Paths -->
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span>Choose Your Setup Door:</span>
+            <span class="tag tag-accent">3 Options</span>
+          </h3>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+            <!-- Door A -->
+            <div class="panel-card" style="display: flex; flex-direction: column; justify-content: space-between; border-color: rgba(63, 185, 80, 0.4);">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 700; font-size: 15px; color: var(--success);">Door A: Hosted Trial</span>
+                  <span class="tag tag-success">~3 min · Zero Install</span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                  Instantly mint a hosted trial workspace in the browser, copy your API key, and connect Claude Code or Agnostic Harness in seconds.
+                </p>
+                <ol style="font-size: 12px; margin-left: 18px; line-height: 1.7; color: var(--text);">
+                  <li>Open <a href="https://hosted.dashclaw.io/connect" target="_blank" style="color: var(--accent);">hosted.dashclaw.io/connect ↗</a></li>
+                  <li>Complete quick check & copy the generated <code>oc_live_...</code> API key</li>
+                  <li>Paste into <strong>Settings & Auth</strong> or run:</li>
+                </ol>
+                <pre style="background: #0d1117; padding: 8px; border-radius: 4px; font-size: 11px; margin-top: 8px; border: 1px solid var(--border); overflow-x: auto;"><code>npm i -g @dashclaw/cli
+dashclaw install claude --trial</code></pre>
+              </div>
+              <div style="margin-top: 14px; display: flex; gap: 8px;">
+                <a href="https://hosted.dashclaw.io/connect" target="_blank" class="btn btn-primary" style="flex: 1; text-align: center; text-decoration: none; justify-content: center;">Mint Hosted Trial ↗</a>
+                <button class="btn" onclick="applyPresetRamp('hosted')">Apply to Harness</button>
+              </div>
+            </div>
+
+            <!-- Door B -->
+            <div class="panel-card" style="display: flex; flex-direction: column; justify-content: space-between; border-color: rgba(56, 139, 253, 0.4);">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 700; font-size: 15px; color: var(--accent);">Door B: 1-Minute Local Demo</span>
+                  <span class="tag tag-accent">~1 min · Docker</span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                  Runs an isolated containerized demo. An example agent attempts a high-risk destructive action; DashClaw blocks it and opens Decision Replay.
+                </p>
+                <div style="font-size: 12px; color: var(--text); margin-bottom: 8px;">Run directly in PowerShell / Terminal:</div>
+                <pre style="background: #0d1117; padding: 10px; border-radius: 4px; font-size: 12px; border: 1px solid var(--border); overflow-x: auto; color: #79c0ff;"><code>npx dashclaw-demo</code></pre>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+                  Requires Docker Desktop. Launches local instance and opens browser directly to the real-time governance ledger.
+                </div>
+              </div>
+              <div style="margin-top: 14px;">
+                <button class="btn btn-accent" style="width: 100%; justify-content: center;" onclick="copyCommand('npx dashclaw-demo')">📋 Copy Demo Command</button>
+              </div>
+            </div>
+
+            <!-- Door C -->
+            <div class="panel-card" style="display: flex; flex-direction: column; justify-content: space-between; border-color: rgba(210, 153, 34, 0.4);">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 700; font-size: 15px; color: var(--warning);">Door C: Deploy Your Instance</span>
+                  <span class="tag tag-warning">~5-8 min · Local or Cloud</span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                  Full self-hosted control. Run locally with one command or deploy free to Vercel + Neon Postgres.
+                </p>
+                <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">C1. One-Command Local Daemon:</div>
+                <pre style="background: #0d1117; padding: 8px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); overflow-x: auto; margin-bottom: 8px;"><code>npx dashclaw up</code></pre>
+                <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">C2. Cloud Deploy (Vercel + Neon):</div>
+                <div style="font-size: 11px; color: var(--text-muted);">
+                  Deploy from GitHub repo with Neon integration and automated database schema migrations.
+                </div>
+              </div>
+              <div style="margin-top: 14px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="applyPresetRamp('local')">Set Localhost:3000</button>
+                <button class="btn btn-accent" onclick="applyPresetRamp('vercel')">Set Vercel Prod</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guided 4-Step Interactive Checklist -->
+        <div class="panel-card">
+          <div class="panel-title">
+            <span>📋 Interactive Setup Checklist & Quick Verification</span>
+            <span class="tag tag-success" id="ramp-overall-status">Ready</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Step 1 -->
+            <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                  <span class="tag tag-accent">Step 1</span>
+                  <span>Verify Endpoint & API Key Connection</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                  Current endpoint: <code id="ramp-current-url">https://my-dashclaw.vercel.app</code>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-accent" onclick="testDashClawPing()">⚡ Test Connection</button>
+                <button class="btn" onclick="switchDcSubpanel('settings')">Configure URL</button>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                  <span class="tag tag-accent">Step 2</span>
+                  <span>Register Governed PreToolUse Hooks</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                  Connects Claude Code (<code>~/.claude/settings.json</code>), Codex (<code>~/.codex/hooks.json</code>), and Antigravity (<code>~/.gemini/config/hooks.json</code>).
+                </div>
+              </div>
+              <div>
+                <button class="btn btn-primary" onclick="runRoutine('sync')">⚡ Wire & Sync Hooks</button>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                  <span class="tag tag-accent">Step 3</span>
+                  <span>Test Policy Interception in Simulator</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                  Simulate high-risk operations (e.g. <code>git push --force</code>, <code>cat .secrets.env</code>) to confirm real-time guard verdicts.
+                </div>
+              </div>
+              <div>
+                <button class="btn btn-accent" onclick="switchDcSubpanel('simulator')">🧪 Open Simulator</button>
+              </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                  <span class="tag tag-accent">Step 4</span>
+                  <span>Live Human Approvals Inbox & Telemetry Stream</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                  View live decision logs, approve held actions, and monitor multi-agent audit trails.
+                </div>
+              </div>
+              <div>
+                <button class="btn btn-primary" onclick="switchDcSubpanel('stream')">🛡️ View Decisions Ledger</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- SUBPANEL 1: SETTINGS & AUTH -->
-      <div id="dc-subpanel-settings" class="dc-subpanel active">
+      <div id="dc-subpanel-settings" class="dc-subpanel">
         <div class="panel-card">
           <div class="panel-title">
             <span>⚙️ DashClaw Endpoint & Authentication Settings</span>
@@ -1089,9 +1274,35 @@
         document.getElementById('dc-remote-link').href = decisionsUrl;
         document.getElementById('dc-header-agent').textContent = cfg.agentId || 'agnostic-harness';
         document.getElementById('dc-header-mode').textContent = (cfg.guardMode || 'enforce').toUpperCase();
+        const rampUrlEl = document.getElementById('ramp-current-url');
+        if (rampUrlEl) rampUrlEl.textContent = base;
       } catch (err) {
         console.error(err);
       }
+    }
+
+    function applyPresetRamp(type) {
+      if (type === 'hosted') {
+        document.getElementById('dc-cfg-baseurl').value = 'https://hosted.dashclaw.io';
+        switchDcSubpanel('settings');
+        alert('Preset applied! Now mint your key on hosted.dashclaw.io/connect, paste your oc_live_... API key in the API Key box, and click Save & Apply.');
+      } else if (type === 'local') {
+        document.getElementById('dc-cfg-baseurl').value = 'http://localhost:3000';
+        switchDcSubpanel('settings');
+        alert('Preset set to http://localhost:3000. Run "npx dashclaw up" in your terminal to start the local instance, then click Test Connection Ping!');
+      } else if (type === 'vercel') {
+        document.getElementById('dc-cfg-baseurl').value = 'https://my-dashclaw.vercel.app';
+        switchDcSubpanel('settings');
+        alert('Preset set to Vercel Prod. Update the URL to your deployed instance and paste your API key, then click Save & Apply.');
+      }
+    }
+
+    function copyCommand(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert(`Copied to clipboard:\n${text}`);
+      }).catch(() => {
+        prompt('Copy command:', text);
+      });
     }
 
     async function saveDashClawConfigUI() {

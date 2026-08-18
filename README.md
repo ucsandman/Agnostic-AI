@@ -130,14 +130,29 @@ npm run merge
 npm run merge:global
 ```
 
-### 4. Enable Governed Autonomy with DashClaw
-```bash
-# Start local DashClaw instance:
-npm run dashclaw:up
+### 4. DashClaw Governed Autonomy Onboarding (Choose Your Door)
+DashClaw intercepts risky actions before execution and routes them for human approval. First time using DashClaw? Choose any of the 3 doors:
 
-# Verify connection health:
-npm run dashclaw:doctor
-```
+- **Door A: Hosted Trial (~3 min, zero install)**
+  1. Open [hosted.dashclaw.io/connect](https://hosted.dashclaw.io/connect) and copy your generated `oc_live_...` API key.
+  2. Wire Claude Code / Agnostic Harness:
+     ```bash
+     npm i -g @dashclaw/cli
+     dashclaw install claude --trial
+     ```
+- **Door B: 1-Minute Local Demo (Docker)**
+  ```bash
+  npx dashclaw-demo
+  ```
+  Runs an isolated demo where an agent attempts a high-risk destructive action; DashClaw blocks it and opens Decision Replay.
+- **Door C: Deploy Your Own Instance (Local or Cloud)**
+  ```bash
+  # C1. Local one-command daemon:
+  npx dashclaw up
+
+  # C2. Verify connection health:
+  node engine/hooks/dashclaw-setup.cjs --status
+  ```
 
 ### 5. Run Self-Maintenance Distillation
 ```bash
