@@ -118,8 +118,8 @@ severity, and rationale. Also say explicitly if there are no material findings.
 Produced five clean single-pass tool builds back to back in one afternoon.
 
 ```
-This machine has a family of zero-dependency Node tools in
-C:\Users\sandm\.claude\tools\ (spend, recall, gitradar, cronwatch, envdoctor). Match
+This environment has a family of zero-dependency Node tools in
+~/.claude/tools/ (spend, recall, gitradar, cronwatch, envdoctor). Match
 their conventions exactly: single .cjs file, zero npm dependencies, generated .html
 output is gitignored, a README.md, and an --open flag that opens the rendered page.
 ```

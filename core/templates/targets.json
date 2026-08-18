@@ -10,7 +10,7 @@
       "skillsDir": "~/.claude/skills",
       "hooksConfigFile": "~/.claude/settings.json",
       "dialect": "claude",
-      "preamble": "# CLAUDE.md — Wes's Global Agreement (Claude Code)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+      "preamble": "# CLAUDE.md — Global Working Agreement (Claude Code)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
     },
     {
       "id": "codex",
@@ -20,7 +20,7 @@
       "skillsDir": "~/.codex/skills",
       "hooksConfigFile": "~/.codex/hooks.json",
       "dialect": "codex",
-      "preamble": "# AGENTS.md — Wes's Global Agreement (Codex CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+      "preamble": "# AGENTS.md — Global Working Agreement (Codex CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
     },
     {
       "id": "agy",
@@ -30,7 +30,7 @@
       "skillsDir": "~/.gemini/config/skills",
       "hooksConfigFile": "~/.gemini/config/hooks.json",
       "dialect": "agy",
-      "preamble": "# GEMINI.md — Wes's Global Agreement (Antigravity CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+      "preamble": "# GEMINI.md — Global Working Agreement (Antigravity CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
     },
     {
       "id": "cursor",

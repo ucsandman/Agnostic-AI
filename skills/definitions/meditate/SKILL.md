@@ -37,13 +37,12 @@ promoting anything.
 1. **Ground.** Read `meditations/MEDITATIONS.md`, `meditations/CANDIDATES.md`,
    the memory index at `projects/*/memory/MEMORY.md`, and
    the last 24h of activity:
-   `git -C C:/Users/sandm/.claude log --oneline --since=24.hours`, plus the same
-   for any repo under `C:\Projects\` modified in the last day (find them via
-   `ls -t C:/Projects` and check the top few).
+   `git -C ~/.claude log --oneline --since=24.hours`, plus the same
+   for any repo under your projects directory modified in the last day.
 
-   **Read the error log before reflecting: `C:/Users/sandm/.claude/error-log/claude.jsonl`**
-   (harvested at 6:22am by the `ClaudeErrorLog` task, one record per deviation I
-   wrote in a summary, plus every correction from Wes). Filter to yesterday's
+   **Read the error log before reflecting: `~/.claude/error-log/claude.jsonl`**
+   (harvested by the error log task, one record per deviation written in a summary,
+   plus user corrections). Filter to yesterday's
    `day` for the nightly pass. This is the only grounding input made of things I
    got *wrong* — commits record what I shipped, this records where I was
    mistaken, and a reflection built only on commits will always read as progress.

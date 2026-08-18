@@ -2,19 +2,20 @@
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Targets: 18 Synced](https://img.shields.io/badge/Targets-18%20AI%20Clients-success.svg)](#-supported-clients--runtimes)
-[![Local First](https://img.shields.io/badge/Architecture-Local--First-9cf.svg)](#-core-pillars)
-[![Zero Bloat](https://img.shields.io/badge/Dependencies-Zero%20Bloat-orange.svg)](#-quick-start)
-[![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg)](https://github.com/ucsandman/DashClaw)
+[![Template Repository](https://img.shields.io/badge/Template-GitHub%20Template-blueviolet.svg?style=flat-square)](#-using-this-template)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Targets: 18 Synced](https://img.shields.io/badge/Targets-18%20AI%20Clients-success.svg?style=flat-square)](#-supported-clients--runtimes)
+[![Local First](https://img.shields.io/badge/Architecture-Local--First-9cf.svg?style=flat-square)](#-core-pillars)
+[![Zero Bloat](https://img.shields.io/badge/Dependencies-Zero%20Bloat-orange.svg?style=flat-square)](#-quick-start)
+[![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg?style=flat-square)](https://github.com/ucsandman/DashClaw)
 
-**The single-source harness for developers juggling Claude Code, Cursor, Codex, Windsurf, Copilot, and CLI coding agents.**
+**The universal open-source template harness for developers juggling Claude Code, Cursor, Codex, Windsurf, Copilot, and CLI coding agents.**
 
 *Keep your rules, custom skills, safety guards, and learned lessons synchronized across every AI tool on your machine — with zero config drift and zero bloat.*
 
 ---
 
-[Features](#-key-features) • [Supported Clients](#-supported-clients--runtimes) • [Quick Start](#-quick-start) • [Command Center](#-local-command-center-port-7842) • [Governance & Opt-Out](#-optional-governed-autonomy-dashclaw)
+[Features](#-key-features) • [Using This Template](#-using-this-template) • [Supported Clients](#-supported-clients--runtimes) • [Quick Start](#-quick-start) • [Command Center](#-local-command-center-port-7842) • [Governance & Opt-Out](#-optional-governed-autonomy-dashclaw)
 
 </div>
 
@@ -102,26 +103,38 @@ Optional integration with DashClaw for remote approval of high-risk actions (for
 | **Hermes** | `~/.hermes/agent_system.md` | JSON Hook Proxy | Custom link |
 | **Generic / Local LLMs** | `storage/compiled/system_prompt.md` | HTTP / CLI wrapper | Directory export |
 
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js (v18+)
-- Python (3.10+, optional for `launch.py`)
-
-### Installation & First Run
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ucsandman/agnostic-harness.git
-cd agnostic-harness
-
-# 2. Run the interactive single-command launcher
-python launch.py
-# or directly with Node:
-npm run dashboard
-```
+## 📦 Using This Template
+ 
+ You can use this repository as a clean template to establish your own personalized cross-agent harness:
+ 
+ 1. Click **"Use this template"** on GitHub to create your personal harness repository (e.g. `yourname/agnostic-harness`).
+ 2. Clone your repo locally onto your development machine.
+ 3. Customize [`core/rules/global-rules.md`](file:///C:/Projects/agnostic-ai/core/rules/global-rules.md) with your preferred working style, rules, non-negotiables, and tool preferences.
+ 4. Run `npm run setup:default` (or `python launch.py`) to automatically consolidate existing skills, harvest local logs, and link all 18 agent target configurations.
+ 
+ ---
+ 
+ ## 🚀 Quick Start
+ 
+ ### Prerequisites
+ - Node.js (v18+)
+ - Python (3.10+, optional for `launch.py`)
+ 
+ ### Installation & First Run
+ 
+ ```bash
+ # 1. Clone your harness repository
+ git clone https://github.com/<your-username>/agnostic-harness.git
+ cd agnostic-harness
+ 
+ # 2. Copy and configure your environment (optional DashClaw / ports)
+ cp .env.example .env
+ 
+ # 3. Run the interactive single-command launcher
+ python launch.py
+ # or directly with Node:
+ npm run dashboard
+ ```
 
 ### Essential CLI Commands
 

@@ -1,8 +1,8 @@
 # 🛡️ Agnostic AI Universal Harness — ACTIVE
 
 > **Harness Status:** `[AGNOSTIC-HARNESS v1.2.0: ACTIVE & GOVERNED]`
-> **Single Source of Truth:** `C:\Projects\agnostic-ai` (18-Target Parity Engine)
-> **Governance Provider:** DashClaw Governed Autonomy (`https://my-dashclaw.vercel.app`)
+> **Single Source of Truth:** Agnostic AI Engine (18-Target Parity Engine)
+> **Governance Provider:** DashClaw Governed Autonomy / Local Fallback
 
 **Operator Visibility Requirement:**
 At the start of any new session or when first replying to the operator, prepend the session badge:
@@ -13,7 +13,7 @@ This proves that the active session is correctly initialized and bound to the Ag
 
 # Global Working Agreement (Single Source of Truth)
 
-How I want you to work across all my projects. You operate inside production codebases on **Windows 11**. Produce **clean, correct, shippable, minimal changes** that run locally and do not create cleanup work.
+How I want you to work across all projects. You operate inside production codebases. Produce **clean, correct, shippable, minimal changes** that run locally and do not create cleanup work.
 
 A project's own rules and my explicit instructions override this file. Bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -153,9 +153,9 @@ If something goes sideways mid-task, stop and re-plan instead of pushing through
 
 ## Setup and Preferences
 
-- **GitHub:** always account `ucsandman` (`git@github.com:ucsandman/<repo>.git`).
+- **GitHub:** respect the user's active GitHub user/organization context. Verify `git remote -v` before pushing.
 - **Library and API docs:** use Context7 MCP whenever you need documentation or setup steps.
-- **Browser QA:** default to scripted Playwright headless; for logged-in Brave sessions, use debug Brave over CDP (`--remote-debugging-port=9222`).
+- **Browser QA:** default to scripted Playwright headless; for logged-in browser sessions, connect via debugging port.
 - **Toolchain:** respect the repo's existing Node version, package manager, test runner, linter, formatter, and build tool.
 - **Config via `.env` files, not terminal env vars.**
 - **Mock before you wire.** For new UI features, build an interactive HTML mock first.
@@ -167,7 +167,7 @@ If something goes sideways mid-task, stop and re-plan instead of pushing through
 - Be direct. No filler phrases. Short, plain sentences.
 - **NEVER quiz me.** Answer assumption questions yourself from the code.
 - **Make pasteable output pasteable.** One contiguous block, no quote markers.
-- **Commands I hand Wes run in Windows PowerShell 5.1 and must work FIRST try.** For native exes with embedded quotes, use `--%` right after the exe name and cmd-style `\"` inner quotes.
+- **Commands handed to the operator must work FIRST try** in their native shell (PowerShell on Windows, Bash on Linux/macOS). For native exes with embedded quotes on PowerShell, use `--%` right after the exe name and cmd-style `\"` inner quotes.
 - **Outward-facing copy has zero AI slop.** No em dashes, no breathless hype.
 - After modifications, provide the standard summary block (CHANGES MADE, THINGS LEFT UNTOUCHED, DEVIATIONS, VERIFICATION, POTENTIAL CONCERNS).
 

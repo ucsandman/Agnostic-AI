@@ -253,9 +253,9 @@ function harvestMeditationCandidates() {
     const lines = block.trim().split('\n');
     const slug = lines[0].trim();
 
-    // Extract claim
-    const claimMatch = block.match(/\*\*Claim(?:\s*\([^)]*\))?:\*\*\s*(.+)/);
-    const claim = claimMatch ? claimMatch[1].trim() : slug;
+    // Extract claim (handling multi-line wrapped claims)
+    const claimMatch = block.match(/\*\*Claim(?:\s*\([^)]*\))?:\*\*\s*([\s\S]*?)(?=\n- \*\*|\n\n|$)/);
+    const claim = claimMatch ? claimMatch[1].replace(/\r?\n\s*/g, ' ').trim() : slug;
 
     // Extract tier
     const tierMatch = block.match(/\*\*Tier:\*\*\s*(\d)/);

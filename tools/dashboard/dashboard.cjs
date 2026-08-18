@@ -362,8 +362,8 @@ function getDashClawConnections() {
   }
 
   const defaultProviders = [
-    { id: 'vercel', name: 'Vercel Deployments & Serverless', category: 'Deployment', defaultResource: 'my-dashclaw', enabled: true, icon: '▲' },
-    { id: 'github', name: 'GitHub Repositories & CI/CD', category: 'Source & CI', defaultResource: 'ucsandman/agnostic-harness', enabled: true, icon: '🐙' },
+    { id: 'vercel', name: 'Vercel Deployments & Serverless', category: 'Deployment', defaultResource: 'my-app-web', enabled: true, icon: '▲' },
+    { id: 'github', name: 'GitHub Repositories & CI/CD', category: 'Source & CI', defaultResource: 'owner/repository', enabled: true, icon: '🐙' },
     { id: 'neon', name: 'Neon Serverless PostgreSQL', category: 'Database', defaultResource: 'neon-primary-db', enabled: true, icon: '🐘' },
     { id: 'render', name: 'Render Web Services', category: 'Hosting', defaultResource: 'render-api-service', enabled: true, icon: '🚀' },
     { id: 'supabase', name: 'Supabase PostgreSQL & Auth', category: 'Database', defaultResource: 'supabase-core', enabled: true, icon: '⚡' },
