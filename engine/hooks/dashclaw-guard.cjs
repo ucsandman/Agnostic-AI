@@ -52,7 +52,7 @@ function getDashClawConfig() {
 
   return {
     enabled: false,
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'https://my-dashclaw.vercel.app',
     apiKey: null,
     agentId: 'agnostic-harness',
     agentName: 'Agnostic AI Harness'

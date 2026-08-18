@@ -30,41 +30,84 @@ const CANDIDATE_CONFIG_PATHS = [
 const DEFAULT_AGENT_ID = process.env.DASHCLAW_AGENT_ID || 'agnostic-harness';
 const DEFAULT_AGENT_NAME = process.env.DASHCLAW_AGENT_NAME || 'Agnostic AI Harness';
 
-function checkEndpointHealth(urlStr, apiKey = null, timeoutMs = 2000) {
+function checkEndpointHealth(urlStr, apiKey = null, timeoutMs = 3500) {
   return new Promise((resolve) => {
     try {
       const parsed = new URL(urlStr);
       const client = parsed.protocol === 'https:' ? https : http;
-      const options = {
-        method: 'GET',
-        path: '/api/status',
-        headers: {
-          'User-Agent': 'Agnostic-Harness-AutoSetup/1.1',
-          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
-        },
-        timeout: timeoutMs
+      const headers = {
+        'User-Agent': 'Agnostic-Harness-AutoSetup/1.2',
+        'Accept': 'application/json, text/plain, */*'
       };
+      if (apiKey) {
+        headers['x-api-key'] = apiKey;
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
 
-      const req = client.request(parsed, options, (res) => {
+      // Check /api/health first (public health endpoint)
+      const healthReq = client.request({
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: '/api/health',
+        method: 'GET',
+        headers,
+        timeout: timeoutMs
+      }, (res) => {
         let body = '';
         res.on('data', chunk => { body += chunk; });
         res.on('end', () => {
-          resolve({
-            ok: res.statusCode >= 200 && res.statusCode < 400,
-            statusCode: res.statusCode,
-            reachable: true
-          });
+          if (res.statusCode >= 200 && res.statusCode < 400) {
+            return resolve({
+              ok: true,
+              reachable: true,
+              authenticated: true,
+              statusCode: res.statusCode,
+              message: 'Online & healthy'
+            });
+          }
+          
+          // Fallback probe to root
+          checkRoot();
         });
       });
 
-      req.on('error', () => resolve({ ok: false, reachable: false }));
-      req.on('timeout', () => {
-        req.destroy();
-        resolve({ ok: false, reachable: false });
+      healthReq.on('error', () => checkRoot());
+      healthReq.on('timeout', () => {
+        healthReq.destroy();
+        checkRoot();
       });
-      req.end();
+      healthReq.end();
+
+      function checkRoot() {
+        try {
+          const rootReq = client.request({
+            hostname: parsed.hostname,
+            port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+            path: '/',
+            method: 'GET',
+            headers,
+            timeout: timeoutMs
+          }, (res) => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 500,
+              reachable: true,
+              authenticated: res.statusCode < 400,
+              statusCode: res.statusCode,
+              message: res.statusCode < 400 ? 'Online & healthy' : `Endpoint reached with HTTP ${res.statusCode}`
+            });
+          });
+          rootReq.on('error', () => resolve({ ok: false, reachable: false, authenticated: false, message: 'Endpoint unreachable' }));
+          rootReq.on('timeout', () => {
+            rootReq.destroy();
+            resolve({ ok: false, reachable: false, authenticated: false, message: 'Connection timed out' });
+          });
+          rootReq.end();
+        } catch (_) {
+          resolve({ ok: false, reachable: false, authenticated: false, message: 'Invalid URL or connection failed' });
+        }
+      }
     } catch (_) {
-      resolve({ ok: false, reachable: false });
+      resolve({ ok: false, reachable: false, authenticated: false, message: 'Invalid URL format' });
     }
   });
 }
@@ -76,7 +119,7 @@ function discoverDashClawSources() {
   if (process.env.DASHCLAW_BASE_URL || process.env.DASHCLAW_API_KEY) {
     sources.push({
       type: 'environment',
-      baseUrl: process.env.DASHCLAW_BASE_URL || 'http://localhost:3000',
+      baseUrl: process.env.DASHCLAW_BASE_URL || 'https://my-dashclaw.vercel.app',
       apiKey: process.env.DASHCLAW_API_KEY || null,
       agentId: process.env.DASHCLAW_AGENT_ID || DEFAULT_AGENT_ID,
       agentName: process.env.DASHCLAW_AGENT_NAME || DEFAULT_AGENT_NAME

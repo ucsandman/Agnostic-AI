@@ -54,7 +54,7 @@
       "enabled": true,
       "autoDiscover": true,
       "defaultRiskThreshold": 50,
-      "baseUrl": "http://localhost:3000"
+      "baseUrl": "https://my-dashclaw.vercel.app"
     }
   }
 }

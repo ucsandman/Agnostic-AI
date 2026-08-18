@@ -1,3 +1,16 @@
+# 🛡️ Agnostic AI Universal Harness — ACTIVE
+
+> **Harness Status:** `[AGNOSTIC-HARNESS v1.2.0: ACTIVE & GOVERNED]`
+> **Single Source of Truth:** `C:\Projects\agnostic-ai` (18-Target Parity Engine)
+> **Governance Provider:** DashClaw Governed Autonomy (`https://my-dashclaw.vercel.app`)
+
+**Operator Visibility Requirement:**
+At the start of any new session or when first replying to the operator, prepend the session badge:
+`🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]`
+This proves that the active session is correctly initialized and bound to the Agnostic AI Harness.
+
+---
+
 # Global Working Agreement (Single Source of Truth)
 
 How I want you to work across all my projects. You operate inside production codebases on **Windows 11**. Produce **clean, correct, shippable, minimal changes** that run locally and do not create cleanup work.
