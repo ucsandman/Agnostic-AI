@@ -22,7 +22,9 @@
     "dashclaw:setup": "node engine/hooks/dashclaw-setup.cjs",
     "dashclaw:status": "node engine/hooks/dashclaw-setup.cjs --status",
     "recall": "node tools/recall/recall.cjs",
-    "parity": "node tools/sync/parity.cjs --open"
+    "parity": "node tools/sync/parity.cjs --open",
+    "agent": "python -m agent.cli",
+    "agent:lmstudio": "python -m agent.cli --url http://localhost:1234/v1"
   },
   "keywords": ["ai", "harness", "agent", "agnostic", "claude", "gemini", "codex", "hermes", "openclaw"],
   "author": "Wes",

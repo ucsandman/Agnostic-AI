@@ -1,0 +1,231 @@
+"""
+agent/loop.py — Autonomous Coding Agent Loop & Orchestrator
+Connects Harness System Prompt, LLM Tool Calling, Subagents, and Dynamic Workflows.
+"""
+
+import os
+import json
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Callable
+from agent.llm.client import LLMClient, LLMConfig
+from agent.tools.registry import ToolRegistry, ToolResult
+from agent.tools.subagent import SubagentManager
+from agent.tools.mcp_client import MCPBridge
+
+
+class AgentLoop:
+    def __init__(
+        self,
+        workspace_root: Optional[str] = None,
+        llm_config: Optional[LLMConfig] = None,
+        confirm_callback: Optional[Callable[[str], bool]] = None,
+        output_callback: Optional[Callable[[str, str], None]] = None,
+    ):
+        self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
+        self.llm_client = LLMClient(llm_config or LLMConfig())
+        self.registry = ToolRegistry(workspace_root=str(self.workspace_root))
+        self.subagents = SubagentManager(
+            client=self.llm_client, workspace_root=str(self.workspace_root)
+        )
+        self.mcp_bridge = MCPBridge(self.registry)
+
+        self.confirm_callback = confirm_callback or self._default_confirm
+        self.output_callback = output_callback or self._default_output
+        self.history: List[Dict[str, Any]] = []
+
+        self._register_subagent_tool()
+        self._load_harness_system_prompt()
+
+    def _default_confirm(self, prompt: str) -> bool:
+        print(f"\n⚠️  [CONFIRMATION REQUIRED]: {prompt}")
+        ans = input("Proceed? [y/N]: ").strip().lower()
+        return ans in ("y", "yes")
+
+    def _default_output(self, msg_type: str, content: str):
+        if msg_type == "tool_start":
+            print(f"\n⚙️  [Tool: {content}]")
+        elif msg_type == "tool_end":
+            print(
+                f"✔️  [Tool Output]:\n{content[:500]}{'...' if len(content) > 500 else ''}"
+            )
+        elif msg_type == "assistant":
+            print(f"\n🤖 [Agent]:\n{content}")
+        elif msg_type == "subagent":
+            print(f"\n🐝 {content}")
+        elif msg_type == "error":
+            print(f"\n❌ [Error]: {content}")
+
+    def _register_subagent_tool(self):
+        self.registry.register(
+            name="invoke_subagent",
+            description="Spawn an isolated worker subagent (e.g. 'researcher', 'reviewer', 'tester') with its own context window to perform deep tasks without cluttering main context.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "description": "Subagent role: 'researcher', 'reviewer', or 'tester'",
+                    },
+                    "task_prompt": {
+                        "type": "string",
+                        "description": "Specific, clear instructions for the subagent.",
+                    },
+                    "custom_instructions": {
+                        "type": "string",
+                        "description": "Optional extra system instructions.",
+                    },
+                },
+                "required": ["role", "task_prompt"],
+            },
+            func=self._tool_invoke_subagent,
+        )
+
+    def _tool_invoke_subagent(self, args: Dict[str, Any], **kwargs) -> ToolResult:
+        role = args["role"]
+        prompt = args["task_prompt"]
+        custom = args.get("custom_instructions")
+        self.output_callback("subagent", f"Spawning Subagent '{role}' for task...")
+        result = self.subagents.spawn(
+            role=role, prompt=prompt, custom_instructions=custom
+        )
+        return ToolResult(result)
+
+    def _load_harness_system_prompt(self, compact: bool = False):
+        """Loads compiled system prompt from agnostic-harness SSOT, with optional compact mode for small context local models."""
+        # Check workspace storage first, then fall back to the agnostic-ai repository root
+        prompt_candidates = [
+            self.workspace_root / "storage" / "compiled" / "system_prompt.md",
+            Path(__file__).resolve().parent.parent
+            / "storage"
+            / "compiled"
+            / "system_prompt.md",
+        ]
+
+        full_prompt = None
+        for candidate in prompt_candidates:
+            if candidate.exists():
+                try:
+                    full_prompt = candidate.read_text(encoding="utf-8")
+                    break
+                except Exception:
+                    pass
+
+        if full_prompt:
+            if compact:
+                # Include the core SSOT working agreement badge & distilled non-negotiables
+                system_prompt = (
+                    "🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]\n\n"
+                    "You are an autonomous AI coding agent bound to the Agnostic AI Harness SSOT.\n\n"
+                    "NON-NEGOTIABLES & CORE RULES:\n"
+                    "1. NEVER open or read secret env files (.env, .secrets.env). No exceptions.\n"
+                    "2. Minimal, surgical code changes. Do not overcomplicate or add unrequested abstractions.\n"
+                    "3. Think before coding: state assumptions, inspect existing repo style before modifying.\n"
+                    "4. Goal-driven execution: verify changes before claiming done. Evidence over assertions.\n"
+                    "5. Use tools (read_file, edit_file, write_file, run_command, grep_search, find_files, invoke_subagent) to execute tasks.\n"
+                )
+            else:
+                system_prompt = full_prompt
+        else:
+            system_prompt = (
+                "🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]\n"
+                "You are an elite, autonomous software engineering agent bound to the Agnostic AI Harness. "
+                "Use tools to inspect the repository, write code, run tests, and verify results."
+            )
+
+        self.history = [{"role": "system", "content": system_prompt}]
+
+    def run_turn(self, user_input: str, max_steps: int = 15) -> str:
+        """Run a single interactive turn, processing tool calls iteratively until completion."""
+        # 1. Check and trigger auto-compaction if context threshold is near
+        from agent.governance.context import context_manager
+
+        self.history, compacted, compact_msg = context_manager.auto_compact(
+            self.history
+        )
+        if compacted:
+            self.output_callback("system", compact_msg)
+
+        self.history.append({"role": "user", "content": user_input})
+
+        tools = self.registry.get_openai_tools()
+
+        for _ in range(max_steps):
+            try:
+                response = self.llm_client.chat_completion(
+                    messages=self.history,
+                    tools=tools,
+                    tool_choice="auto",
+                )
+                msg = response.choices[0].message
+
+                # Check if tool calling was triggered
+                if not msg.tool_calls:
+                    final_content = msg.content or ""
+                    self.history.append({"role": "assistant", "content": final_content})
+                    self.output_callback("assistant", final_content)
+                    return final_content
+
+                # Assistant made tool calls
+                tool_calls_data = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ]
+
+                self.history.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.content or "",
+                        "tool_calls": tool_calls_data,
+                    }
+                )
+
+                if msg.content:
+                    self.output_callback("assistant", msg.content)
+
+                # Process all tool calls
+                for tc in msg.tool_calls:
+                    fn_name = tc.function.name
+                    raw_args = tc.function.arguments
+                    try:
+                        args = (
+                            json.loads(raw_args)
+                            if isinstance(raw_args, str)
+                            else raw_args
+                        )
+                    except Exception:
+                        args = {}
+
+                    self.output_callback(
+                        "tool_start",
+                        f"{fn_name}({json.dumps(args, ensure_ascii=False)[:120]})",
+                    )
+
+                    res = self.registry.execute(
+                        fn_name,
+                        args,
+                        confirm_callback=self.confirm_callback,
+                    )
+
+                    self.output_callback("tool_end", res.output)
+
+                    self.history.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": res.output,
+                        }
+                    )
+
+            except Exception as e:
+                err_msg = f"Turn execution error: {str(e)}"
+                self.output_callback("error", err_msg)
+                return err_msg
+
+        return "[Reached maximum tool call limit for this turn]"

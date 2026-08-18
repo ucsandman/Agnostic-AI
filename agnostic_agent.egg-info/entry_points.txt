@@ -1,0 +1,3 @@
+[console_scripts]
+agnostic = agent.cli:main
+agnostic-agent = agent.cli:main

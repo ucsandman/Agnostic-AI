@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: agnostic-agent
+Version: 1.2.0
+Summary: Model-agnostic autonomous coding agent engine with Claude Code capabilities, subagents, and governance
+Requires-Python: >=3.9
+Requires-Dist: openai>=1.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: prompt_toolkit>=3.0.0
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
