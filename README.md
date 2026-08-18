@@ -59,8 +59,10 @@ If you bounce between multiple AI coding assistants, you've likely hit these fri
 ### 1. 🎯 18-Target Polyglot Parity Engine
 Edit your master working agreement and core traits once in markdown (`core/rules/global-rules.md`). The sync engine compiles and delivers them into the exact dialects, frontmatters, and locations required by 18 AI coding agents.
 
-### 2. 🧩 Cross-Agent Skill Consolidation
-Automatically scans all agent configurations on your machine (`~/.claude/skills`, `~/.cursor/skills`, `~/.gemini/skills`, etc.), deduplicates skills into a central repository, and symlinks/junctions them back so all agents share the same capabilities.
+### 2. 🧩 Cross-Agent Skill Consolidation & Project-Specific Stack Recommender
+- **Automatic Multi-Language & Monorepo Inspection:** Analyzes projects recursively (including `package.json` workspaces, Python `requirements.txt`/`pyproject.toml`, Rust `Cargo.toml`, Go `go.mod`, Three.js, React, TailwindCSS v4, Vite, and WebSocket stacks).
+- **Intelligent Tech-Stack Matching:** Automatically maps and activates specialized skills for matching languages and frameworks (e.g. 3D WebGL/Three.js suites for game projects like `husky-raid`).
+- **Interactive Project-Scoped Overrides:** Activating any skill in the Global Skills Inventory while a project is selected scopes it directly to that repository and moves it into the project's active skills matrix with instant UI reactivity.
 
 ### 3. 🔄 Multi-Source Rule & Lesson Ingestion
 Did Claude Code or Codex learn a new repo fact in a local `CLAUDE.md`? The `merge` engine sweeps project and global files, deduplicates sections, and propagates the lessons everywhere.
@@ -151,7 +153,7 @@ Launch the visual command center via `npm run dashboard`:
 
 - **Overview:** Real-time metrics on harvested candidate errors, active skills, and target client health.
 - **Rule Explorer:** Inspect the master Single Source of Truth, Tier 3 Core Traits, and safety policy JSON.
-- **Skill Matrix:** 1-click stack analyzer and skill recommendation engine for any repository on your disk.
+- **Skill Matrix & Project Workspaces:** 1-click tech-stack analyzer that matches project dependencies, recommends optimal skills with confidence scores, supports before/after diff reviews, and allows project-scoped activations directly from the global inventory.
 - **Error Explorer:** Filter and browse 800+ harvested real-world error traces to identify friction hotspots.
 - **Governance & Approvals:** Configure safety thresholds, simulate guard verdicts, or opt out completely.
 
