@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agnostic AI — Error & Distillation Explorer</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --tier0: #8b949e;
+      --tier1: #388bfd;
+      --tier2: #e3b341;
+      --tier3: #a371f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+    .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+    
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .search-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--accent); }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active { background: #21262d; border-color: var(--accent); }
+    
+    .candidate-list { display: flex; flex-direction: column; gap: 12px; }
+    .candidate-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .candidate-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .candidate-text { font-size: 15px; font-weight: 500; word-break: break-word; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .badge-tier0 { background: rgba(139, 148, 158, 0.2); color: var(--tier0); }
+    .badge-tier1 { background: rgba(56, 139, 253, 0.2); color: var(--tier1); }
+    .badge-tier2 { background: rgba(227, 179, 65, 0.2); color: var(--tier2); }
+    .badge-tier3 { background: rgba(163, 113, 247, 0.2); color: var(--tier3); }
+
+    .candidate-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .tag {
+      background: #21262d;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Agnostic AI Error & Distillation Explorer</h1>
+        <div class="subtitle">Multi-Agent Error Harvesting & 4-Tier Promotion Ladder</div>
+      </div>
+      <div id="status-tag" class="tag">Loaded</div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Candidates</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Observations (T0)</div>
+        <div class="stat-value" id="stat-t0" style="color: var(--tier0)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Repo Facts (T1)</div>
+        <div class="stat-value" id="stat-t1" style="color: var(--tier1)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Candidate Rules (T2)</div>
+        <div class="stat-value" id="stat-t2" style="color: var(--tier2)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Refusals (Gating)</div>
+        <div class="stat-value" id="stat-refused" style="color: var(--danger)">0</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="search-input" class="search-box" placeholder="Filter errors, rules, repo facts, keywords...">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="0">Tier 0 (Obs)</button>
+      <button class="filter-btn" data-filter="1">Tier 1 (Facts)</button>
+      <button class="filter-btn" data-filter="2">Tier 2 (Rules)</button>
+    </div>
+
+    <div id="candidate-list" class="candidate-list">
+      <div class="empty-state">Loading candidate records...</div>
+    </div>
+  </div>
+
+  <script>
+    let rawData = null;
+    let currentFilter = 'all';
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/data');
+        rawData = await res.json();
+        render();
+      } catch (err) {
+        document.getElementById('candidate-list').innerHTML = `
+          <div class="empty-state">Could not connect to API. Run <code>node tools/errorlog/errorlog.cjs --open</code></div>
+        `;
+      }
+    }
+
+    function render() {
+      if (!rawData) return;
+      const stats = rawData.stats || {};
+      document.getElementById('stat-total').textContent = stats.candidatesTotal || 0;
+      document.getElementById('stat-t0').textContent = stats.observationsCount || 0;
+      document.getElementById('stat-t1').textContent = stats.promotedFactsCount || 0;
+      document.getElementById('stat-t2').textContent = stats.candidateRulesCount || 0;
+      document.getElementById('stat-refused').textContent = stats.refusedCount || 0;
+
+      const candidates = rawData.allCandidates || [];
+      const query = (document.getElementById('search-input').value || '').toLowerCase();
+
+      const filtered = candidates.filter(c => {
+        if (currentFilter !== 'all' && String(c.tier) !== currentFilter) return false;
+        if (query && !c.text.toLowerCase().includes(query) && !(c.repo || '').toLowerCase().includes(query)) return false;
+        return true;
+      });
+
+      const listEl = document.getElementById('candidate-list');
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No candidates matching the selected criteria.</div>';
+        return;
+      }
+
+      const tierLabels = ['Tier 0 · Observation', 'Tier 1 · Repo Fact', 'Tier 2 · Universal Rule', 'Tier 3 · Trait'];
+      const tierClasses = ['badge-tier0', 'badge-tier1', 'badge-tier2', 'badge-tier3'];
+
+      listEl.innerHTML = filtered.map(c => {
+        const tier = c.tier || 0;
+        const sightings = (c.sightingDays || []).length;
+        return `
+          <div class="candidate-card">
+            <div class="candidate-header">
+              <div class="candidate-text">${escapeHtml(c.text)}</div>
+              <span class="badge ${tierClasses[tier]}">${tierLabels[tier]}</span>
+            </div>
+            <div class="candidate-meta">
+              <span class="tag">Sightings: ${sightings} day(s)</span>
+              ${c.repo ? `<span class="tag">Repo: ${escapeHtml(c.repo)}</span>` : ''}
+              ${c.client ? `<span class="tag">Client: ${escapeHtml(c.client)}</span>` : ''}
+              ${c.firstSeen ? `<span class="tag">First seen: ${c.firstSeen}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    document.getElementById('search-input').addEventListener('input', render);
+
+    loadData();
+  </script>
+</body>
+</html>

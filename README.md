@@ -1,0 +1,116 @@
+# Agnostic AI Harness
+
+> A model- and client-agnostic agent harness designed for continuous self-maintenance, polyglot synchronization, deterministic error harvesting, and safety guardrails across any LLM or AI agent runtime.
+
+---
+
+## Supported Clients & Runtimes
+
+| Client / Agent | Agreement Target | Hook Dialect | Skill Linking |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (camelCase) | Windows Junction (`~/.claude/skills`) |
+| **Codex CLI** | `~/.codex/AGENTS.md` | `hooks.json` (snake_case) | Windows Junction (`~/.codex/skills`) |
+| **Antigravity CLI (`agy`)** | `~/.gemini/GEMINI.md` | `config/hooks.json` (protojson) | Windows Junction (`~/.gemini/config/skills`) |
+| **OpenClaw** | `~/.openclaw/SYSTEM.md` | Generic Hook Proxy | Custom link |
+| **Hermes** | `~/.hermes/agent_system.md` | JSON Hook Proxy | Custom link |
+| **Generic / Local LLMs** | `storage/compiled/system_prompt.md` | HTTP / CLI wrapper | Directory export |
+
+---
+
+## Core Pillars
+
+### 1. Single Source of Truth (SSOT) & Polyglot Sync
+Rules and traits are maintained in canonical markdown files under `core/rules/` and `core/traits/`. Running `node engine/sync/sync.cjs` compiles these into target formats without manual duplication.
+
+### 2. Universal Hook Adapter & Security Guards
+Standardizes security hooks across disparate agent JSON formats. Intercepts file reads, token leaks, process termination, and destructive commands before execution.
+
+### 3. The 4-Tier Self-Maintenance & Distillation Ladder
+A scheduled daily distillation routine clusters mistakes, tracks recurring candidate counts, and evaluates candidates through strict graduation gates:
+- **Tier 0 · Observation**: Raw error or deviation sighting.
+- **Tier 1 · Repo Fact**: Single sighting affecting a specific repository.
+- **Tier 2 · Universal Rule**: Sighted on **3+ distinct days**; imperative constraint preventing repeat failures.
+- **Tier 3 · Trait**: Guiding philosophy when no explicit rule covers the case.
+
+**The Refusal Rule**: Measures health by the *refusal-to-promotion ratio* (max 2 rule promotions per run) to prevent context window bloat.
+
+### 4. Human-First Tooling Suite
+Includes fast interactive CLI + Web UI surfaces:
+- **ErrorLog (`tools/errorlog/`)**: Interactive error explorer and ladder candidate viewer.
+- **Parity Monitor (`tools/sync/`)**: Multi-harness sync checker with one-click re-sync.
+- **Recall (`tools/recall/`)**: Instant full-text search across memory facts, rules, and decisions.
+
+---
+
+## Directory Structure
+
+```
+agnostic-ai/
+├── core/                               # Single Source of Truth (SSOT)
+│   ├── rules/global-rules.md           # Universal working agreement & rules
+│   ├── traits/traits.md                # Tier 3 ladder traits
+│   ├── safety/guards.json              # Declarative security & process policies
+│   └── templates/targets.json          # Target client mappings & preambles
+├── engine/                             # Core execution engines
+│   ├── sync/sync.cjs                   # Polyglot rules compiler & skills linker
+│   ├── hooks/                          # Protocol translation shims & guards
+│   │   ├── universal-adapter.cjs       # Hook dialect normalizer
+│   │   ├── secret-guard.cjs            # Secret scanning & file blocker
+│   │   └── correction-tracker.cjs      # User correction harvester
+│   ├── distill/distill.cjs             # Daily self-maintenance & ladder evaluator
+│   └── tests/run-all.cjs               # Test runner
+├── tools/                              # Human-first UI and CLI tools
+│   ├── errorlog/                       # Error harvester & dashboard (errorlog.html)
+│   ├── sync/                           # Harness parity status (parity.html)
+│   └── recall/                         # Fact & rule memory search (recall.html)
+├── skills/                             # Shared agent skills
+│   └── definitions/                    # Canonical skill markdown files
+├── storage/                            # Operational persistence
+│   ├── candidates.jsonl                # Sighting counts & ladder candidate states
+│   ├── corrections.jsonl               # Real-time human interventions
+│   ├── distill-PROPOSAL.md             # Reviewable daily promotion proposal
+│   └── distill-digest.json             # Structured digest for UI dashboards
+├── jobs/                               # Headless automation scripts
+│   ├── daily-distill.ps1               # Scheduled daily maintenance runner
+│   └── sync-targets.ps1                # Re-sync helper
+├── launch.py                           # Single-command launcher
+└── package.json
+```
+
+---
+
+## Quick Start
+
+### 1. Run the Launch Entrypoint
+```bash
+python launch.py
+```
+
+### 2. Check or Apply Target Sync
+```bash
+# Check if target configs are in sync:
+node engine/sync/sync.cjs --check
+
+# Compile and update all targets:
+node engine/sync/sync.cjs
+```
+
+### 3. Run Self-Maintenance Distillation
+```bash
+node engine/distill/distill.cjs
+```
+
+### 4. Open Error & Distillation Explorer
+```bash
+node tools/errorlog/errorlog.cjs --open
+```
+
+### 5. Open Multi-Harness Parity Dashboard
+```bash
+node tools/sync/parity.cjs --open
+```
+
+### 6. Run Engine Tests
+```bash
+npm test
+```

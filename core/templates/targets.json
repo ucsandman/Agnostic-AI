@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "targets": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "rulesFile": "~/.claude/CLAUDE.md",
+      "traitsFile": "~/.claude/SOUL.md",
+      "skillsDir": "~/.claude/skills",
+      "hooksConfigFile": "~/.claude/settings.json",
+      "dialect": "claude",
+      "preamble": "# CLAUDE.md — Wes's Global Agreement (Claude Code)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "codex",
+      "name": "Codex CLI",
+      "rulesFile": "~/.codex/AGENTS.md",
+      "skillsDir": "~/.codex/skills",
+      "hooksConfigFile": "~/.codex/hooks.json",
+      "dialect": "codex",
+      "preamble": "# AGENTS.md — Wes's Global Agreement (Codex CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "agy",
+      "name": "Antigravity CLI (agy)",
+      "rulesFile": "~/.gemini/GEMINI.md",
+      "skillsDir": "~/.gemini/config/skills",
+      "hooksConfigFile": "~/.gemini/config/hooks.json",
+      "dialect": "agy",
+      "preamble": "# GEMINI.md — Wes's Global Agreement (Antigravity CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "openclaw",
+      "name": "OpenClaw",
+      "rulesFile": "~/.openclaw/SYSTEM.md",
+      "skillsDir": "~/.openclaw/skills",
+      "dialect": "openclaw",
+      "preamble": "# SYSTEM.md — OpenClaw Agent System Prompt\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes Agent",
+      "rulesFile": "~/.hermes/agent_system.md",
+      "skillsDir": "~/.hermes/skills",
+      "dialect": "hermes",
+      "preamble": "# agent_system.md — Hermes System Prompt\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "generic",
+      "name": "Generic LLM System Card",
+      "rulesFile": "storage/compiled/system_prompt.md",
+      "dialect": "generic",
+      "preamble": "# System Prompt for Autonomous LLM Agents\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    }
+  ]
+}

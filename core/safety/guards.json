@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "guards": {
+    "secretScan": {
+      "enabled": true,
+      "blockedFiles": [
+        "**/.secrets.env",
+        "**/.env.production",
+        "**/.env.local",
+        "**/id_rsa",
+        "**/id_ed25519",
+        "**/*.pem",
+        "**/*.pfx"
+      ],
+      "sensitivePatterns": [
+        "(?i)sk_live_[0-9a-zA-Z]{24,}",
+        "(?i)ghp_[0-9a-zA-Z]{36}",
+        "(?i)xox[baprs]-[0-9a-zA-Z]{10,}",
+        "(?i)AIza[0-9A-Za-z-_]{35}",
+        "(?i)bearer\\s+[a-zA-Z0-9_\\-\\.]{20,}"
+      ]
+    },
+    "processControl": {
+      "protectedProcesses": [
+        "explorer.exe",
+        "system",
+        "powershell.exe",
+        "pwsh.exe",
+        "cmd.exe",
+        "svchost.exe",
+        "claude.exe",
+        "agy.exe",
+        "node.exe"
+      ],
+      "blockedCommands": [
+        "(?i)taskkill.*\\/(im\\s+(explorer|svchost|system)|f)",
+        "(?i)rmdir.*\\/s.*\\/q.*[c-z]:\\\\(windows|users)?$",
+        "(?i)format\\s+[c-z]:"
+      ]
+    },
+    "hardStops": {
+      "requireApprovalPatterns": [
+        "(?i)git\\s+push.*(--force|-f)",
+        "(?i)git\\s+reset.*--hard",
+        "(?i)npm\\s+publish",
+        "(?i)vercel\\s+--prod",
+        "(?i)railway\\s+up",
+        "(?i)render\\s+deploy",
+        "(?i)stripe\\s+(delete|refund|payout)"
+      ]
+    }
+  }
+}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agnostic AI — Multi-Harness Parity</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 24px; font-weight: 600; }
+    .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+    .btn-sync {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-sync:hover { opacity: 0.9; }
+    .parity-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .parity-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .target-title { font-size: 16px; font-weight: 600; }
+    .target-path { font-size: 12px; font-family: monospace; color: var(--text-muted); margin-top: 4px; }
+    .status-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+    .badge-sync { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+    .badge-stale { background: rgba(248, 81, 73, 0.15); color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Multi-Harness Parity Monitor</h1>
+        <div class="subtitle">Ensuring all agents run the exact same operating rules & safety guards</div>
+      </div>
+      <button class="btn-sync" id="sync-btn" onclick="triggerSync()">Sync All Targets</button>
+    </header>
+
+    <div class="parity-grid" id="parity-list">
+      <div style="color: var(--text-muted); text-align: center; padding: 32px;">Loading targets...</div>
+    </div>
+  </div>
+
+  <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        document.getElementById('parity-list').innerHTML = '<div style="color: var(--danger)">Error loading parity status.</div>';
+      }
+    }
+
+    function render(data) {
+      const listEl = document.getElementById('parity-list');
+      listEl.innerHTML = data.targets.map(t => `
+        <div class="parity-card">
+          <div>
+            <div class="target-title">${t.name}</div>
+            <div class="target-path">${t.path}</div>
+          </div>
+          <span class="status-badge ${t.inSync ? 'badge-sync' : 'badge-stale'}">
+            ${t.inSync ? '✓ In Sync' : '✗ Stale'}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    async function triggerSync() {
+      const btn = document.getElementById('sync-btn');
+      btn.textContent = 'Syncing...';
+      btn.disabled = true;
+      try {
+        await fetch('/api/sync', { method: 'POST' });
+        await loadStatus();
+      } finally {
+        btn.textContent = 'Sync All Targets';
+        btn.disabled = false;
+      }
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>

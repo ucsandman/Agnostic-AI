@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# Storage & Runtime logs
+storage/*.log
+storage/corrections.jsonl
+storage/candidates.jsonl
+storage/distill-PROPOSAL.md
+storage/distill-digest.json
+storage/compiled/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.dashclaw-local/
+.offlocal/

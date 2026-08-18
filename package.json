@@ -1,0 +1,19 @@
+{
+  "name": "agnostic-ai",
+  "version": "1.0.0",
+  "description": "Model-agnostic AI agent harness with continuous self-maintenance, polyglot sync, and guardrails",
+  "main": "launch.py",
+  "scripts": {
+    "sync": "node engine/sync/sync.cjs",
+    "sync:check": "node engine/sync/sync.cjs --check",
+    "distill": "node engine/distill/distill.cjs",
+    "test": "node engine/tests/run-all.cjs",
+    "errorlog": "node tools/errorlog/errorlog.cjs",
+    "errorlog:ui": "node tools/errorlog/errorlog.cjs --open",
+    "recall": "node tools/recall/recall.cjs",
+    "parity": "node tools/sync/parity.cjs --open"
+  },
+  "keywords": ["ai", "harness", "agent", "agnostic", "claude", "gemini", "codex", "hermes", "openclaw"],
+  "author": "Wes",
+  "license": "MIT"
+}
