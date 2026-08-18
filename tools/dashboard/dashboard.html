@@ -885,6 +885,25 @@ dashclaw install claude --trial</code></pre>
           </div>
 
           <div class="form-grid" style="margin-bottom: 20px;">
+            <div class="form-group" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: #0d1117; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px;">
+              <div>
+                <div style="font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                  <span>DashClaw Remote Governance</span>
+                  <span id="dc-active-status-badge" class="tag tag-success">Active</span>
+                </div>
+                <div class="form-hint" style="margin-top: 4px;">
+                  Toggle OFF to completely opt out of DashClaw. When disabled, the harness runs in 100% standalone zero-friction mode using only local hard-stop guards.
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <button type="button" class="btn" id="dc-optout-btn" onclick="toggleDashClawOptOut()" style="font-size: 12px;">Opt Out</button>
+                <label class="switch">
+                  <input type="checkbox" id="dc-cfg-active" checked onchange="handleDashClawActiveToggle(this.checked)">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">DashClaw Base URL</label>
               <div style="display: flex; gap: 8px;">
@@ -1219,7 +1238,7 @@ dashclaw install claude --trial</code></pre>
         const ovStatus = document.getElementById('overview-dc-status');
         const base = (dc && dc.baseUrl) ? dc.baseUrl : 'https://my-dashclaw.vercel.app';
 
-        if (dc && dc.configured) {
+        if (dc && dc.configured && dc.active !== false) {
           dcBadge.className = 'tag tag-success';
           dcBadge.textContent = 'DashClaw Connected';
           ovStatus.className = 'tag tag-success';
@@ -1228,6 +1247,13 @@ dashclaw install claude --trial</code></pre>
           document.getElementById('overview-dc-url').textContent = base;
           const urlLink = document.getElementById('overview-dc-url-link');
           if (urlLink) urlLink.href = base;
+        } else if (dc && dc.configured && dc.active === false) {
+          dcBadge.className = 'tag tag-warning';
+          dcBadge.textContent = 'DashClaw Opted Out (Standalone)';
+          ovStatus.className = 'tag tag-warning';
+          ovStatus.textContent = 'Opted Out (Standalone)';
+          document.getElementById('overview-dc-agent').textContent = dc.agentId || 'agnostic-harness';
+          document.getElementById('overview-dc-url').textContent = 'Disabled / Local Only';
         } else {
           dcBadge.className = 'tag tag-warning';
           dcBadge.textContent = 'DashClaw Standalone (Fail-Closed)';
@@ -1246,6 +1272,11 @@ dashclaw install claude --trial</code></pre>
         const data = await res.json();
         const cfg = data.config || {};
         const base = cfg.baseUrl || 'https://my-dashclaw.vercel.app';
+        const isActive = cfg.active !== false;
+
+        const activeToggle = document.getElementById('dc-cfg-active');
+        if (activeToggle) activeToggle.checked = isActive;
+        updateDashClawActiveBadge(isActive);
 
         document.getElementById('dc-cfg-baseurl').value = base;
         document.getElementById('dc-cfg-apikey').value = cfg.apiKey || '';
@@ -1260,7 +1291,8 @@ dashclaw install claude --trial</code></pre>
         document.getElementById('dc-cfg-timeout').value = cfg.outcomeTimeoutMinutes || 15;
         document.getElementById('dc-cfg-autoscan').checked = cfg.autoScanBlock !== false;
         document.getElementById('dc-cfg-orghalt').checked = Boolean(cfg.orgHalt);
-        document.getElementById('dc-cfg-autodiscover').checked = cfg.autoDiscover !== false;
+        const autoDisc = document.getElementById('dc-cfg-autodiscover');
+        if (autoDisc) autoDisc.checked = cfg.autoDiscover !== false;
 
         document.getElementById('dc-cfg-telegram').value = cfg.alertTelegram || '';
         document.getElementById('dc-cfg-discord').value = cfg.alertDiscord || '';
@@ -1273,12 +1305,42 @@ dashclaw install claude --trial</code></pre>
         document.getElementById('dc-header-link').href = base;
         document.getElementById('dc-remote-link').href = decisionsUrl;
         document.getElementById('dc-header-agent').textContent = cfg.agentId || 'agnostic-harness';
-        document.getElementById('dc-header-mode').textContent = (cfg.guardMode || 'enforce').toUpperCase();
+        document.getElementById('dc-header-mode').textContent = isActive ? (cfg.guardMode || 'enforce').toUpperCase() : 'OPTED OUT (STANDALONE)';
+        const headerBadge = document.getElementById('dc-header-badge');
+        if (headerBadge) {
+          headerBadge.className = isActive ? 'tag tag-success' : 'tag tag-warning';
+          headerBadge.textContent = isActive ? 'Connected' : 'Opted Out';
+        }
         const rampUrlEl = document.getElementById('ramp-current-url');
         if (rampUrlEl) rampUrlEl.textContent = base;
       } catch (err) {
         console.error(err);
       }
+    }
+
+    function updateDashClawActiveBadge(active) {
+      const badge = document.getElementById('dc-active-status-badge');
+      const btn = document.getElementById('dc-optout-btn');
+      if (badge) {
+        badge.className = active ? 'tag tag-success' : 'tag tag-warning';
+        badge.textContent = active ? 'Active' : 'Opted Out (Standalone)';
+      }
+      if (btn) {
+        btn.textContent = active ? 'Opt Out of DashClaw' : 'Opt Back In';
+        btn.className = active ? 'btn' : 'btn btn-accent';
+      }
+    }
+
+    function handleDashClawActiveToggle(active) {
+      updateDashClawActiveBadge(active);
+    }
+
+    async function toggleDashClawOptOut() {
+      const activeToggle = document.getElementById('dc-cfg-active');
+      const newState = !activeToggle.checked;
+      activeToggle.checked = newState;
+      updateDashClawActiveBadge(newState);
+      await saveDashClawConfigUI();
     }
 
     function applyPresetRamp(type) {
@@ -1307,7 +1369,10 @@ dashclaw install claude --trial</code></pre>
 
     async function saveDashClawConfigUI() {
       try {
+        const activeToggle = document.getElementById('dc-cfg-active');
+        const autoDisc = document.getElementById('dc-cfg-autodiscover');
         const payload = {
+          active: activeToggle ? activeToggle.checked : true,
           baseUrl: document.getElementById('dc-cfg-baseurl').value,
           apiKey: document.getElementById('dc-cfg-apikey').value,
           agentId: document.getElementById('dc-cfg-agentid').value,
@@ -1319,7 +1384,7 @@ dashclaw install claude --trial</code></pre>
           outcomeTimeoutMinutes: parseInt(document.getElementById('dc-cfg-timeout').value, 10),
           autoScanBlock: document.getElementById('dc-cfg-autoscan').checked,
           orgHalt: document.getElementById('dc-cfg-orghalt').checked,
-          autoDiscover: document.getElementById('dc-cfg-autodiscover').checked,
+          autoDiscover: autoDisc ? autoDisc.checked : true,
           alertTelegram: document.getElementById('dc-cfg-telegram').value,
           alertDiscord: document.getElementById('dc-cfg-discord').value,
           alertSlack: document.getElementById('dc-cfg-slack').value,
@@ -1332,7 +1397,7 @@ dashclaw install claude --trial</code></pre>
           body: JSON.stringify(payload)
         });
         const out = await res.json();
-        alert('DashClaw settings successfully updated and saved!');
+        alert(payload.active ? 'DashClaw settings successfully updated and active!' : 'DashClaw successfully disabled. Operating in 100% standalone local mode!');
         loadDashClawConfig();
         loadOverview();
       } catch (err) {

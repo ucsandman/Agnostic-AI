@@ -649,4 +649,4 @@ if (require.main === module) {
   serveDashboard();
 }
 
-module.exports = { serveDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData };
+module.exports = { serveDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData, getDashClawFullConfig, saveDashClawConfig };

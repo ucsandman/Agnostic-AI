@@ -54,7 +54,10 @@
       "enabled": true,
       "autoDiscover": true,
       "defaultRiskThreshold": 50,
-      "baseUrl": "https://my-dashclaw.vercel.app"
+      "baseUrl": "https://my-dashclaw.vercel.app",
+      "predictiveRiskEnabled": true,
+      "autoScanBlock": true,
+      "orgHalt": false
     }
   }
 }

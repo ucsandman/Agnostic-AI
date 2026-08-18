@@ -1,27 +1,100 @@
-# Agnostic AI Harness
+# 🛡️ Agnostic AI Harness
 
-> A model- and client-agnostic agent harness designed for continuous self-maintenance, polyglot synchronization, deterministic error harvesting, and safety guardrails across any LLM or AI agent runtime.
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Targets: 18 Synced](https://img.shields.io/badge/Targets-18%20AI%20Clients-success.svg)](#-supported-clients--runtimes)
+[![Local First](https://img.shields.io/badge/Architecture-Local--First-9cf.svg)](#-core-pillars)
+[![Zero Bloat](https://img.shields.io/badge/Dependencies-Zero%20Bloat-orange.svg)](#-quick-start)
+[![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg)](#-optional-governed-autonomy-dashclaw)
+
+**The single-source harness for developers juggling Claude Code, Cursor, Codex, Windsurf, Copilot, and CLI coding agents.**
+
+*Keep your rules, custom skills, safety guards, and learned lessons synchronized across every AI tool on your machine — with zero config drift and zero bloat.*
 
 ---
 
-## Supported Clients & Runtimes
+[Features](#-key-features) • [Supported Clients](#-supported-clients--runtimes) • [Quick Start](#-quick-start) • [Command Center](#-local-command-center-port-7842) • [Governance & Opt-Out](#-optional-governed-autonomy-dashclaw)
 
-| Client / Agent | Agreement Target | Hook Dialect | Skill Linking |
+</div>
+
+---
+
+## ⚡ The Problem: Context & Rules Drift
+
+If you bounce between multiple AI coding assistants, you've likely hit these friction points:
+1. **Rule Drift:** You patch a critical instruction in `CLAUDE.md`, forget to update `.cursorrules` or `AGENTS.md`, and an IDE agent touches `.secrets.env` or executes an unsafe command.
+2. **Skill Fragmentation:** Custom skills and MCP tools must be manually copied, configured, and updated across 5+ tool config paths.
+3. **Forgotten Corrections:** When you correct an agent's repeated hallucination, the lesson is lost across subsequent sessions or other tools.
+
+**Agnostic AI Harness** provides a single source of truth on your machine with automated polyglot compilation, bidirectional lesson ingestion, cross-agent skill consolidation, and deterministic safety guardrails.
+
+---
+
+## 🌟 Key Features
+
+```
+                               ┌───────────────────────────┐
+                               │     Single Source of      │
+                               │   Truth (SSOT) Rules      │
+                               │  core/rules/global-rules  │
+                               └─────────────┬─────────────┘
+                                             │
+                      ┌──────────────────────┼──────────────────────┐
+                      ▼                      ▼                      ▼
+            ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐
+            │    Claude Code    │  │    Cursor IDE     │  │     Codex CLI     │
+            │  ~/.claude/CLAUDE │  │ ~/.cursor/rules   │  │ ~/.codex/AGENTS   │
+            └───────────────────┘  └───────────────────┘  └───────────────────┘
+                      │                      │                      │
+                      └──────────────────────┼──────────────────────┘
+                                             ▼
+                               ┌───────────────────────────┐
+                               │ Cross-Agent Skill & Error │
+                               │        Harvester          │
+                               │  (Daily Distill Pass)     │
+                               └───────────────────────────┘
+```
+
+### 1. 🎯 18-Target Polyglot Parity Engine
+Edit your master working agreement and core traits once in markdown (`core/rules/global-rules.md`). The sync engine compiles and delivers them into the exact dialects, frontmatters, and locations required by 18 AI coding agents.
+
+### 2. 🧩 Cross-Agent Skill Consolidation
+Automatically scans all agent configurations on your machine (`~/.claude/skills`, `~/.cursor/skills`, `~/.gemini/skills`, etc.), deduplicates skills into a central repository, and symlinks/junctions them back so all agents share the same capabilities.
+
+### 3. 🔄 Multi-Source Rule & Lesson Ingestion
+Did Claude Code or Codex learn a new repo fact in a local `CLAUDE.md`? The `merge` engine sweeps project and global files, deduplicates sections, and propagates the lessons everywhere.
+
+### 4. 🧬 4-Tier Automated Distillation Ladder
+A daily distillation pass analyzes errors, deviations, and human corrections across sessions:
+- **Tier 0 · Observation:** Raw error log or corrected deviation.
+- **Tier 1 · Repo Fact:** Persistent repo-specific fact or nuance.
+- **Tier 2 · Universal Rule:** Sighted on 3+ distinct days; promoted to the universal rule set.
+- **Tier 3 · Core Trait:** Foundational agent disposition guiding decisions under ambiguity.
+
+### 5. 🛡️ Optional Governed Autonomy & 100% Local Fallback
+Optional integration with DashClaw for remote approval of high-risk actions (force pushes, DB migrations, secret access). **Never forced:** users can opt out with a single click in the dashboard or CLI for pure local execution.
+
+---
+
+## 💻 Supported Clients & Runtimes
+
+| Client / Agent | Synchronized File Target | Hook Dialect | Skill Linking |
 |---|---|---|---|
-| **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (camelCase) | Windows Junction (`~/.claude/skills`) |
-| **Codex CLI** | `~/.codex/AGENTS.md` | `hooks.json` (snake_case) | Windows Junction (`~/.codex/skills`) |
-| **Antigravity CLI (`agy`)** | `~/.gemini/GEMINI.md` | `config/hooks.json` (protojson) | Windows Junction (`~/.gemini/config/skills`) |
-| **Cursor** | `~/.cursor/rules/global-rules.mdc` | `~/.cursor/mcp.json` (MCP) | Windows Junction (`~/.cursor/rules`) |
-| **Windsurf (Cascade)** | `~/.windsurf/rules/global-rules.md` | `mcp_config.json` (Cascade MCP) | Windows Junction (`~/.windsurf/rules`) |
+| **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (camelCase) | Junction (`~/.claude/skills`) |
+| **Codex CLI** | `~/.codex/AGENTS.md` | `hooks.json` (snake_case) | Junction (`~/.codex/skills`) |
+| **Antigravity CLI (`agy`)** | `~/.gemini/GEMINI.md` | `config/hooks.json` (protojson) | Junction (`~/.gemini/config/skills`) |
+| **Cursor IDE** | `~/.cursor/rules/global-rules.mdc` | `~/.cursor/mcp.json` (MCP) | Junction (`~/.cursor/rules`) |
+| **Windsurf (Cascade)** | `~/.windsurf/rules/global-rules.md` | `mcp_config.json` (Cascade MCP) | Junction (`~/.windsurf/rules`) |
 | **GitHub Copilot** | `~/.github/copilot-instructions.md` | VS Code Tasks / Pre-commit | Directory export (`.github/instructions`) |
-| **Cline** | `~/.cline/prompts/global-rules.md` | `cline_mcp_settings.json` | Windows Junction (`~/.cline/skills`) |
+| **Cline** | `~/.cline/prompts/global-rules.md` | `cline_mcp_settings.json` | Junction (`~/.cline/skills`) |
 | **Aider** | `~/.aider.conventions.md` | `.aider.conf.yml` (auto-lint) | Config file reference |
-| **OpenHands** | `~/.openhands/AGENTS.md` | `.openhands/hooks.json` | Windows Junction (`~/.agents/skills`) |
-| **Goose (Block)** | `~/.config/goose/.goosehints` | `config.yaml` (MCP allowlist) | Windows Junction (`~/.config/goose/extensions`) |
-| **Continue.dev** | `~/.continue/rules/global-rules.md` | `.continue/prompts` (Slash cmd) | Windows Junction (`~/.continue/prompts`) |
-| **Zed AI** | `~/.config/zed/AGENTS.md` | `settings.json` (Commit hooks) | Windows Junction (`~/.config/zed/prompts`) |
-| **Trae (ByteDance)** | `~/.trae/user_rules/user_rules.md` | `.trae/config.json` | Windows Junction (`~/.trae/skills`) |
-| **Amazon Q Developer** | `~/.amazonq/rules/global-rules.md` | Amazon Q CLI policies | Windows Junction (`~/.amazonq/rules`) |
+| **OpenHands** | `~/.openhands/AGENTS.md` | `.openhands/hooks.json` | Junction (`~/.agents/skills`) |
+| **Goose (Block)** | `~/.config/goose/.goosehints` | `config.yaml` (MCP allowlist) | Junction (`~/.config/goose/extensions`) |
+| **Continue.dev** | `~/.continue/rules/global-rules.md` | `.continue/prompts` (Slash cmd) | Junction (`~/.continue/prompts`) |
+| **Zed AI** | `~/.config/zed/AGENTS.md` | `settings.json` (Commit hooks) | Junction (`~/.config/zed/prompts`) |
+| **Trae (ByteDance)** | `~/.trae/user_rules/user_rules.md` | `.trae/config.json` | Junction (`~/.trae/skills`) |
+| **Amazon Q Developer** | `~/.amazonq/rules/global-rules.md` | Amazon Q CLI policies | Junction (`~/.amazonq/rules`) |
 | **Sourcegraph Cody** | `~/.sourcegraph/rules/global-rules.rule.md` | Cody MCP Engine | Web Prompt Library / MCP mount |
 | **OpenClaw** | `~/.openclaw/SYSTEM.md` | Generic Hook Proxy | Custom link |
 | **Hermes** | `~/.hermes/agent_system.md` | JSON Hook Proxy | Custom link |
@@ -29,44 +102,91 @@
 
 ---
 
-## Core Pillars
+## 🚀 Quick Start
 
-### 1. Single Source of Truth (SSOT) & Polyglot Sync
-Rules and traits are maintained in canonical markdown files under `core/rules/` and `core/traits/`. Running `node engine/sync/sync.cjs` compiles these into target formats without manual duplication.
+### Prerequisites
+- Node.js (v18+)
+- Python (3.10+, optional for `launch.py`)
 
-### 2. Universal Hook Adapter & Security Guards
-Standardizes security hooks across disparate agent JSON formats. Intercepts file reads, token leaks, process termination, and destructive commands before execution.
+### Installation & First Run
 
-### 3. The 4-Tier Self-Maintenance & Distillation Ladder
-A scheduled daily distillation routine clusters mistakes, tracks recurring candidate counts, and evaluates candidates through strict graduation gates:
-- **Tier 0 · Observation**: Raw error or deviation sighting.
-- **Tier 1 · Repo Fact**: Single sighting affecting a specific repository.
-- **Tier 2 · Universal Rule**: Sighted on **3+ distinct days**; imperative constraint preventing repeat failures.
-- **Tier 3 · Trait**: Guiding philosophy when no explicit rule covers the case.
+```bash
+# 1. Clone the repository
+git clone https://github.com/ucsandman/agnostic-harness.git
+cd agnostic-harness
 
-**The Refusal Rule**: Measures health by the *refusal-to-promotion ratio* (max 2 rule promotions per run) to prevent context window bloat.
+# 2. Run the interactive single-command launcher
+python launch.py
+# or directly with Node:
+npm run dashboard
+```
 
-### 4. Multi-Source Rule Ingestion & Merging (`engine/ingest/merge.cjs`)
-Claude Code only reads `CLAUDE.md`, Codex only reads `AGENTS.md`, and Antigravity only reads `GEMINI.md`. When different agents are used on the same codebase or across sessions, lessons and rules written to one file are missed by the others.
-- `node engine/ingest/merge.cjs` automatically discovers all `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and `SYSTEM.md` files in a repository or global home directory.
-- Deduplicates sections, aggregates all **Learned Rules** and lessons, and writes back the complete unified ruleset to all files so every agent shares 100% parity.
+### Essential CLI Commands
 
-### 5. Governed Autonomy with DashClaw (`engine/hooks/dashclaw-guard.cjs`)
-For long-running unattended runs (nightly background tasks, CI pipelines, multi-agent swarms), `agnostic-harness` seamlessly integrates with **[DashClaw](https://github.com/ucsandman/DashClaw)** ([dashclaw.io](https://dashclaw.io)):
-- **Fail-Closed Seam**: Intercepts high-risk destructive actions (`git push --force`, `rmdir /s`, database drops, credential exfiltration) at the hook level before execution.
-- **Remote & Async Approvals**: Resolves pending approvals from anywhere via phone PWA, Telegram, Discord, or the web Approvals inbox without stalling unattended runs.
-- **Signed Audit Trail**: Cryptographically logs every granted or denied decision with Ed25519 signatures.
-- **Zero Configuration**: Automatically discovers local DashClaw instances (`npx dashclaw up`) and falls back cleanly to local guard policies if inactive.
+```bash
+# Verify sync status across all 18 targets:
+npm run sync:check
 
-### 6. Human-First Tooling Suite
-Includes fast interactive CLI + Web UI surfaces:
-- **ErrorLog (`tools/errorlog/`)**: Interactive error explorer and ladder candidate viewer.
-- **Parity Monitor (`tools/sync/`)**: Multi-harness sync checker with one-click re-sync.
-- **Recall (`tools/recall/`)**: Instant full-text search across memory facts, rules, and decisions.
+# Compile & push rules to all AI client directories:
+npm run sync
+
+# Ingest & merge learned rules across all local CLAUDE.md / AGENTS.md / GEMINI.md:
+npm run merge
+
+# Consolidate skills from all installed agent directories:
+npm run skills:consolidate
+
+# Run the daily error distillation & rule promotion pass:
+npm run distill
+
+# Run all test suites:
+npm test
+```
 
 ---
 
-## Directory Structure
+## 🖥️ Local Command Center (Port 7842)
+
+Launch the visual command center via `npm run dashboard`:
+
+- **Overview:** Real-time metrics on harvested candidate errors, active skills, and target client health.
+- **Rule Explorer:** Inspect the master Single Source of Truth, Tier 3 Core Traits, and safety policy JSON.
+- **Skill Matrix:** 1-click stack analyzer and skill recommendation engine for any repository on your disk.
+- **Error Explorer:** Filter and browse 800+ harvested real-world error traces to identify friction hotspots.
+- **Governance & Approvals:** Configure safety thresholds, simulate guard verdicts, or opt out completely.
+
+---
+
+## 🛡️ Optional Governed Autonomy (DashClaw)
+
+Agnostic AI Harness includes native support for [DashClaw](https://github.com/ucsandman/DashClaw) for human-in-the-loop runtime verification on high-risk operations (e.g. `git push --force`, DB drops, production deploys).
+
+```
+                      [ Agent Proposes Action ]
+                                  │
+                                  ▼
+                    ┌───────────────────────────┐
+                    │ DashClaw Risk Evaluator   │
+                    └─────────────┬─────────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    ▼                           ▼
+            [ Low Risk (<50) ]          [ High Risk (>=50) ]
+                    │                           │
+                    ▼                           ▼
+            ( Execute Locally )       ( Held for Mobile / Web Approval )
+```
+
+### Opt-Out & Standalone Mode
+Governance is **100% optional**. You can opt out at any time:
+1. **Via Web Dashboard:** Open `http://localhost:7842` -> **Governed Decisions** -> **Settings & Auth** -> Toggle **"Opt Out"**.
+2. **Via Config File:** Set `"active": false` in `storage/dashclaw-config.json`.
+
+When opted out, the harness operates with zero external network requests, enforcing all safety boundaries through local declarative guards.
+
+---
+
+## 📁 Repository Structure
 
 ```
 agnostic-harness/
@@ -75,103 +195,26 @@ agnostic-harness/
 │   ├── traits/traits.md                # Tier 3 ladder traits
 │   ├── safety/guards.json              # Declarative security & process policies
 │   └── templates/targets.json          # Target client mappings & preambles
-├── engine/                             # Core execution engines
+├── engine/                             # Execution engines
 │   ├── sync/sync.cjs                   # Polyglot rules compiler & skills linker
-│   ├── ingest/merge.cjs                # Rule & lesson merger across CLAUDE/AGENTS/GEMINI
-│   ├── hooks/                          # Protocol translation shims & guards
-│   │   ├── universal-adapter.cjs       # Hook dialect normalizer
-│   │   ├── secret-guard.cjs            # Secret scanning & file blocker
-│   │   ├── dashclaw-guard.cjs          # Governed autonomy & remote approval seam
-│   │   └── correction-tracker.cjs      # User correction harvester
+│   ├── ingest/merge.cjs                # Cross-agent rule & lesson merger
+│   ├── skills/                         # Skill consolidation & recommendation
+│   ├── hooks/                          # Protocol translation shims & safety guards
 │   ├── distill/distill.cjs             # Daily self-maintenance & ladder evaluator
-│   └── tests/run-all.cjs               # Test runner
-├── tools/                              # Human-first UI and CLI tools
-│   ├── errorlog/                       # Error harvester & dashboard (errorlog.html)
-│   ├── sync/                           # Harness parity status (parity.html)
-│   └── recall/                         # Fact & rule memory search (recall.html)
-├── skills/                             # Shared agent skills
-│   └── definitions/                    # Canonical skill markdown files
-├── storage/                            # Operational persistence
-│   ├── candidates.jsonl                # Sighting counts & ladder candidate states
-│   ├── corrections.jsonl               # Real-time human interventions
-│   ├── distill-PROPOSAL.md             # Reviewable daily promotion proposal
-│   └── distill-digest.json             # Structured digest for UI dashboards
-├── jobs/                               # Headless automation scripts
-│   ├── daily-distill.ps1               # Scheduled daily maintenance runner
-│   └── sync-targets.ps1                # Re-sync helper
+│   └── tests/run-all.cjs               # Automated test suites
+├── tools/                              # Human-first web command center & tools
+│   ├── dashboard/                      # Command center UI (port 7842)
+│   ├── errorlog/                       # Error harvester explorer
+│   ├── sync/                           # Harness parity monitor
+│   └── recall/                         # Rule and memory recall search
+├── skills/                             # Shared agent skills definitions
+├── storage/                            # Candidate error records & digests
 ├── launch.py                           # Single-command launcher
 └── package.json
 ```
 
 ---
 
-## Quick Start
+## 📄 License
 
-### 1. Run the Launch Entrypoint
-```bash
-python launch.py
-```
-
-### 2. Check or Apply Target Sync
-```bash
-# Check if target configs are in sync:
-node engine/sync/sync.cjs --check
-
-# Compile and update all targets:
-node engine/sync/sync.cjs
-```
-
-### 3. Ingest & Merge Rules Across All Agents
-```bash
-# Merge rules and lessons in the current repository:
-npm run merge
-
-# Merge global rules (~/.claude, ~/.codex, ~/.gemini):
-npm run merge:global
-```
-
-### 4. DashClaw Governed Autonomy Onboarding (Choose Your Door)
-DashClaw intercepts risky actions before execution and routes them for human approval. First time using DashClaw? Choose any of the 3 doors:
-
-- **Door A: Hosted Trial (~3 min, zero install)**
-  1. Open [hosted.dashclaw.io/connect](https://hosted.dashclaw.io/connect) and copy your generated `oc_live_...` API key.
-  2. Wire Claude Code / Agnostic Harness:
-     ```bash
-     npm i -g @dashclaw/cli
-     dashclaw install claude --trial
-     ```
-- **Door B: 1-Minute Local Demo (Docker)**
-  ```bash
-  npx dashclaw-demo
-  ```
-  Runs an isolated demo where an agent attempts a high-risk destructive action; DashClaw blocks it and opens Decision Replay.
-- **Door C: Deploy Your Own Instance (Local or Cloud)**
-  ```bash
-  # C1. Local one-command daemon:
-  npx dashclaw up
-
-  # C2. Verify connection health:
-  node engine/hooks/dashclaw-setup.cjs --status
-  ```
-
-### 5. Run Self-Maintenance Distillation
-```bash
-node engine/distill/distill.cjs
-```
-
-### 6. Open Human-First Dashboards
-```bash
-# Error & Distillation Explorer:
-node tools/errorlog/errorlog.cjs --open
-
-# Multi-Harness Parity Monitor:
-node tools/sync/parity.cjs --open
-
-# Memory & Rule Recall:
-node tools/recall/recall.cjs --open
-```
-
-### 7. Run Engine Tests
-```bash
-npm test
-```
+MIT License. Free for personal and commercial use. Contributions welcome!
