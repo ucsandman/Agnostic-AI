@@ -34,7 +34,12 @@ A scheduled daily distillation routine clusters mistakes, tracks recurring candi
 
 **The Refusal Rule**: Measures health by the *refusal-to-promotion ratio* (max 2 rule promotions per run) to prevent context window bloat.
 
-### 4. Human-First Tooling Suite
+### 4. Multi-Source Rule Ingestion & Merging (`engine/ingest/merge.cjs`)
+Claude Code only reads `CLAUDE.md`, Codex only reads `AGENTS.md`, and Antigravity only reads `GEMINI.md`. When different agents are used on the same codebase or across sessions, lessons and rules written to one file are missed by the others.
+- `node engine/ingest/merge.cjs` automatically discovers all `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and `SYSTEM.md` files in a repository or global home directory.
+- Deduplicates sections, aggregates all **Learned Rules** and lessons, and writes back the complete unified ruleset to all files so every agent shares 100% parity.
+
+### 5. Human-First Tooling Suite
 Includes fast interactive CLI + Web UI surfaces:
 - **ErrorLog (`tools/errorlog/`)**: Interactive error explorer and ladder candidate viewer.
 - **Parity Monitor (`tools/sync/`)**: Multi-harness sync checker with one-click re-sync.

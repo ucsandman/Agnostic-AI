@@ -10,6 +10,8 @@
     "test": "node engine/tests/run-all.cjs",
     "errorlog": "node tools/errorlog/errorlog.cjs",
     "errorlog:ui": "node tools/errorlog/errorlog.cjs --open",
+    "merge": "node engine/ingest/merge.cjs",
+    "merge:global": "node engine/ingest/merge.cjs --global",
     "recall": "node tools/recall/recall.cjs",
     "parity": "node tools/sync/parity.cjs --open"
   },

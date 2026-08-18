@@ -106,5 +106,19 @@ test('Recall: searches rules and facts', () => {
   assert.strictEqual(results[0].type, 'rule');
 });
 
+// 6. Test Multi-Rule Merger
+const { mergeRuleFiles } = require('../ingest/merge.cjs');
+test('Merge: ingests and unifies CLAUDE.md, AGENTS.md, and GEMINI.md', () => {
+  const mockFiles = [
+    { name: 'CLAUDE.md', content: '## Core Rules\n\n- Rule A\n\n## Learned Rules\n\n- **L1 (2026-08-10)**: First lesson' },
+    { name: 'AGENTS.md', content: '## Core Rules\n\n- Rule A\n- Rule B\n\n## Learned Rules\n\n- **L2 (2026-08-12)**: Second lesson' }
+  ];
+  const merged = mergeRuleFiles(mockFiles);
+  assert(merged.includes('Rule A'), 'Merged should contain Rule A');
+  assert(merged.includes('Rule B'), 'Merged should contain Rule B');
+  assert(merged.includes('L1 (2026-08-10)'), 'Merged should contain L1');
+  assert(merged.includes('L2 (2026-08-12)'), 'Merged should contain L2');
+});
+
 console.log(`\n=== Tests Complete: ${passed} passed, ${failed} failed ===`);
 if (failed > 0) process.exit(1);
