@@ -25,13 +25,17 @@ const CHECK_ONLY = process.argv.includes('--check');
 const TARGET_FILTER = process.argv.find((_, i, arr) => arr[i - 1] === '--target');
 
 function expandPath(p) {
-  if (p.startsWith('~/') || p.startsWith('~\\')) {
-    return path.join(HOME, p.slice(2));
+  if (!p) return '';
+  let resolved = p;
+  // Replace Windows %VAR% patterns
+  resolved = resolved.replace(/%([^%]+)%/g, (_, n) => process.env[n] || '');
+  if (resolved.startsWith('~/') || resolved.startsWith('~\\')) {
+    return path.join(HOME, resolved.slice(2));
   }
-  if (!path.isAbsolute(p)) {
-    return path.join(ROOT, p);
+  if (!path.isAbsolute(resolved)) {
+    return path.join(ROOT, resolved);
   }
-  return p;
+  return resolved;
 }
 
 function loadSource() {
@@ -139,6 +143,20 @@ function run() {
       console.log(`  - Up to date: ${target.name}`);
     }
 
+    // Sync traits file if target defines a separate one
+    if (target.traitsFile && source.traits) {
+      const traitsPath = expandPath(target.traitsFile);
+      let traitsStale = true;
+      if (fs.existsSync(traitsPath)) {
+        traitsStale = fs.readFileSync(traitsPath, 'utf8') !== source.traits;
+      }
+      if (traitsStale && !CHECK_ONLY) {
+        const traitsDir = path.dirname(traitsPath);
+        if (!fs.existsSync(traitsDir)) fs.mkdirSync(traitsDir, { recursive: true });
+        fs.writeFileSync(traitsPath, source.traits, 'utf8');
+      }
+    }
+
     const skillResult = !CHECK_ONLY ? linkSkillsDirectory(target) : { checkOnly: true };
     results.push({ id: target.id, name: target.name, path: targetPath, stale: isStale, skills: skillResult });
   }
@@ -148,6 +166,15 @@ function run() {
   if (!fs.existsSync(compiledDir)) fs.mkdirSync(compiledDir, { recursive: true });
   fs.writeFileSync(path.join(compiledDir, 'rules.md'), source.rules, 'utf8');
   fs.writeFileSync(path.join(compiledDir, 'traits.md'), source.traits, 'utf8');
+
+  // Auto-configure DashClaw if present
+  try {
+    const { autoConfigureDashClaw } = require('../hooks/dashclaw-setup.cjs');
+    const dc = autoConfigureDashClaw();
+    if (dc && dc.configured && dc.active) {
+      console.log(`  ✓ DashClaw: Governed Autonomy enabled (${dc.agentId} @ ${dc.baseUrl})`);
+    }
+  } catch (_) {}
 
   console.log(`\n[Agnostic-Sync] Result: ${outOfSyncCount} target(s) ${CHECK_ONLY ? 'stale' : 'updated'}.`);
 

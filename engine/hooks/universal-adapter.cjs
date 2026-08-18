@@ -15,10 +15,18 @@
  */
 
 function detectClient(payload) {
+  if (!payload || typeof payload !== 'object') return 'generic';
   if (payload.toolCall && payload.toolCall.args) return 'agy';
   if (payload.permissionDecision !== undefined || payload.tool_input !== undefined) return 'claude';
   if (payload.event && payload.shell_command) return 'codex';
+  if (payload.cursorTool || payload.client === 'cursor' || (payload.method === 'tools/call' && payload.editor === 'cursor')) return 'cursor';
+  if (payload.cascadeTool || payload.client === 'windsurf') return 'windsurf';
+  if (payload.cline_action || payload.client === 'cline') return 'cline';
+  if (payload.openhands_action || payload.source === 'openhands' || payload.action === 'execute') return 'openhands';
+  if (payload.goose_extension || payload.client === 'goose') return 'goose';
+  if (payload.slashCommand || payload.client === 'continue') return 'continue';
   if (payload.agent_id || payload.client_type) return payload.client_type || 'generic';
+  if (payload.client) return payload.client;
   return 'generic';
 }
 
@@ -49,18 +57,62 @@ function normalizePayload(rawPayload) {
       targetFile = args.file_path || args.path || args.TargetFile || null;
       break;
     }
+    case 'cursor':
+    case 'windsurf':
+    case 'cline': {
+      event = rawPayload.event || 'pre_tool';
+      toolName = rawPayload.tool || rawPayload.name || rawPayload.tool_name || 'unknown';
+      args = rawPayload.arguments || rawPayload.parameters || rawPayload.params || {};
+      command = args.command || args.cmd || args.CommandLine || null;
+      targetFile = args.path || args.file_path || args.target || args.TargetFile || null;
+      break;
+    }
+    case 'openhands': {
+      event = rawPayload.event || 'pre_tool';
+      toolName = rawPayload.action || rawPayload.tool || 'unknown';
+      args = rawPayload.args || rawPayload.params || {};
+      command = args.command || args.cmd || null;
+      targetFile = args.path || args.file || null;
+      break;
+    }
+    case 'goose': {
+      event = rawPayload.event || 'pre_tool';
+      toolName = rawPayload.tool_call || rawPayload.tool || 'unknown';
+      args = rawPayload.arguments || rawPayload.params || {};
+      command = args.command || args.cmd || null;
+      targetFile = args.path || args.file_path || null;
+      break;
+    }
+    case 'continue': {
+      event = rawPayload.event || 'pre_tool';
+      toolName = rawPayload.name || rawPayload.tool || 'unknown';
+      args = rawPayload.arguments || rawPayload.args || {};
+      command = args.command || null;
+      targetFile = args.path || args.file || null;
+      break;
+    }
     default: {
       event = rawPayload.event || 'pre_tool';
-      toolName = rawPayload.tool || rawPayload.tool_name || 'unknown';
-      args = rawPayload.params || rawPayload.args || {};
-      command = args.command || args.cmd || null;
-      targetFile = args.path || args.target || null;
+      toolName = rawPayload.tool || rawPayload.tool_name || rawPayload.name || 'unknown';
+      args = rawPayload.params || rawPayload.args || rawPayload.arguments || {};
+      command = args.command || args.cmd || args.CommandLine || null;
+      targetFile = args.path || args.target || args.file_path || args.TargetFile || null;
       break;
     }
   }
 
   // Normalize shell command aliases
-  const isShell = ['bash', 'powershell', 'shell', 'shell_command', 'run_command', 'exec'].includes(toolName.toLowerCase());
+  const isShell = [
+    'bash',
+    'powershell',
+    'shell',
+    'shell_command',
+    'run_command',
+    'exec',
+    'execute_command',
+    'execute'
+  ].includes(toolName.toLowerCase());
+
   if (isShell && !command && typeof args === 'string') {
     command = args;
   }
@@ -90,6 +142,30 @@ function formatDenial(client, reason) {
         permissionDecision: 'deny',
         reason
       };
+    case 'cursor':
+    case 'windsurf':
+    case 'cline':
+      return {
+        isError: true,
+        permissionDecision: 'deny',
+        allowed: false,
+        content: [{ type: 'text', text: reason }],
+        reason
+      };
+    case 'openhands':
+      return {
+        status: 'rejected',
+        allowed: false,
+        message: reason,
+        reason
+      };
+    case 'goose':
+      return {
+        block: true,
+        allowed: false,
+        error: reason,
+        reason
+      };
     default:
       return {
         allowed: false,
@@ -105,6 +181,14 @@ function formatApproval(client) {
     case 'claude':
     case 'codex':
       return { permissionDecision: 'allow' };
+    case 'cursor':
+    case 'windsurf':
+    case 'cline':
+      return { allowed: true, permissionDecision: 'allow' };
+    case 'openhands':
+      return { status: 'approved', allowed: true };
+    case 'goose':
+      return { block: false, allowed: true };
     default:
       return { allowed: true };
   }

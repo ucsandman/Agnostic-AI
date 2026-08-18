@@ -1,9 +1,10 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "targets": [
     {
       "id": "claude",
       "name": "Claude Code",
+      "category": "CLI Agent",
       "rulesFile": "~/.claude/CLAUDE.md",
       "traitsFile": "~/.claude/SOUL.md",
       "skillsDir": "~/.claude/skills",
@@ -14,6 +15,7 @@
     {
       "id": "codex",
       "name": "Codex CLI",
+      "category": "CLI Agent",
       "rulesFile": "~/.codex/AGENTS.md",
       "skillsDir": "~/.codex/skills",
       "hooksConfigFile": "~/.codex/hooks.json",
@@ -23,6 +25,7 @@
     {
       "id": "agy",
       "name": "Antigravity CLI (agy)",
+      "category": "CLI Agent",
       "rulesFile": "~/.gemini/GEMINI.md",
       "skillsDir": "~/.gemini/config/skills",
       "hooksConfigFile": "~/.gemini/config/hooks.json",
@@ -30,8 +33,121 @@
       "preamble": "# GEMINI.md — Wes's Global Agreement (Antigravity CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
     },
     {
+      "id": "cursor",
+      "name": "Cursor",
+      "category": "Agentic IDE",
+      "rulesFile": "~/.cursor/rules/global-rules.mdc",
+      "skillsDir": "~/.cursor/rules",
+      "hooksConfigFile": "~/.cursor/mcp.json",
+      "dialect": "cursor",
+      "preamble": "---\ndescription: \"Global Working Agreement and safety rules\"\nglobs: \"*\"\nalwaysApply: true\n---\n\n# Cursor Rules — Global Working Agreement\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf (Cascade)",
+      "category": "Agentic IDE",
+      "rulesFile": "~/.windsurf/rules/global-rules.md",
+      "skillsDir": "~/.windsurf/rules",
+      "hooksConfigFile": "~/.codeium/windsurf/mcp_config.json",
+      "dialect": "windsurf",
+      "preamble": "# Windsurf Rules — Global Working Agreement\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "category": "VS Code Extension",
+      "rulesFile": "~/.github/copilot-instructions.md",
+      "skillsDir": "~/.github/instructions",
+      "dialect": "copilot",
+      "preamble": "# GitHub Copilot Global Instructions\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "cline",
+      "name": "Cline",
+      "category": "VS Code Extension",
+      "rulesFile": "~/.cline/prompts/global-rules.md",
+      "skillsDir": "~/.cline/skills",
+      "hooksConfigFile": "~/.cline/cline_mcp_settings.json",
+      "dialect": "cline",
+      "preamble": "# Cline — Global Working Agreement\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "aider",
+      "name": "Aider",
+      "category": "CLI Agent",
+      "rulesFile": "~/.aider.conventions.md",
+      "dialect": "aider",
+      "preamble": "# Aider — Conventions & Global Working Agreement\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "openhands",
+      "name": "OpenHands",
+      "category": "Autonomous Agent",
+      "rulesFile": "~/.openhands/AGENTS.md",
+      "skillsDir": "~/.agents/skills",
+      "hooksConfigFile": "~/.openhands/hooks.json",
+      "dialect": "openhands",
+      "preamble": "# AGENTS.md — OpenHands Global Agreement\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "goose",
+      "name": "Goose (Block)",
+      "category": "Autonomous Agent",
+      "rulesFile": "~/.config/goose/.goosehints",
+      "skillsDir": "~/.config/goose/extensions",
+      "hooksConfigFile": "~/.config/goose/config.yaml",
+      "dialect": "goose",
+      "preamble": "# .goosehints — Goose Global System Hints\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "continue",
+      "name": "Continue.dev",
+      "category": "VS Code Extension",
+      "rulesFile": "~/.continue/rules/global-rules.md",
+      "skillsDir": "~/.continue/prompts",
+      "hooksConfigFile": "~/.continue/config.yaml",
+      "dialect": "continue",
+      "preamble": "# Continue.dev — Global Agent Rules\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "zed",
+      "name": "Zed AI",
+      "category": "Agentic IDE",
+      "rulesFile": "~/.config/zed/AGENTS.md",
+      "skillsDir": "~/.config/zed/prompts",
+      "dialect": "zed",
+      "preamble": "# AGENTS.md — Zed AI Global Instructions\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "trae",
+      "name": "Trae (ByteDance)",
+      "category": "Agentic IDE",
+      "rulesFile": "~/.trae/user_rules/user_rules.md",
+      "skillsDir": "~/.trae/skills",
+      "hooksConfigFile": "~/.trae/config.json",
+      "dialect": "trae",
+      "preamble": "# user_rules.md — Trae User Rules\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "amazonq",
+      "name": "Amazon Q Developer",
+      "category": "Enterprise Assistant",
+      "rulesFile": "~/.amazonq/rules/global-rules.md",
+      "dialect": "amazonq",
+      "preamble": "# Amazon Q Developer — Global Rules\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
+      "id": "cody",
+      "name": "Sourcegraph Cody",
+      "category": "Enterprise Assistant",
+      "rulesFile": "~/.sourcegraph/rules/global-rules.rule.md",
+      "dialect": "cody",
+      "preamble": "# Sourcegraph Cody — Global Rules\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
+    },
+    {
       "id": "openclaw",
       "name": "OpenClaw",
+      "category": "Autonomous Agent",
       "rulesFile": "~/.openclaw/SYSTEM.md",
       "skillsDir": "~/.openclaw/skills",
       "dialect": "openclaw",
@@ -40,6 +156,7 @@
     {
       "id": "hermes",
       "name": "Hermes Agent",
+      "category": "Autonomous Agent",
       "rulesFile": "~/.hermes/agent_system.md",
       "skillsDir": "~/.hermes/skills",
       "dialect": "hermes",
@@ -48,6 +165,7 @@
     {
       "id": "generic",
       "name": "Generic LLM System Card",
+      "category": "Local / API",
       "rulesFile": "storage/compiled/system_prompt.md",
       "dialect": "generic",
       "preamble": "# System Prompt for Autonomous LLM Agents\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"

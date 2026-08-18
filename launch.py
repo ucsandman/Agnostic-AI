@@ -18,18 +18,22 @@ def main():
     print(f"Root: {ROOT_DIR}\n")
 
     # 1. Run Parity Check
-    print("[1/3] Checking harness parity across clients...")
+    print("[1/4] Checking harness parity across clients...")
     subprocess.run(["node", "engine/sync/sync.cjs", "--check"], cwd=ROOT_DIR)
 
-    # 2. Run Self-Tests
-    print("\n[2/3] Running engine test suite...")
+    # 2. Check DashClaw Governed Autonomy Integration
+    print("\n[2/4] Inspecting DashClaw integration & self-configuration...")
+    subprocess.run(["node", "engine/hooks/dashclaw-setup.cjs"], cwd=ROOT_DIR)
+
+    # 3. Run Self-Tests
+    print("\n[3/4] Running engine test suite...")
     test_run = subprocess.run(["node", "engine/tests/run-all.cjs"], cwd=ROOT_DIR)
     if test_run.returncode != 0:
         print("\n[ERROR] Test suite failed. Please review errors above.")
         sys.exit(1)
 
-    # 3. Launch Dashboard
-    print("\n[3/3] Launching Agnostic Error & Parity Dashboard...")
+    # 4. Launch Dashboard
+    print("\n[4/4] Launching Agnostic Error & Parity Dashboard...")
     server_process = subprocess.Popen(
         ["node", "tools/errorlog/errorlog.cjs", "--open"], cwd=ROOT_DIR
     )

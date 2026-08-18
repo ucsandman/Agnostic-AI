@@ -3,17 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agnostic AI — Multi-Harness Parity</title>
+  <title>Agnostic AI — Multi-Harness Parity Monitor</title>
   <style>
     :root {
       --bg: #0d1117;
       --surface: #161b22;
+      --surface-hover: #1f242c;
       --border: #30363d;
+      --border-accent: #388bfd33;
       --text: #e6edf3;
       --text-muted: #8b949e;
       --accent: #58a6ff;
+      --accent-hover: #79b8ff;
       --success: #3fb950;
+      --success-bg: rgba(63, 185, 80, 0.12);
       --danger: #f85149;
+      --danger-bg: rgba(248, 81, 73, 0.12);
+      --badge-bg: #21262d;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -21,9 +27,9 @@
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-      padding: 24px;
+      padding: 28px 24px;
     }
-    .container { max-width: 1000px; margin: 0 auto; }
+    .container { max-width: 1200px; margin: 0 auto; }
     header {
       display: flex;
       justify-content: space-between;
@@ -32,46 +38,156 @@
       padding-bottom: 16px;
       border-bottom: 1px solid var(--border);
     }
-    h1 { font-size: 24px; font-weight: 600; }
+    h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
     .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
     .btn-sync {
       background: var(--accent);
-      color: #fff;
+      color: #0d1117;
       border: none;
-      padding: 8px 18px;
+      padding: 9px 20px;
       font-size: 14px;
       font-weight: 600;
       border-radius: 6px;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: background 0.2s, transform 0.1s;
     }
-    .btn-sync:hover { opacity: 0.9; }
+    .btn-sync:hover { background: var(--accent-hover); }
+    .btn-sync:active { transform: scale(0.98); }
+    .btn-sync:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 250px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--accent); }
+
+    .category-filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      background: #21262d;
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
     .parity-grid {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      margin-top: 20px;
     }
     .parity-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 16px;
+      padding: 16px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: border-color 0.2s, background 0.2s;
+      gap: 16px;
     }
-    .target-title { font-size: 16px; font-weight: 600; }
-    .target-path { font-size: 12px; font-family: monospace; color: var(--text-muted); margin-top: 4px; }
+    .parity-card:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-accent);
+    }
+    .target-info { flex: 1; min-width: 0; }
+    .target-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .target-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .target-category {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: var(--badge-bg);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .target-path {
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text-muted);
+      margin-top: 6px;
+      word-break: break-all;
+    }
+    .target-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+    .tag {
+      background: var(--badge-bg);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
     .status-badge {
       font-size: 12px;
       font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 12px;
+      padding: 5px 12px;
+      border-radius: 16px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
     }
-    .badge-sync { background: rgba(63, 185, 80, 0.15); color: var(--success); }
-    .badge-stale { background: rgba(248, 81, 73, 0.15); color: var(--danger); }
+    .badge-sync { background: var(--success-bg); color: var(--success); }
+    .badge-stale { background: var(--danger-bg); color: var(--danger); }
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
@@ -79,40 +195,139 @@
     <header>
       <div>
         <h1>Multi-Harness Parity Monitor</h1>
-        <div class="subtitle">Ensuring all agents run the exact same operating rules & safety guards</div>
+        <div class="subtitle">Ensuring 100% rule, trait, and security guard parity across all 18 AI coding agents & runtimes</div>
       </div>
       <button class="btn-sync" id="sync-btn" onclick="triggerSync()">Sync All Targets</button>
     </header>
 
+    <div class="dashclaw-banner" id="dashclaw-banner" style="background: rgba(56, 139, 253, 0.08); border: 1px solid rgba(56, 139, 253, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span style="font-weight: 600; color: var(--accent);">Governed Autonomy (DashClaw):</span>
+        <span id="dashclaw-status-text" style="color: var(--text-muted);">Detecting instance...</span>
+      </div>
+      <span id="dashclaw-pill" class="tag" style="font-weight: 600;">LOCAL POLICY</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Runtimes</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Parity</div>
+        <div class="stat-value" id="stat-sync" style="color: var(--success)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Out of Sync</div>
+        <div class="stat-value" id="stat-stale" style="color: var(--danger)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Skill Junctions Active</div>
+        <div class="stat-value" id="stat-skills" style="color: var(--accent)">0</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="search-input" class="search-box" placeholder="Filter by target name, path, dialect, or category...">
+      <div class="category-filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="CLI Agent">CLI Agents</button>
+        <button class="filter-btn" data-filter="Agentic IDE">IDEs</button>
+        <button class="filter-btn" data-filter="VS Code Extension">VS Code</button>
+        <button class="filter-btn" data-filter="Autonomous Agent">Autonomous</button>
+        <button class="filter-btn" data-filter="Enterprise Assistant">Enterprise</button>
+      </div>
+    </div>
+
     <div class="parity-grid" id="parity-list">
-      <div style="color: var(--text-muted); text-align: center; padding: 32px;">Loading targets...</div>
+      <div class="empty-state">Loading runtime targets...</div>
     </div>
   </div>
 
   <script>
+    let rawData = null;
+    let currentCategory = 'all';
+
     async function loadStatus() {
       try {
         const res = await fetch('/api/status');
-        const data = await res.json();
-        render(data);
+        rawData = await res.json();
+        render();
       } catch (err) {
-        document.getElementById('parity-list').innerHTML = '<div style="color: var(--danger)">Error loading parity status.</div>';
+        document.getElementById('parity-list').innerHTML = '<div class="empty-state" style="color: var(--danger)">Error loading parity status from server.</div>';
       }
     }
 
-    function render(data) {
+    function render() {
+      if (!rawData) return;
+      const targets = rawData.targets || [];
+      const dc = rawData.dashclaw || {};
+      const query = (document.getElementById('search-input').value || '').toLowerCase();
+
+      // DashClaw banner
+      const statusText = document.getElementById('dashclaw-status-text');
+      const pill = document.getElementById('dashclaw-pill');
+      if (dc && dc.configured && dc.active) {
+        statusText.innerHTML = `Agent <strong>${escapeHtml(dc.agentId || 'agnostic-harness')}</strong> configured &rarr; <code>${escapeHtml(dc.baseUrl)}</code> (${escapeHtml(dc.source)})`;
+        pill.textContent = 'CONNECTED';
+        pill.style.background = 'rgba(63, 185, 80, 0.2)';
+        pill.style.color = 'var(--success)';
+      } else {
+        statusText.textContent = dc.reason || 'Local fail-closed guard policies active. No remote DashClaw instance connected.';
+        pill.textContent = 'STANDALONE';
+        pill.style.background = 'rgba(139, 148, 158, 0.2)';
+        pill.style.color = 'var(--text-muted)';
+      }
+
+      document.getElementById('stat-total').textContent = targets.length;
+      document.getElementById('stat-sync').textContent = rawData.inSyncCount || targets.filter(t => t.inSync).length;
+      document.getElementById('stat-stale').textContent = rawData.staleCount || targets.filter(t => !t.inSync).length;
+      document.getElementById('stat-skills').textContent = targets.filter(t => t.skillsLinked).length;
+      document.getElementById('stat-skills').textContent = targets.filter(t => t.skillsLinked).length;
+
+      const filtered = targets.filter(t => {
+        if (currentCategory !== 'all' && t.category !== currentCategory) return false;
+        if (query) {
+          const matchName = t.name.toLowerCase().includes(query);
+          const matchPath = (t.path || '').toLowerCase().includes(query);
+          const matchDialect = (t.dialect || '').toLowerCase().includes(query);
+          const matchCat = (t.category || '').toLowerCase().includes(query);
+          if (!matchName && !matchPath && !matchDialect && !matchCat) return false;
+        }
+        return true;
+      });
+
       const listEl = document.getElementById('parity-list');
-      listEl.innerHTML = data.targets.map(t => `
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No client targets match your filter.</div>';
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(t => `
         <div class="parity-card">
-          <div>
-            <div class="target-title">${t.name}</div>
-            <div class="target-path">${t.path}</div>
+          <div class="target-info">
+            <div class="target-header">
+              <span class="target-title">${escapeHtml(t.name)}</span>
+              <span class="target-category">${escapeHtml(t.category)}</span>
+            </div>
+            <div class="target-path">${escapeHtml(t.path)}</div>
+            <div class="target-meta">
+              <span class="tag">Dialect: ${escapeHtml(t.dialect)}</span>
+              ${t.skillsDir ? `<span class="tag">Skills: ${t.skillsLinked ? '✓ Junction Active' : '○ Standalone'}</span>` : ''}
+              ${t.hooksConfigFile ? `<span class="tag">Hooks: ${escapeHtml(t.hooksConfigFile.split(/[\\\\/]/).pop())}</span>` : ''}
+              ${t.lastModified ? `<span class="tag">Modified: ${new Date(t.lastModified).toLocaleTimeString()}</span>` : ''}
+            </div>
           </div>
           <span class="status-badge ${t.inSync ? 'badge-sync' : 'badge-stale'}">
             ${t.inSync ? '✓ In Sync' : '✗ Stale'}
           </span>
         </div>
       `).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     async function triggerSync() {
@@ -127,6 +342,17 @@
         btn.disabled = false;
       }
     }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategory = btn.dataset.filter;
+        render();
+      });
+    });
+
+    document.getElementById('search-input').addEventListener('input', render);
 
     loadStatus();
   </script>

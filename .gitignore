@@ -18,6 +18,7 @@ storage/candidates.jsonl
 storage/distill-PROPOSAL.md
 storage/distill-digest.json
 storage/compiled/
+storage/dashclaw*.json
 
 # OS & Editor
 .DS_Store

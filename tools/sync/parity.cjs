@@ -38,13 +38,25 @@ function getParityStatus() {
       const existing = fs.readFileSync(targetPath, 'utf8');
       const compiled = compileTarget(target, source);
       inSync = existing === compiled;
-      lastModified = fs.statSync(targetPath).mtime.toISOString();
+      try {
+        lastModified = fs.statSync(targetPath).mtime.toISOString();
+      } catch (_) {}
+    }
+
+    let skillsLinked = false;
+    if (target.skillsDir) {
+      const sPath = expandPath(target.skillsDir);
+      skillsLinked = fs.existsSync(sPath);
     }
 
     return {
       id: target.id,
       name: target.name,
+      category: target.category || 'Agent',
       path: targetPath,
+      skillsDir: target.skillsDir ? expandPath(target.skillsDir) : null,
+      skillsLinked,
+      hooksConfigFile: target.hooksConfigFile ? expandPath(target.hooksConfigFile) : null,
       exists,
       inSync,
       dialect: target.dialect,
@@ -52,10 +64,20 @@ function getParityStatus() {
     };
   });
 
+  let dashclawConfig = null;
+  try {
+    const { getStoredDashClawConfig } = require('../../engine/hooks/dashclaw-setup.cjs');
+    dashclawConfig = getStoredDashClawConfig();
+  } catch (_) {}
+
   return {
     timestamp: new Date().toISOString(),
     targets: results,
-    allInSync: results.every(r => r.inSync)
+    total: results.length,
+    inSyncCount: results.filter(r => r.inSync).length,
+    staleCount: results.filter(r => !r.inSync).length,
+    allInSync: results.every(r => r.inSync),
+    dashclaw: dashclawConfig || { configured: false }
   };
 }
 

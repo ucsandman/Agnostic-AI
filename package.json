@@ -14,6 +14,8 @@
     "merge:global": "node engine/ingest/merge.cjs --global",
     "dashclaw:up": "npx dashclaw up --yes --no-browser",
     "dashclaw:doctor": "npx dashclaw doctor",
+    "dashclaw:setup": "node engine/hooks/dashclaw-setup.cjs",
+    "dashclaw:status": "node engine/hooks/dashclaw-setup.cjs --status",
     "recall": "node tools/recall/recall.cjs",
     "parity": "node tools/sync/parity.cjs --open"
   },

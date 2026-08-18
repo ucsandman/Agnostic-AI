@@ -25,7 +25,28 @@ const crypto = require('crypto');
 const HOME = os.homedir();
 const ROOT = path.resolve(__dirname, '..', '..');
 
-const RULE_FILENAMES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', 'SYSTEM.md'];
+const RULE_FILENAMES = [
+  'CLAUDE.md',
+  'AGENTS.md',
+  'GEMINI.md',
+  'SYSTEM.md',
+  'CONVENTIONS.md',
+  '.clinerules',
+  '.goosehints',
+  '.cursorrules',
+  '.windsurfrules',
+  path.join('.github', 'copilot-instructions.md'),
+  path.join('.trae', 'rules', 'project_rules.md')
+];
+
+const RULE_DIR_GLOBS = [
+  { dir: path.join('.cursor', 'rules'), ext: '.mdc' },
+  { dir: path.join('.windsurf', 'rules'), ext: '.md' },
+  { dir: path.join('.continue', 'rules'), ext: '.md' },
+  { dir: path.join('.amazonq', 'rules'), ext: '.md' },
+  { dir: path.join('.sourcegraph', 'rules'), ext: '.md' },
+  { dir: path.join('.clinerules'), ext: '.md' }
+];
 
 function normalizeText(str) {
   return str.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -37,16 +58,57 @@ function hashBullet(str) {
 
 function discoverRuleFiles(targetDir) {
   const found = [];
-  for (const name of RULE_FILENAMES) {
-    const p = path.join(targetDir, name);
-    if (fs.existsSync(p)) {
-      found.push({ name, path: p, content: fs.readFileSync(p, 'utf8') });
+  for (const rel of RULE_FILENAMES) {
+    const p = path.join(targetDir, rel);
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+      found.push({ name: rel, path: p, content: fs.readFileSync(p, 'utf8') });
     }
   }
+
+  for (const { dir, ext } of RULE_DIR_GLOBS) {
+    const fullDir = path.join(targetDir, dir);
+    if (fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
+      try {
+        const files = fs.readdirSync(fullDir);
+        for (const file of files) {
+          if (file.endsWith(ext) || file.endsWith('.md')) {
+            const p = path.join(fullDir, file);
+            found.push({ name: `${dir}/${file}`, path: p, content: fs.readFileSync(p, 'utf8') });
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
   return found;
 }
 
 function discoverGlobalRuleFiles() {
+  const TARGETS_CONFIG = path.join(ROOT, 'core', 'templates', 'targets.json');
+  if (fs.existsSync(TARGETS_CONFIG)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(TARGETS_CONFIG, 'utf8'));
+      const found = [];
+      for (const target of (config.targets || [])) {
+        if (!target.rulesFile) continue;
+        let p = target.rulesFile;
+        if (p.startsWith('~/') || p.startsWith('~\\')) {
+          p = path.join(HOME, p.slice(2));
+        } else if (!path.isAbsolute(p)) {
+          p = path.join(ROOT, p);
+        }
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+          found.push({
+            name: `${target.name} (${path.basename(p)})`,
+            path: p,
+            content: fs.readFileSync(p, 'utf8')
+          });
+        }
+      }
+      if (found.length > 0) return found;
+    } catch (_) {}
+  }
+
   const globalPaths = [
     { name: 'CLAUDE.md', path: path.join(HOME, '.claude', 'CLAUDE.md') },
     { name: 'AGENTS.md', path: path.join(HOME, '.codex', 'AGENTS.md') },
@@ -62,8 +124,17 @@ function discoverGlobalRuleFiles() {
 }
 
 function parseSections(markdown) {
+  // Strip YAML frontmatter if present
+  let cleanMarkdown = markdown;
+  if (cleanMarkdown.startsWith('---')) {
+    const endMatch = cleanMarkdown.indexOf('\n---', 3);
+    if (endMatch !== -1) {
+      cleanMarkdown = cleanMarkdown.slice(endMatch + 4).trim();
+    }
+  }
+
   const sections = new Map();
-  const rawSections = markdown.split(/^##\s+/m);
+  const rawSections = cleanMarkdown.split(/^##\s+/m);
   
   // Preamble or Title
   const titlePart = rawSections[0].trim();

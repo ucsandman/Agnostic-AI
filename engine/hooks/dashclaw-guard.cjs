@@ -16,27 +16,46 @@ const https = require('https');
 const os = require('os');
 const { normalizePayload, formatDenial, formatApproval } = require('./universal-adapter.cjs');
 
+const { getStoredDashClawConfig, discoverDashClawSources } = require('./dashclaw-setup.cjs');
+
 const GUARDS_CONFIG = path.resolve(__dirname, '..', '..', 'core', 'safety', 'guards.json');
 const HOME = os.homedir();
 const INSTANCE_FILE = path.join(HOME, '.dashclaw', 'instance.json');
 
 function getDashClawConfig() {
-  let baseUrl = process.env.DASHCLAW_BASE_URL || null;
-  let apiKey = process.env.DASHCLAW_API_KEY || null;
+  // Check stored/cached configuration first
+  const stored = getStoredDashClawConfig();
+  if (stored && stored.configured && stored.active) {
+    return {
+      enabled: true,
+      baseUrl: stored.baseUrl,
+      apiKey: stored.apiKey,
+      agentId: stored.agentId || 'agnostic-harness',
+      agentName: stored.agentName || 'Agnostic AI Harness',
+      source: stored.source
+    };
+  }
 
-  // Auto-discover local DashClaw instance if available
-  if ((!baseUrl || !apiKey) && fs.existsSync(INSTANCE_FILE)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(INSTANCE_FILE, 'utf8'));
-      baseUrl = baseUrl || data.baseUrl || data.url || 'http://localhost:3000';
-      apiKey = apiKey || data.apiKey || null;
-    } catch (_) {}
+  // Fallback discovery
+  const sources = discoverDashClawSources();
+  if (sources.length > 0) {
+    const selected = sources[0];
+    return {
+      enabled: true,
+      baseUrl: selected.baseUrl,
+      apiKey: selected.apiKey,
+      agentId: selected.agentId || 'agnostic-harness',
+      agentName: selected.agentName || 'Agnostic AI Harness',
+      source: selected.type
+    };
   }
 
   return {
-    enabled: Boolean(baseUrl),
-    baseUrl: baseUrl || 'http://localhost:3000',
-    apiKey
+    enabled: false,
+    baseUrl: 'http://localhost:3000',
+    apiKey: null,
+    agentId: 'agnostic-harness',
+    agentName: 'Agnostic AI Harness'
   };
 }
 
@@ -66,7 +85,9 @@ async function queryDashClawGuard(config, actionPayload) {
       const postData = JSON.stringify({
         action: actionPayload.command || actionPayload.toolName,
         target: actionPayload.targetFile || actionPayload.repo,
-        agentId: actionPayload.client || 'agnostic-agent',
+        agentId: config.agentId || actionPayload.client || 'agnostic-harness',
+        agentName: config.agentName || 'Agnostic AI Harness',
+        clientType: actionPayload.client || 'unknown',
         risk: calculateLocalRisk(actionPayload)
       });
 

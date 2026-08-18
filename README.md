@@ -11,6 +11,18 @@
 | **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (camelCase) | Windows Junction (`~/.claude/skills`) |
 | **Codex CLI** | `~/.codex/AGENTS.md` | `hooks.json` (snake_case) | Windows Junction (`~/.codex/skills`) |
 | **Antigravity CLI (`agy`)** | `~/.gemini/GEMINI.md` | `config/hooks.json` (protojson) | Windows Junction (`~/.gemini/config/skills`) |
+| **Cursor** | `~/.cursor/rules/global-rules.mdc` | `~/.cursor/mcp.json` (MCP) | Windows Junction (`~/.cursor/rules`) |
+| **Windsurf (Cascade)** | `~/.windsurf/rules/global-rules.md` | `mcp_config.json` (Cascade MCP) | Windows Junction (`~/.windsurf/rules`) |
+| **GitHub Copilot** | `~/.github/copilot-instructions.md` | VS Code Tasks / Pre-commit | Directory export (`.github/instructions`) |
+| **Cline** | `~/.cline/prompts/global-rules.md` | `cline_mcp_settings.json` | Windows Junction (`~/.cline/skills`) |
+| **Aider** | `~/.aider.conventions.md` | `.aider.conf.yml` (auto-lint) | Config file reference |
+| **OpenHands** | `~/.openhands/AGENTS.md` | `.openhands/hooks.json` | Windows Junction (`~/.agents/skills`) |
+| **Goose (Block)** | `~/.config/goose/.goosehints` | `config.yaml` (MCP allowlist) | Windows Junction (`~/.config/goose/extensions`) |
+| **Continue.dev** | `~/.continue/rules/global-rules.md` | `.continue/prompts` (Slash cmd) | Windows Junction (`~/.continue/prompts`) |
+| **Zed AI** | `~/.config/zed/AGENTS.md` | `settings.json` (Commit hooks) | Windows Junction (`~/.config/zed/prompts`) |
+| **Trae (ByteDance)** | `~/.trae/user_rules/user_rules.md` | `.trae/config.json` | Windows Junction (`~/.trae/skills`) |
+| **Amazon Q Developer** | `~/.amazonq/rules/global-rules.md` | Amazon Q CLI policies | Windows Junction (`~/.amazonq/rules`) |
+| **Sourcegraph Cody** | `~/.sourcegraph/rules/global-rules.rule.md` | Cody MCP Engine | Web Prompt Library / MCP mount |
 | **OpenClaw** | `~/.openclaw/SYSTEM.md` | Generic Hook Proxy | Custom link |
 | **Hermes** | `~/.hermes/agent_system.md` | JSON Hook Proxy | Custom link |
 | **Generic / Local LLMs** | `storage/compiled/system_prompt.md` | HTTP / CLI wrapper | Directory export |
