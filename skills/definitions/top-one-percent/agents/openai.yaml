@@ -1,0 +1,4 @@
+interface:
+  display_name: "Top One Percent"
+  short_description: "Learn deeply and build exceptional capability"
+  default_prompt: "Use $top-one-percent to teach me [topic] deeply from first principles and show me the important mechanisms, trade-offs, and perspectives."

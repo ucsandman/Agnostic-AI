@@ -51,31 +51,8 @@ function getErrorData() {
 }
 
 function serveDashboard() {
-  const server = http.createServer((req, res) => {
-    if (req.url === '/api/data') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(getErrorData()));
-    }
-    
-    if (req.url === '/' || req.url === '/index.html') {
-      if (fs.existsSync(HTML_FILE)) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        return res.end(fs.readFileSync(HTML_FILE, 'utf8'));
-      }
-    }
-
-    res.writeHead(404);
-    res.end('Not Found');
-  });
-
-  server.listen(PORT, '127.0.0.1', () => {
-    const url = `http://127.0.0.1:${PORT}`;
-    console.log(`[ErrorLog] Dashboard live at ${url}`);
-    if (OPEN_FLAG) {
-      const openCmd = process.platform === 'win32' ? `start ${url}` : `open ${url}`;
-      exec(openCmd);
-    }
-  });
+  const { serveDashboard: runUnifiedDashboard } = require('../dashboard/dashboard.cjs');
+  runUnifiedDashboard();
 }
 
 function runSelfTest() {

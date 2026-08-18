@@ -19,6 +19,8 @@ storage/distill-PROPOSAL.md
 storage/distill-digest.json
 storage/compiled/
 storage/dashclaw*.json
+storage/skills-config.json
+storage/harness-installed.json
 
 # OS & Editor
 .DS_Store

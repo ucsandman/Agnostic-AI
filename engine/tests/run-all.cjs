@@ -241,6 +241,45 @@ async function run() {
     assert.strictEqual(decision.decision, 'deny', 'High risk command should be blocked without override');
   });
 
+  // 10. Test Data Harvester
+  const { runHarvest } = require('../harvest/harvest.cjs');
+  await test('Harvester: ingests error-log, corrections, and candidates from existing agents', () => {
+    const res = runHarvest();
+    assert(res !== null, 'Harvest result should not be null');
+    assert(res.stats.candidatesTotal >= 800, 'Should harvest 800+ candidates from agent history');
+  });
+
+  // 11. Test Skill Consolidation & Manifest
+  const { consolidateSkills } = require('../skills/consolidate.cjs');
+  await test('Skills: consolidates unique skills across agent dirs into harness definitions', () => {
+    const { manifest } = consolidateSkills();
+    const count = Object.keys(manifest).length;
+    assert(count >= 50, 'Should consolidate at least 50+ unique skills');
+    assert(manifest['blindspot'] !== undefined, 'Should include blindspot skill');
+    assert(manifest['install-anti-slop'] !== undefined, 'Should include install-anti-slop skill');
+  });
+
+  // 12. Test Project Analyzer & Skill Recommender
+  const { recommendSkillsForProject, toggleSkill, applyProjectRecommendations } = require('../skills/recommend.cjs');
+  await test('Recommender: analyzes project tech stack and recommends optimal skills', () => {
+    const rec = recommendSkillsForProject('C:\\Projects\\agnostic-ai');
+    assert(rec.project !== null, 'Project info should exist');
+    assert(rec.recommendations.length > 0, 'Should have recommendations');
+    assert(rec.recommendedCount > 0, 'Should have recommended skills');
+
+    // Test toggle
+    const toggled = toggleSkill('blindspot', false, 'C:\\Projects\\agnostic-ai');
+    assert.strictEqual(toggled.projectOverrides['C:\\Projects\\agnostic-ai']['blindspot'], false);
+    toggleSkill('blindspot', true, 'C:\\Projects\\agnostic-ai'); // revert
+  });
+
+  // 13. Test First-Run Setup & Default State
+  const { isFirstRun } = require('../setup/first-run.cjs');
+  await test('First-Run Setup: verifies installation state and default harness status', () => {
+    const firstRun = isFirstRun();
+    assert.strictEqual(typeof firstRun, 'boolean', 'isFirstRun should return boolean');
+  });
+
   console.log(`\n=== Tests Complete: ${passed} passed, ${failed} failed ===`);
   if (failed > 0) process.exit(1);
 }

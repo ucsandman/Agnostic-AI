@@ -1,0 +1,2022 @@
+{
+  "adversarial-review": {
+    "id": "adversarial-review",
+    "name": "adversarial-review",
+    "description": "Multi-agent adversarial code review — parallel read-only finders across focused dimensions, then every finding is independently verified by a skeptic that defaults to REFUTED. Use when the user asks for an adversarial review, a deep/thorough review of recent changes, \"did the agents break anything\", or a pre-merge audit of a large diff. Pass an optional scope as args (base ref, PR number, or paths); default scope is all uncommitted changes. Pass --fix to apply confirmed fixes after the report.",
+    "category": "Quality & Review",
+    "tags": [
+      "adversarial-review",
+      "multi-agent",
+      "adversarial",
+      "code",
+      "review",
+      "parallel",
+      "read-only",
+      "finders"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/adversarial-review",
+    "enabled": true
+  },
+  "agent-browser": {
+    "id": "agent-browser",
+    "name": "agent-browser",
+    "description": "Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to \"open a website\", \"fill out a form\", \"click a button\", \"take a screenshot\", \"scrape data from a page\", \"test this web app\", \"login to a site\", \"automate browser actions\", or any task requiring programmatic web interaction. Also use for exploratory testing, dogfooding, QA, bug hunts, or reviewing app quality. Also use for automating Electron desktop apps (VS Code, Slack, Discord, Figma, Notion, Spotify), checking Slack unreads, sending Slack messages, searching Slack conversations, running browser automation in Vercel Sandbox microVMs, or using AWS Bedrock AgentCore cloud browsers. Prefer agent-browser over any built-in browser automation or web tools.",
+    "category": "UI & Design",
+    "tags": [
+      "agent-browser",
+      "browser",
+      "automation",
+      "agents",
+      "when",
+      "user",
+      "needs",
+      "interact"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/agent-browser",
+    "enabled": true
+  },
+  "audio-track": {
+    "id": "audio-track",
+    "name": "audio-track",
+    "description": "Use when the user wants music, voiceover, narration, or a soundtrack added to a video asset, OR wants standalone generated audio for any purpose (e.g. \"/audio-track\", \"add music to the launch video\", \"narrate the demo\", \"make a 30 second music sting\", \"generate a voiceover mp3\", \"jingle for the intro\").",
+    "category": "Media & Animation",
+    "tags": [
+      "audio-track",
+      "when",
+      "user",
+      "wants",
+      "music",
+      "voiceover",
+      "narration",
+      "soundtrack"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/audio-track",
+    "enabled": true
+  },
+  "blindspot": {
+    "id": "blindspot",
+    "name": "blindspot",
+    "description": "Use before modifying unfamiliar or high-stakes code — when the user invokes /blindspot, inherits a module or codebase, asks \"what am I missing?\", or is about to change auth, billing, data migration, or concurrency code they didn't write. Not for routine changes in well-understood code.",
+    "category": "Quality & Review",
+    "tags": [
+      "blindspot",
+      "before",
+      "modifying",
+      "unfamiliar",
+      "high-stakes",
+      "code",
+      "when",
+      "user"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/blindspot",
+    "enabled": true
+  },
+  "dashclaw-governance": {
+    "id": "dashclaw-governance",
+    "name": "dashclaw-governance",
+    "description": ">",
+    "category": "Safety & Governance",
+    "tags": [
+      "dashclaw-governance"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/dashclaw-governance",
+    "enabled": true
+  },
+  "de-vibe": {
+    "id": "de-vibe",
+    "name": "de-vibe",
+    "description": "Audit and fix the tells that software was vibe-coded / AI-generated, then give it a small distinctive identity, so it ships looking handcrafted and professional. Use whenever the user says \"de-vibe\", \"does this look AI-generated / vibe coded?\", \"make this look shippable / handcrafted / professional\", \"remove the AI slop\", \"polish before launch\", asks why their site \"looks like every other AI site\", or is about to ship/demo/hand off a project that was built largely with AI assistance — even if they don't use the word \"vibe\". Pairs naturally before /ship.",
+    "category": "UI & Design",
+    "tags": [
+      "de-vibe",
+      "audit",
+      "tells",
+      "that",
+      "software",
+      "vibe-coded",
+      "ai-generated",
+      "then"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/de-vibe",
+    "enabled": true
+  },
+  "de-vibe-workspace": {
+    "id": "de-vibe-workspace",
+    "name": "de-vibe-workspace",
+    "description": "Custom AI agent skill",
+    "category": "General & Workflow",
+    "tags": [
+      "de-vibe-workspace",
+      "custom",
+      "agent",
+      "skill"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/de-vibe-workspace",
+    "enabled": true
+  },
+  "deskclaw": {
+    "id": "deskclaw",
+    "name": "deskclaw",
+    "description": "Use when you need to see or inspect the Windows desktop — Wes asks \"what's on my screen\", pastes or offers a screenshot, mentions a native app, dialog, installer or window that is not a browser or a phone, or asks you to check/read/screenshot something outside a web page. Also use before claiming you cannot see the desktop, and whenever a task needs a window's contents, position, or a list of what is open.",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "deskclaw",
+      "when",
+      "need",
+      "inspect",
+      "windows",
+      "desktop",
+      "asks",
+      "what"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/deskclaw",
+    "enabled": true
+  },
+  "dispatch-blocks": {
+    "id": "dispatch-blocks",
+    "name": "dispatch-blocks",
+    "description": "Use when writing ANY subagent, Task, or Workflow dispatch brief — provides the proven verbatim brief blocks (file ownership, ground truth, revert-to-red, real-binary, rtk-distrust, pure-test STOP, adversarial judge, read-only reviewer, harness tool family). Copy the matching blocks into the brief instead of re-deriving them.",
+    "category": "Quality & Review",
+    "tags": [
+      "dispatch-blocks",
+      "when",
+      "writing",
+      "subagent",
+      "task",
+      "workflow",
+      "dispatch",
+      "brief"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/dispatch-blocks",
+    "enabled": true
+  },
+  "fable-gpt": {
+    "id": "fable-gpt",
+    "name": "fable-gpt",
+    "description": "Use when a task involves heavy implementation, debugging, test fixing, refactoring, or multi-file edits that Codex could execute, or when orchestrating Claude + Codex together in a session.",
+    "category": "Quality & Review",
+    "tags": [
+      "fable-gpt",
+      "when",
+      "task",
+      "involves",
+      "heavy",
+      "implementation",
+      "debugging",
+      "test"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/fable-gpt",
+    "enabled": true
+  },
+  "frontend-verify": {
+    "id": "frontend-verify",
+    "name": "frontend-verify",
+    "description": ">",
+    "category": "Quality & Review",
+    "tags": [
+      "frontend-verify"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/frontend-verify",
+    "enabled": true
+  },
+  "harness-health": {
+    "id": "harness-health",
+    "name": "harness-health",
+    "description": "Read-only health check of the local Claude Code harness — verifies every hook target file exists, finds orphaned hook scripts, flags enabled plugins with missing cache dirs, and counts backup/state-file cruft. Use when hooks misbehave, after editing settings.json, after installing/removing plugins, or for periodic maintenance.",
+    "category": "General & Workflow",
+    "tags": [
+      "harness-health",
+      "read-only",
+      "health",
+      "check",
+      "local",
+      "claude",
+      "code",
+      "harness"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/harness-health",
+    "enabled": true
+  },
+  "interview": {
+    "id": "interview",
+    "name": "interview",
+    "description": "Use before implementing any non-trivial feature or change — when the user invokes /interview, when a spec has multiple plausible interpretations, when a request is vague (\"make it better\", \"add auth\"), or before committing to an architecture. Not for trivial mechanical edits.",
+    "category": "Safety & Governance",
+    "tags": [
+      "interview",
+      "before",
+      "implementing",
+      "non-trivial",
+      "feature",
+      "change",
+      "when",
+      "user"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/interview",
+    "enabled": true
+  },
+  "launch": {
+    "id": "launch",
+    "name": "launch",
+    "description": "Use when a product or feature is ready to go public — after shipping, when the user says \"launch it\", \"announce it\", \"go live\", or wants a release marketed end to end.",
+    "category": "General & Workflow",
+    "tags": [
+      "launch",
+      "when",
+      "product",
+      "feature",
+      "ready",
+      "public",
+      "after",
+      "shipping"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/launch",
+    "enabled": true
+  },
+  "launch-video": {
+    "id": "launch-video",
+    "name": "launch-video",
+    "description": "Use when the user wants a full launch video / hero video / 30-90s product announcement composing demo footage, logo, and copy (e.g. \"/launch-video\", \"make the launch video for DashClaw\").",
+    "category": "Media & Animation",
+    "tags": [
+      "launch-video",
+      "when",
+      "user",
+      "wants",
+      "full",
+      "launch",
+      "video",
+      "hero"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/launch-video",
+    "enabled": true
+  },
+  "launch-workspace": {
+    "id": "launch-workspace",
+    "name": "launch-workspace",
+    "description": "Custom AI agent skill",
+    "category": "General & Workflow",
+    "tags": [
+      "launch-workspace",
+      "custom",
+      "agent",
+      "skill"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/launch-workspace",
+    "enabled": true
+  },
+  "logo-reveal": {
+    "id": "logo-reveal",
+    "name": "logo-reveal",
+    "description": "Use when the user wants a logo reveal / logo animation / brand intro video for any product (e.g. \"/logo-reveal\", \"make a logo reveal for DashClaw\", \"animated logo for the landing page\").",
+    "category": "Media & Animation",
+    "tags": [
+      "logo-reveal",
+      "when",
+      "user",
+      "wants",
+      "logo",
+      "reveal",
+      "animation",
+      "brand"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/logo-reveal",
+    "enabled": true
+  },
+  "marketing": {
+    "id": "marketing",
+    "name": "marketing",
+    "description": "Use when the user wants the complete marketing asset suite for a product in one run — \"/marketing\", \"build all the marketing assets\", \"generate everything for the launch\", \"all the animations and brand assets for X\". Not for a single asset (use that asset's own skill) and not for launch copywriting alone (use /launch).",
+    "category": "UI & Design",
+    "tags": [
+      "marketing",
+      "when",
+      "user",
+      "wants",
+      "complete",
+      "asset",
+      "suite",
+      "product"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/marketing",
+    "enabled": true
+  },
+  "marketing-studio": {
+    "id": "marketing-studio",
+    "name": "marketing-studio",
+    "description": "Use when generating any brand video, animation, image, or audio asset (logo reveal, social clip, product demo, launch video, OG image, README GIF, music, voiceover) for any product/repo, or when working inside the marketing-studio engine repo. Required background for /logo-reveal, /social-clip, /product-demo, /launch-video, /og-assets, /audio-track.",
+    "category": "UI & Design",
+    "tags": [
+      "marketing-studio",
+      "when",
+      "generating",
+      "brand",
+      "video",
+      "animation",
+      "image",
+      "audio"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/marketing-studio",
+    "enabled": true
+  },
+  "meditate": {
+    "id": "meditate",
+    "name": "meditate",
+    "description": "Nightly/weekly reflection loop for Claude Code — append dated entries to rotating reflection topics, promote durable insights up the ladder (memory → CLAUDE.md → SOUL.md), build one real artifact at the workbench, render an HTML digest. Use when invoked as /meditate (modes: nightly, weekly, or no-arg manual run), or when Wes asks for a meditation/reflection session.",
+    "category": "UI & Design",
+    "tags": [
+      "meditate",
+      "nightly",
+      "weekly",
+      "reflection",
+      "loop",
+      "claude",
+      "code",
+      "append"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/meditate",
+    "enabled": true
+  },
+  "og-assets": {
+    "id": "og-assets",
+    "name": "og-assets",
+    "description": "Use when the user wants OG images, link-preview assets, animated OG loops, README GIFs, or social-card exports for any product (e.g. \"/og-assets\", \"make an OG image and README gif\").",
+    "category": "Quality & Review",
+    "tags": [
+      "og-assets",
+      "when",
+      "user",
+      "wants",
+      "images",
+      "link-preview",
+      "assets",
+      "animated"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/og-assets",
+    "enabled": true
+  },
+  "phone": {
+    "id": "phone",
+    "name": "phone",
+    "description": "Use when the user asks to text or message someone from their iPhone, read or check something on their phone, or control their iPhone — e.g. \"text my dad ...\", \"send this to Mom\", \"summarize this and text it to X\", \"what's on my phone\", \"open <app> on my phone\", \"organize my home screen\", \"what apps do I have installed\".",
+    "category": "General & Workflow",
+    "tags": [
+      "phone",
+      "when",
+      "user",
+      "asks",
+      "text",
+      "message",
+      "someone",
+      "from"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/phone",
+    "enabled": true
+  },
+  "phone-gotchas": {
+    "id": "phone-gotchas",
+    "name": "phone-gotchas",
+    "description": "Use when driving the user's iPhone with sidetap or the phone-claude harness, before the first tap and whenever a tap lands on the wrong element, a scroll overshoots, an app search returns an unexpected action name, a capability seems missing, or a send is blocked.",
+    "category": "General & Workflow",
+    "tags": [
+      "phone-gotchas",
+      "when",
+      "driving",
+      "user",
+      "iphone",
+      "with",
+      "sidetap",
+      "phone-claude"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/phone-gotchas",
+    "enabled": true
+  },
+  "preflight": {
+    "id": "preflight",
+    "name": "preflight",
+    "description": "Use when a product is about to go public and needs its final pre-launch pass — the user says \"final pass\", \"preflight\", \"launch check\", \"is this ready to go live\", or is sweeping several repos before a launch day. Run from the product's repo, one run per repo.",
+    "category": "General & Workflow",
+    "tags": [
+      "preflight",
+      "when",
+      "product",
+      "about",
+      "public",
+      "needs",
+      "final",
+      "pre-launch"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/preflight",
+    "enabled": true
+  },
+  "product-demo": {
+    "id": "product-demo",
+    "name": "product-demo",
+    "description": "Use when the user wants a product demo video / screen recording with zooms and cursor / dashboard walkthrough clip for any product (e.g. \"/product-demo\", \"record a demo of the app\", \"Screen-Studio style demo\").",
+    "category": "Media & Animation",
+    "tags": [
+      "product-demo",
+      "when",
+      "user",
+      "wants",
+      "product",
+      "demo",
+      "video",
+      "screen"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/product-demo",
+    "enabled": true
+  },
+  "secrets": {
+    "id": "secrets",
+    "name": "secrets",
+    "description": "Fill a repo's .env from the machine's credential stores without ever reading or printing a secret value. Use when the user says \"/secrets\", \"fill in the .env\", \"get the keys\", \"wire up the credentials\", \"pull the secrets from offlocal\", or when launch.py / a dev server refuses to start because keys are still on example values.",
+    "category": "Safety & Governance",
+    "tags": [
+      "secrets",
+      "fill",
+      "repo",
+      "from",
+      "machine",
+      "credential",
+      "stores",
+      "without"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/secrets",
+    "enabled": true
+  },
+  "ship": {
+    "id": "ship",
+    "name": "ship",
+    "description": "Use when finished work needs to go out — the user says \"ship it\", \"update docs commit and push\", \"commit and push\", or asks \"anything else we need to update?\" before a release or at the end of a work session.",
+    "category": "General & Workflow",
+    "tags": [
+      "ship",
+      "when",
+      "finished",
+      "work",
+      "needs",
+      "user",
+      "says",
+      "update"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/ship",
+    "enabled": true
+  },
+  "ship-it": {
+    "id": "ship-it",
+    "name": "ship-it",
+    "description": "Ship a product end to end — render marketing assets with the animations studio, then run the launch-engine flow with videos attached to X and LinkedIn posts. Run from the product's repo.",
+    "category": "Media & Animation",
+    "tags": [
+      "ship-it",
+      "ship",
+      "product",
+      "render",
+      "marketing",
+      "assets",
+      "with",
+      "animations"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/ship-it",
+    "enabled": true
+  },
+  "skillfind": {
+    "id": "skillfind",
+    "name": "skillfind",
+    "description": "Use before writing a new skill, before saying no skill exists for something, or whenever Wes asks \"do I have a skill for X\" / \"is there a skill that…\". Also use when a task sounds like it needs a capability that might already be installed (spreadsheets, PDFs, docx, scraping, copywriting, a framework, a provider) — most of this machine's skills are NOT in the session listing, so \"I don't see one\" is not evidence that none exists.",
+    "category": "General & Workflow",
+    "tags": [
+      "skillfind",
+      "before",
+      "writing",
+      "skill",
+      "saying",
+      "exists",
+      "something",
+      "whenever"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/skillfind",
+    "enabled": true
+  },
+  "social-clip": {
+    "id": "social-clip",
+    "name": "social-clip",
+    "description": "Use when the user wants a short social media video / feature announcement clip / X-LinkedIn-TikTok teaser for any product (e.g. \"/social-clip\", \"make a clip announcing the new dashboard\").",
+    "category": "Media & Animation",
+    "tags": [
+      "social-clip",
+      "when",
+      "user",
+      "wants",
+      "short",
+      "social",
+      "media",
+      "video"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/social-clip",
+    "enabled": true
+  },
+  "team": {
+    "id": "team",
+    "name": "team",
+    "description": "Fan a task out to the Claude Code + OpenClaw (MoltFire) team. Use when the user types /team <task> or asks to \"have both agents\" / \"the team\" handle something. Classifies who leads, delegates over CLI, logs every exchange to the team ledger, reports back here.",
+    "category": "General & Workflow",
+    "tags": [
+      "team",
+      "task",
+      "claude",
+      "code",
+      "openclaw",
+      "moltfire",
+      "when",
+      "user"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/team",
+    "enabled": true
+  },
+  "threejs-3d-generator": {
+    "id": "threejs-3d-generator",
+    "name": "threejs-3d-generator",
+    "description": "Generate, texture, rig, animate, stylize, convert, and download 3D assets for Three.js games using the Tripo API. Use for text-to-3D, image-to-3D, 2D concept to 3D conversion, game-ready GLB/FBX assets, characters, creatures, buildings, props, weapons, terrain pieces, auto-rigging, animation retargeting, model texturing, LEGO/voxel/Minecraft-style stylization, low-poly/quad conversion, and browser asset pipelines. Pair with threejs-image-generator for concepts, texture references, sky/background/terrain textures, logos, icons, and GUI art before image-to-3D generation.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-3d-generator",
+      "generate",
+      "texture",
+      "animate",
+      "stylize",
+      "convert",
+      "download",
+      "assets"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-3d-generator",
+    "enabled": true
+  },
+  "threejs-aaa-graphics-builder": {
+    "id": "threejs-aaa-graphics-builder",
+    "name": "threejs-aaa-graphics-builder",
+    "description": "Upgrade Three.js games from basic/prototype visuals to premium AAA-inspired browser graphics. Combines art-direction critique, procedural model building, technical art, mandatory external asset sourcing decisions, threejs-3d-generator assets, threejs-image-generator concept/texture workflows, scene visual polish, material/texture libraries, world prop kits, shaders, VFX readability, render budgets, LOD/instancing, render pipeline, and visual scorecard gates. For premium games with characters, vehicles, ships, weapons, buildings, signature props, skies, textures, decals, logos, icons, or GUI art, load the relevant generator skills before deciding procedural assets are enough.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-aaa-graphics-builder",
+      "upgrade",
+      "three",
+      "games",
+      "from",
+      "basic",
+      "prototype",
+      "visuals"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-aaa-graphics-builder",
+    "enabled": true
+  },
+  "threejs-audio-generator": {
+    "id": "threejs-audio-generator",
+    "name": "threejs-audio-generator",
+    "description": "Generate, convert, clean, and prepare audio assets for Three.js browser games using ElevenLabs. Use for sound effects, looping ambience, UI sounds, impact/weapon/vehicle audio, creature or boss stingers, announcer/dialogue TTS, scratch-performance voice conversion, voice cleanup/isolation, audio manifests, and game-ready web audio integration.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-audio-generator",
+      "generate",
+      "convert",
+      "clean",
+      "prepare",
+      "audio",
+      "assets",
+      "three"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-audio-generator",
+    "enabled": true
+  },
+  "threejs-debug-profiler": {
+    "id": "threejs-debug-profiler",
+    "name": "threejs-debug-profiler",
+    "description": "Debug and profile Three.js browser games. Combines scene debugging, render/runtime/loading/animation/resize/mobile input fixes, performance profiling, draw calls, triangles, textures, memory, shader/post-processing cost, bundle size, and mobile DPR/input issues.",
+    "category": "Media & Animation",
+    "tags": [
+      "threejs-debug-profiler",
+      "debug",
+      "profile",
+      "three",
+      "browser",
+      "games",
+      "combines",
+      "scene"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-debug-profiler",
+    "enabled": true
+  },
+  "threejs-game-director": {
+    "id": "threejs-game-director",
+    "name": "threejs-game-director",
+    "description": "Primary entrypoint for complete Three.js browser game creation and premium iteration. Use by default for build-a-game, upgrade, polish, premium, AAA, high-fidelity, showcase, from-scratch, endless runner, arcade, action, or release-ready requests. Orchestrates sibling skills for gameplay, AAA graphics, UI, debug/profile, and QA/release, plus 3D/image/audio generators for characters, vehicles, weapons, buildings, props, skies, textures, logos, icons, GUI art, and SFX/voice. Keeps skill-loading, reference, asset-sourcing, and phase ledgers so users never choose skills manually.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-game-director",
+      "primary",
+      "entrypoint",
+      "complete",
+      "three",
+      "browser",
+      "game",
+      "creation"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-game-director",
+    "enabled": true
+  },
+  "threejs-game-ui-designer": {
+    "id": "threejs-game-ui-designer",
+    "name": "threejs-game-ui-designer",
+    "description": "Design premium Three.js game UI. Use for HUDs, menus, overlays, pause/win/lose screens, settings, icon controls, touch UI, typography, responsive layout, safe areas, text fit, and UI/world cohesion.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-game-ui-designer",
+      "design",
+      "premium",
+      "three",
+      "game",
+      "huds",
+      "menus",
+      "overlays"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-game-ui-designer",
+    "enabled": true
+  },
+  "threejs-gameplay-systems": {
+    "id": "threejs-gameplay-systems",
+    "name": "threejs-gameplay-systems",
+    "description": "Build and iterate playable Three.js game systems. Combines starter scaffold creation, architecture, game design, level design, gameplay implementation, combat/encounter design, and game-feel tuning (hitstop, screenshake, easing, impact feedback). Use for first playable slices, new Vite/TypeScript/Three.js game setup, design briefs, core loops, level/arena/track/wave/hole/puzzle design, game loops, entity systems, input, collision/physics, scoring, objectives, audio hooks, camera, controls, difficulty, feedback, juice, and maintainable structure.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-gameplay-systems",
+      "build",
+      "iterate",
+      "playable",
+      "three",
+      "game",
+      "systems",
+      "combines"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-gameplay-systems",
+    "enabled": true
+  },
+  "threejs-image-generator": {
+    "id": "threejs-image-generator",
+    "name": "threejs-image-generator",
+    "description": "Generate and edit 2D image assets for Three.js games using Google's Gemini image API. Use for concept sheets, image-to-3D inputs, texture references, sky/background plates, decals, logos, icons, GUI art, title/menu art, thumbnails, marketing stills, and source images that feed threejs-3d-generator. Also use for direct image editing when the user provides an image path.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-image-generator",
+      "generate",
+      "edit",
+      "image",
+      "assets",
+      "three",
+      "games",
+      "using"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-image-generator",
+    "enabled": true
+  },
+  "threejs-qa-release": {
+    "id": "threejs-qa-release",
+    "name": "threejs-qa-release",
+    "description": "Verify and release Three.js browser games. Combines playtest QA, automated bot playtests, mobile/responsive checks, production builds, preview verification, static-hosting base paths, debug gating, bundle review, screenshots, visual test harness decisions, packaged canvas-pixel inspection with measured metrics, console checks, and release risk reports.",
+    "category": "UI & Design",
+    "tags": [
+      "threejs-qa-release",
+      "verify",
+      "release",
+      "three",
+      "browser",
+      "games",
+      "combines",
+      "playtest"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/threejs-qa-release",
+    "enabled": true
+  },
+  "top-one-percent": {
+    "id": "top-one-percent",
+    "name": "top-one-percent",
+    "description": "Teach any topic deeply from first principles and build evidence-based paths toward exceptional capability. Use when a user asks to understand, explain, learn, or deep-dive into a topic; asks why or how something works, why it matters, how alternatives compare, or what different perspectives reveal; requests current paradigms, a complete roadmap or curriculum, deliberate practice and feedback, or a top-1%-level mastery plan. Answer explanation questions completely before offering a curriculum; route explicit mastery goals to an adaptive practice and proof-of-capability system.",
+    "category": "UI & Design",
+    "tags": [
+      "top-one-percent",
+      "teach",
+      "topic",
+      "deeply",
+      "from",
+      "first",
+      "principles",
+      "build"
+    ],
+    "sources": [
+      "claude",
+      "codex"
+    ],
+    "installedPath": "skills/definitions/top-one-percent",
+    "enabled": true
+  },
+  "wes-voice": {
+    "id": "wes-voice",
+    "name": "wes-voice",
+    "description": "Use when Wes asks to rewrite or translate pasted text into his own casual voice, especially with \"/wes\", \"make this sound like me\", \"make this sound like Wes\", \"translate this into my voice\", or drafting comments, posts, replies, and messages he will personally send.",
+    "category": "Reflection & Persona",
+    "tags": [
+      "wes-voice",
+      "when",
+      "asks",
+      "rewrite",
+      "translate",
+      "pasted",
+      "text",
+      "into"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/wes-voice",
+    "enabled": true
+  },
+  "wrap": {
+    "id": "wrap",
+    "name": "wrap",
+    "description": "Use when a session is ending — the user says \"wrap up\", \"get to a good stopping point\", is near a rate limit or context limit, wants to compact safely, or asks for handoff notes / a resume prompt.",
+    "category": "General & Workflow",
+    "tags": [
+      "wrap",
+      "when",
+      "session",
+      "ending",
+      "user",
+      "says",
+      "good",
+      "stopping"
+    ],
+    "sources": [
+      "claude"
+    ],
+    "installedPath": "skills/definitions/wrap",
+    "enabled": true
+  },
+  "create-plan": {
+    "id": "create-plan",
+    "name": "create-plan",
+    "description": "Create a concise plan. Use when a user explicitly asks for a plan related to a coding task.",
+    "category": "Thinking & Ideation",
+    "tags": [
+      "create-plan",
+      "create",
+      "concise",
+      "plan",
+      "when",
+      "user",
+      "explicitly",
+      "asks"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/create-plan",
+    "enabled": true
+  },
+  "dashclaw-platform-intelligence": {
+    "id": "dashclaw-platform-intelligence",
+    "name": "dashclaw-platform-intelligence",
+    "description": ">",
+    "category": "Safety & Governance",
+    "tags": [
+      "dashclaw-platform-intelligence"
+    ],
+    "sources": [
+      "codex",
+      "agents"
+    ],
+    "installedPath": "skills/definitions/dashclaw-platform-intelligence",
+    "enabled": true
+  },
+  "emotional-design-engine": {
+    "id": "emotional-design-engine",
+    "name": "emotional-design-engine",
+    "description": "Translates human emotions, feelings, memories, and sensory experiences into production-grade UI code with unique, non-generic design. Use this skill whenever a user describes a vibe, feeling, mood, memory, sensory experience, or aesthetic emotion they want their interface to embody. Trigger on phrases like \"make it feel like\", \"the vibe should be\", \"I want users to feel\", \"design something that feels like\", \"warm and cozy UI\", \"brutalist but playful\", or any description pairing a functional request with an emotional/experiential direction. Also trigger when a user provides a metaphor, memory, or scenario as a design brief (e.g., \"homemade cookies on Christmas Eve\", \"Tokyo at 2am\", \"old library with leather chairs\"). This skill bridges the gap between human emotion and professional design vocabulary, producing code that is both technically excellent and emotionally resonant. Works for React, HTML/CSS, and any frontend output.",
+    "category": "UI & Design",
+    "tags": [
+      "emotional-design-engine",
+      "translates",
+      "human",
+      "emotions",
+      "feelings",
+      "memories",
+      "sensory",
+      "experiences"
+    ],
+    "sources": [
+      "codex",
+      "agents"
+    ],
+    "installedPath": "skills/definitions/emotional-design-engine",
+    "enabled": true
+  },
+  "frontend-design": {
+    "id": "frontend-design",
+    "name": "frontend-design",
+    "description": "Create distinctive, production-grade frontend interfaces with high design quality. Generates creative, polished code that avoids generic AI aesthetics. Use when the user asks to build web components, pages, artifacts, posters, or applications, or when any design skill requires project context.",
+    "category": "UI & Design",
+    "tags": [
+      "frontend-design",
+      "create",
+      "distinctive",
+      "production-grade",
+      "frontend",
+      "interfaces",
+      "with",
+      "high"
+    ],
+    "sources": [
+      "codex",
+      "agents"
+    ],
+    "installedPath": "skills/definitions/frontend-design",
+    "enabled": true
+  },
+  "linear": {
+    "id": "linear",
+    "name": "linear",
+    "description": "Manage issues, projects & team workflows in Linear. Use when the user wants to read, create or updates tickets in Linear.",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "linear",
+      "manage",
+      "issues",
+      "projects",
+      "team",
+      "workflows",
+      "when",
+      "user"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/linear",
+    "enabled": true
+  },
+  "react-best-practices": {
+    "id": "react-best-practices",
+    "name": "vercel-react-best-practices",
+    "description": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.",
+    "category": "UI & Design",
+    "tags": [
+      "vercel-react-best-practices",
+      "react",
+      "next",
+      "performance",
+      "optimization",
+      "guidelines",
+      "from",
+      "vercel"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/react-best-practices",
+    "enabled": true
+  },
+  "senior-frontend": {
+    "id": "senior-frontend",
+    "name": "senior-frontend",
+    "description": "Comprehensive frontend development skill for building modern, performant web applications using ReactJS, NextJS, TypeScript, Tailwind CSS. Includes component scaffolding, performance optimization, bundle analysis, and UI best practices. Use when developing frontend features, optimizing performance, implementing UI/UX designs, managing state, or reviewing frontend code.",
+    "category": "UI & Design",
+    "tags": [
+      "senior-frontend",
+      "comprehensive",
+      "frontend",
+      "development",
+      "skill",
+      "building",
+      "modern",
+      "performant"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/senior-frontend",
+    "enabled": true
+  },
+  "senior-fullstack": {
+    "id": "senior-fullstack",
+    "name": "senior-fullstack",
+    "description": "Comprehensive fullstack development skill for building complete web applications with React, Next.js, Node.js, GraphQL, and PostgreSQL. Includes project scaffolding, code quality analysis, architecture patterns, and complete tech stack guidance. Use when building new projects, analyzing code quality, implementing design patterns, or setting up development workflows.",
+    "category": "UI & Design",
+    "tags": [
+      "senior-fullstack",
+      "comprehensive",
+      "fullstack",
+      "development",
+      "skill",
+      "building",
+      "complete",
+      "applications"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/senior-fullstack",
+    "enabled": true
+  },
+  "supergoal": {
+    "id": "supergoal",
+    "name": "supergoal",
+    "description": "Plan and autonomously build a software task end-to-end. Triggered by `/supergoal`, \"plan and ship X\", \"supercharged plan\", \"autonomous build\", \"plan it out and don't stop until it's done\", \"I don't want to babysit this\", or any non-trivial feature/refactor/redesign the user wants driven to completion. Strongly prefer over a plain plan when the user signals \"every aspect\", \"fully\", \"perfectly\", \"until done\", or wants depth + autonomous follow-through. Recons the codebase, applies preloaded memory, researches best practices with whatever tools are available, decomposes into the right number of phases, gets one confirmation, then prepares a single ready-to-paste `/goal` command — one paste between you and done — that drives the entire chain to completion with built-in retry, fix-spec recovery, and per-phase memory writeback. Works on Claude Code and Codex.",
+    "category": "UI & Design",
+    "tags": [
+      "supergoal",
+      "plan",
+      "autonomously",
+      "build",
+      "software",
+      "task",
+      "end-to-end",
+      "triggered"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/supergoal",
+    "enabled": true
+  },
+  "tailwind-patterns": {
+    "id": "tailwind-patterns",
+    "name": "tailwind-patterns",
+    "description": "|",
+    "category": "UI & Design",
+    "tags": [
+      "tailwind-patterns"
+    ],
+    "sources": [
+      "codex"
+    ],
+    "installedPath": "skills/definitions/tailwind-patterns",
+    "enabled": true
+  },
+  "web-design-guidelines": {
+    "id": "web-design-guidelines",
+    "name": "web-design-guidelines",
+    "description": "Review UI code for Web Interface Guidelines compliance. Use when asked to \"review my UI\", \"check accessibility\", \"audit design\", \"review UX\", or \"check my site against best practices\".",
+    "category": "UI & Design",
+    "tags": [
+      "web-design-guidelines",
+      "review",
+      "code",
+      "interface",
+      "guidelines",
+      "compliance",
+      "when",
+      "asked"
+    ],
+    "sources": [
+      "codex",
+      "agents"
+    ],
+    "installedPath": "skills/definitions/web-design-guidelines",
+    "enabled": true
+  },
+  "agy-customizations": {
+    "id": "agy-customizations",
+    "name": "agy-customizations",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "agy-customizations"
+    ],
+    "sources": [
+      "antigravity-builtin"
+    ],
+    "installedPath": "skills/definitions/agy-customizations",
+    "enabled": true
+  },
+  "antigravity_guide": {
+    "id": "antigravity_guide",
+    "name": "antigravity-guide",
+    "description": "Provides a comprehensive guide, quick reference, and sitemap for Google Antigravity (AGY), including the Antigravity CLI (agy), Antigravity 2.0, Antigravity IDE, Python SDK, slash commands, keybindings, and customizations (skills, rules, MCP, sidecars). Activate this skill when the user asks questions about how to use, configure, or customize Antigravity, AGY, the agy CLI, the Antigravity IDE, or Antigravity 2.0.",
+    "category": "UI & Design",
+    "tags": [
+      "antigravity-guide",
+      "provides",
+      "comprehensive",
+      "guide",
+      "quick",
+      "reference",
+      "sitemap",
+      "google"
+    ],
+    "sources": [
+      "antigravity-builtin"
+    ],
+    "installedPath": "skills/definitions/antigravity_guide",
+    "enabled": true
+  },
+  "permissioned-github": {
+    "id": "permissioned-github",
+    "name": "permissioned-github",
+    "description": "Guidelines for interacting with GitHub and request permissions from the user when commands fail due to restrictions in the agent environment.",
+    "category": "UI & Design",
+    "tags": [
+      "permissioned-github",
+      "guidelines",
+      "interacting",
+      "with",
+      "github",
+      "request",
+      "permissions",
+      "from"
+    ],
+    "sources": [
+      "antigravity-builtin"
+    ],
+    "installedPath": "skills/definitions/permissioned-github",
+    "enabled": true
+  },
+  "adapt": {
+    "id": "adapt",
+    "name": "adapt",
+    "description": "Adapt designs to work across different screen sizes, devices, contexts, or platforms. Implements breakpoints, fluid layouts, and touch targets. Use when the user mentions responsive design, mobile layouts, breakpoints, viewport adaptation, or cross-device compatibility.",
+    "category": "UI & Design",
+    "tags": [
+      "adapt",
+      "designs",
+      "work",
+      "across",
+      "different",
+      "screen",
+      "sizes",
+      "devices"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/adapt",
+    "enabled": true
+  },
+  "agentcash": {
+    "id": "agentcash",
+    "name": "agentcash",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "agentcash"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/agentcash",
+    "enabled": true
+  },
+  "animate": {
+    "id": "animate",
+    "name": "animate",
+    "description": "Review a feature and enhance it with purposeful animations, micro-interactions, and motion effects that improve usability and delight. Use when the user mentions adding animation, transitions, micro-interactions, motion design, hover effects, or making the UI feel more alive.",
+    "category": "UI & Design",
+    "tags": [
+      "animate",
+      "review",
+      "feature",
+      "enhance",
+      "with",
+      "purposeful",
+      "animations",
+      "micro-interactions"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/animate",
+    "enabled": true
+  },
+  "arrange": {
+    "id": "arrange",
+    "name": "arrange",
+    "description": "Improve layout, spacing, and visual rhythm. Fixes monotonous grids, inconsistent spacing, and weak visual hierarchy. Use when the user mentions layout feeling off, spacing issues, visual hierarchy, crowded UI, alignment problems, or wanting better composition.",
+    "category": "UI & Design",
+    "tags": [
+      "arrange",
+      "improve",
+      "layout",
+      "spacing",
+      "visual",
+      "rhythm",
+      "fixes",
+      "monotonous"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/arrange",
+    "enabled": true
+  },
+  "audit": {
+    "id": "audit",
+    "name": "audit",
+    "description": "Run technical quality checks across accessibility, performance, theming, responsive design, and anti-patterns. Generates a scored report with P0-P3 severity ratings and actionable plan. Use when the user wants an accessibility check, performance audit, or technical quality review.",
+    "category": "UI & Design",
+    "tags": [
+      "audit",
+      "technical",
+      "quality",
+      "checks",
+      "across",
+      "accessibility",
+      "performance",
+      "theming"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/audit",
+    "enabled": true
+  },
+  "bolder": {
+    "id": "bolder",
+    "name": "bolder",
+    "description": "Amplify safe or boring designs to make them more visually interesting and stimulating. Increases impact while maintaining usability. Use when the user says the design looks bland, generic, too safe, lacks personality, or wants more visual impact and character.",
+    "category": "UI & Design",
+    "tags": [
+      "bolder",
+      "amplify",
+      "safe",
+      "boring",
+      "designs",
+      "make",
+      "them",
+      "more"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/bolder",
+    "enabled": true
+  },
+  "clarify": {
+    "id": "clarify",
+    "name": "clarify",
+    "description": "Improve unclear UX copy, error messages, microcopy, labels, and instructions to make interfaces easier to understand. Use when the user mentions confusing text, unclear labels, bad error messages, hard-to-follow instructions, or wanting better UX writing.",
+    "category": "General & Workflow",
+    "tags": [
+      "clarify",
+      "improve",
+      "unclear",
+      "copy",
+      "error",
+      "messages",
+      "microcopy",
+      "labels"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/clarify",
+    "enabled": true
+  },
+  "claude-api": {
+    "id": "claude-api",
+    "name": "claude-api",
+    "description": "Build, debug, and optimize Claude API / Anthropic SDK apps. Apps built with this skill should include prompt caching. Also handles migrating existing Claude API code between Claude model versions (4.5 → 4.6, 4.6 → 4.7, retired-model replacements). TRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`; user asks for the Claude API, Anthropic SDK, or Managed Agents; user adds/modifies/tunes a Claude feature (caching, thinking, compaction, tool use, batch, files, citations, memory) or model (Opus/Sonnet/Haiku) in a file; questions about prompt caching / cache hit rate in an Anthropic SDK project. SKIP: file imports `openai`/other-provider SDK, filename like `*-openai.py`/`*-generic.py`, provider-neutral code, general programming/ML.",
+    "category": "UI & Design",
+    "tags": [
+      "claude-api",
+      "build",
+      "debug",
+      "optimize",
+      "claude",
+      "anthropic",
+      "apps",
+      "built"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/claude-api",
+    "enabled": true
+  },
+  "colorize": {
+    "id": "colorize",
+    "name": "colorize",
+    "description": "Add strategic color to features that are too monochromatic or lack visual interest, making interfaces more engaging and expressive. Use when the user mentions the design looking gray, dull, lacking warmth, needing more color, or wanting a more vibrant or expressive palette.",
+    "category": "UI & Design",
+    "tags": [
+      "colorize",
+      "strategic",
+      "color",
+      "features",
+      "that",
+      "monochromatic",
+      "lack",
+      "visual"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/colorize",
+    "enabled": true
+  },
+  "critique": {
+    "id": "critique",
+    "name": "critique",
+    "description": "Evaluate design from a UX perspective, assessing visual hierarchy, information architecture, emotional resonance, cognitive load, and overall quality with quantitative scoring, persona-based testing, and actionable feedback. Use when the user asks to review, critique, evaluate, or give feedback on a design or component.",
+    "category": "UI & Design",
+    "tags": [
+      "critique",
+      "evaluate",
+      "design",
+      "from",
+      "perspective",
+      "assessing",
+      "visual",
+      "hierarchy"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/critique",
+    "enabled": true
+  },
+  "delight": {
+    "id": "delight",
+    "name": "delight",
+    "description": "Add moments of joy, personality, and unexpected touches that make interfaces memorable and enjoyable to use. Elevates functional to delightful. Use when the user asks to add polish, personality, animations, micro-interactions, delight, or make an interface feel fun or memorable.",
+    "category": "Media & Animation",
+    "tags": [
+      "delight",
+      "moments",
+      "personality",
+      "unexpected",
+      "touches",
+      "that",
+      "make",
+      "interfaces"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/delight",
+    "enabled": true
+  },
+  "distill": {
+    "id": "distill",
+    "name": "distill",
+    "description": "Strip designs to their essence by removing unnecessary complexity. Great design is simple, powerful, and clean. Use when the user asks to simplify, declutter, reduce noise, remove elements, or make a UI cleaner and more focused.",
+    "category": "UI & Design",
+    "tags": [
+      "distill",
+      "strip",
+      "designs",
+      "their",
+      "essence",
+      "removing",
+      "unnecessary",
+      "complexity"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/distill",
+    "enabled": true
+  },
+  "extract": {
+    "id": "extract",
+    "name": "extract",
+    "description": "Extract and consolidate reusable components, design tokens, and patterns into your design system. Identifies opportunities for systematic reuse and enriches your component library. Use when the user asks to create components, refactor repeated UI patterns, build a design system, or extract tokens.",
+    "category": "UI & Design",
+    "tags": [
+      "extract",
+      "consolidate",
+      "reusable",
+      "components",
+      "design",
+      "tokens",
+      "patterns",
+      "into"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/extract",
+    "enabled": true
+  },
+  "find-skills": {
+    "id": "find-skills",
+    "name": "find-skills",
+    "description": "Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can...\", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.",
+    "category": "General & Workflow",
+    "tags": [
+      "find-skills",
+      "helps",
+      "users",
+      "discover",
+      "install",
+      "agent",
+      "skills",
+      "when"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/find-skills",
+    "enabled": true
+  },
+  "frontend-design-review": {
+    "id": "frontend-design-review",
+    "name": "frontend-design-review",
+    "description": ">",
+    "category": "UI & Design",
+    "tags": [
+      "frontend-design-review"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/frontend-design-review",
+    "enabled": true
+  },
+  "frontend-ui-dark-ts": {
+    "id": "frontend-ui-dark-ts",
+    "name": "frontend-ui-dark-ts",
+    "description": "Build dark-themed React applications using Tailwind CSS with custom theming, glassmorphism effects, and Framer Motion animations. Use when creating dashboards, admin panels, or data-rich interfaces with a refined dark aesthetic.",
+    "category": "UI & Design",
+    "tags": [
+      "frontend-ui-dark-ts",
+      "build",
+      "dark-themed",
+      "react",
+      "applications",
+      "using",
+      "tailwind",
+      "with"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/frontend-ui-dark-ts",
+    "enabled": true
+  },
+  "harden": {
+    "id": "harden",
+    "name": "harden",
+    "description": "Improve interface resilience through better error handling, i18n support, text overflow handling, and edge case management. Makes interfaces robust and production-ready. Use when the user asks to harden, make production-ready, handle edge cases, add error states, or fix overflow and i18n issues.",
+    "category": "Quality & Review",
+    "tags": [
+      "harden",
+      "improve",
+      "interface",
+      "resilience",
+      "through",
+      "better",
+      "error",
+      "handling"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/harden",
+    "enabled": true
+  },
+  "impeccable": {
+    "id": "impeccable",
+    "name": "impeccable",
+    "description": "Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface. Covers websites, landing pages, dashboards, product UI, app shells, components, forms, settings, onboarding, and empty states. Handles UX review, visual hierarchy, information architecture, cognitive load, accessibility, performance, responsive behavior, theming, anti-patterns, typography, fonts, spacing, layout, alignment, color, motion, micro-interactions, UX copy, error states, edge cases, i18n, and reusable design systems or tokens. Also use for bland designs that need to become bolder or more delightful, loud designs that should become quieter, live browser iteration on UI elements, or ambitious visual effects that should feel technically extraordinary. Not for backend-only or non-UI tasks.",
+    "category": "UI & Design",
+    "tags": [
+      "impeccable",
+      "when",
+      "user",
+      "wants",
+      "design",
+      "redesign",
+      "shape",
+      "critique"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/impeccable",
+    "enabled": true
+  },
+  "improve": {
+    "id": "improve",
+    "name": "improve",
+    "description": "Survey any codebase as a senior advisor and produce prioritized, self-contained implementation plans for OTHER models/agents to execute. Strictly read-only on source code — never implements, fixes, or refactors anything itself. Use when asked to audit a codebase, find improvement opportunities (bugs, security, performance, test coverage, tech debt, migrations, DX), suggest features or where to take the project next (roadmap, product direction), or generate handoff plans for another agent to implement.",
+    "category": "Quality & Review",
+    "tags": [
+      "improve",
+      "survey",
+      "codebase",
+      "senior",
+      "advisor",
+      "produce",
+      "prioritized",
+      "self-contained"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/improve",
+    "enabled": true
+  },
+  "improve-threejs": {
+    "id": "improve-threejs",
+    "name": "improve-threejs",
+    "description": "Audit and fix Three.js and React Three Fiber apps for frame-loop performance, GPU memory leaks, scene-graph correctness, and visual defects like z-fighting, shadow acne, wrong color space, and broken resize handling. Uses React Doctor as the scanning engine plus a visual rubric checked against rendered output. Use when the user asks to improve, audit, scan, or clean up a Three.js, R3F, react-three-fiber, drei, or WebGL app, or types `/improve-threejs`.",
+    "category": "UI & Design",
+    "tags": [
+      "improve-threejs",
+      "audit",
+      "three",
+      "react",
+      "fiber",
+      "apps",
+      "frame-loop",
+      "performance"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/improve-threejs",
+    "enabled": true
+  },
+  "install-anti-slop": {
+    "id": "install-anti-slop",
+    "name": "install-anti-slop",
+    "description": "Install and configure the anti-slop Oxlint plugin in a local TypeScript or JavaScript repository. Use whenever a user asks to add anti-slop lint rules, copy the anti-slop plugin, configure opinionated Oxlint rules, or migrate an existing local anti-slop setup.",
+    "category": "General & Workflow",
+    "tags": [
+      "install-anti-slop",
+      "install",
+      "configure",
+      "anti-slop",
+      "oxlint",
+      "plugin",
+      "local",
+      "typescript"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/install-anti-slop",
+    "enabled": true
+  },
+  "inversion": {
+    "id": "inversion",
+    "name": "inversion",
+    "description": "Assumption Inversion — list the assumptions behind the current approach and flip each one, then ask where the flipped version could actually be true. Use when requirements encode beliefs nobody has questioned, when a design feels inevitable, or when incumbents all share one blind spot. Triggers include \"invert\", \"flip it\", \"flip the assumption\", \"reverse the premise\", \"what if the opposite were true\", \"challenge the assumption\". Do NOT use for analytical work like debugging, code review, or implementation tasks.",
+    "category": "UI & Design",
+    "tags": [
+      "inversion",
+      "assumption",
+      "list",
+      "assumptions",
+      "behind",
+      "current",
+      "approach",
+      "flip"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/inversion",
+    "enabled": true
+  },
+  "lateral": {
+    "id": "lateral",
+    "name": "lateral",
+    "description": "Lateral thinking toolkit router — when you're stuck, going in circles, need fresh ideas, or standard brainstorming keeps producing predictable results, this diagnoses the symptom and applies the right technique from the toolkit (random-stimulus, provocation, inversion, concept-fan, analogy, scamper, six-hats, worst-idea). Triggers include \"lateral thinking\", \"I'm stuck on a creative problem\", \"we're going in circles\", \"need fresh ideas\", \"try a different angle\", \"break out of the box\", \"ideas all feel the same\", \"predictable brainstorm\". Do NOT use for analytical work like debugging, code review, or implementation tasks.",
+    "category": "Quality & Review",
+    "tags": [
+      "lateral",
+      "thinking",
+      "toolkit",
+      "router",
+      "when",
+      "stuck",
+      "going",
+      "circles"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/lateral",
+    "enabled": true
+  },
+  "make-interfaces-feel-better": {
+    "id": "make-interfaces-feel-better",
+    "name": "make-interfaces-feel-better",
+    "description": "Design engineering principles for making interfaces feel polished. Use when building UI components, reviewing frontend code, implementing animations, hover states, shadows, borders, typography, micro-interactions, enter/exit animations, or any visual detail work. Triggers on UI polish, design details, \"make it feel better\", \"feels off\", stagger animations, border radius, optical alignment, font smoothing, tabular numbers, image outlines, box shadows.",
+    "category": "UI & Design",
+    "tags": [
+      "make-interfaces-feel-better",
+      "design",
+      "engineering",
+      "principles",
+      "making",
+      "interfaces",
+      "feel",
+      "polished"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/make-interfaces-feel-better",
+    "enabled": true
+  },
+  "medeo-video": {
+    "id": "medeo-video",
+    "name": "medeo-video",
+    "description": "AI-powered video generation skill. Use when the user wants to generate videos from text descriptions, browse video recipes, upload assets, or manage video creation workflows.",
+    "category": "Media & Animation",
+    "tags": [
+      "medeo-video",
+      "ai-powered",
+      "video",
+      "generation",
+      "skill",
+      "when",
+      "user",
+      "wants"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/medeo-video",
+    "enabled": true
+  },
+  "normalize": {
+    "id": "normalize",
+    "name": "normalize",
+    "description": "Audits and realigns UI to match design system standards, spacing, tokens, and patterns. Use when the user mentions consistency, design drift, mismatched styles, tokens, or wants to bring a feature back in line with the system.",
+    "category": "UI & Design",
+    "tags": [
+      "normalize",
+      "audits",
+      "realigns",
+      "match",
+      "design",
+      "system",
+      "standards",
+      "spacing"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/normalize",
+    "enabled": true
+  },
+  "onboard": {
+    "id": "onboard",
+    "name": "onboard",
+    "description": "Designs and improves onboarding flows, empty states, and first-run experiences to help users reach value quickly. Use when the user mentions onboarding, first-time users, empty states, activation, getting started, or new user flows.",
+    "category": "UI & Design",
+    "tags": [
+      "onboard",
+      "designs",
+      "improves",
+      "onboarding",
+      "flows",
+      "empty",
+      "states",
+      "first-run"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/onboard",
+    "enabled": true
+  },
+  "optimize": {
+    "id": "optimize",
+    "name": "optimize",
+    "description": "Diagnoses and fixes UI performance across loading speed, rendering, animations, images, and bundle size. Use when the user mentions slow, laggy, janky, performance, bundle size, load time, or wants a faster, smoother experience.",
+    "category": "UI & Design",
+    "tags": [
+      "optimize",
+      "diagnoses",
+      "fixes",
+      "performance",
+      "across",
+      "loading",
+      "speed",
+      "rendering"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/optimize",
+    "enabled": true
+  },
+  "overdrive": {
+    "id": "overdrive",
+    "name": "overdrive",
+    "description": "Pushes interfaces past conventional limits with technically ambitious implementations — shaders, spring physics, scroll-driven reveals, 60fps animations. Use when the user wants to wow, impress, go all-out, or make something that feels extraordinary.",
+    "category": "Media & Animation",
+    "tags": [
+      "overdrive",
+      "pushes",
+      "interfaces",
+      "past",
+      "conventional",
+      "limits",
+      "with",
+      "technically"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/overdrive",
+    "enabled": true
+  },
+  "polish": {
+    "id": "polish",
+    "name": "polish",
+    "description": "Performs a final quality pass fixing alignment, spacing, consistency, and micro-detail issues before shipping. Use when the user mentions polish, finishing touches, pre-launch review, something looks off, or wants to go from good to great.",
+    "category": "Quality & Review",
+    "tags": [
+      "polish",
+      "performs",
+      "final",
+      "quality",
+      "pass",
+      "fixing",
+      "alignment",
+      "spacing"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/polish",
+    "enabled": true
+  },
+  "project-graveyard": {
+    "id": "project-graveyard",
+    "name": "project-graveyard",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "project-graveyard"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/project-graveyard",
+    "enabled": true
+  },
+  "quieter": {
+    "id": "quieter",
+    "name": "quieter",
+    "description": "Tones down visually aggressive or overstimulating designs, reducing intensity while preserving quality. Use when the user mentions too bold, too loud, overwhelming, aggressive, garish, or wants a calmer, more refined aesthetic.",
+    "category": "UI & Design",
+    "tags": [
+      "quieter",
+      "tones",
+      "down",
+      "visually",
+      "aggressive",
+      "overstimulating",
+      "designs",
+      "reducing"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/quieter",
+    "enabled": true
+  },
+  "react-flow-node-ts": {
+    "id": "react-flow-node-ts",
+    "name": "react-flow-node-ts",
+    "description": "Create React Flow node components with TypeScript types, handles, and Zustand integration. Use when building custom nodes for React Flow canvas, creating visual workflow editors, or implementing node-based UI components.",
+    "category": "UI & Design",
+    "tags": [
+      "react-flow-node-ts",
+      "create",
+      "react",
+      "flow",
+      "node",
+      "components",
+      "with",
+      "typescript"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/react-flow-node-ts",
+    "enabled": true
+  },
+  "six-hats": {
+    "id": "six-hats",
+    "name": "six-hats",
+    "description": "Parallel thinking with six enforced perspectives, based on Edward de Bono's Six Thinking Hats® method - examine one decision through sequential passes for facts, feelings, risks, benefits, alternatives, and synthesis, never blending them. Use when a decision is being made too fast or from one angle, when everyone agrees suspiciously quickly, when the discussion mixes emotions with data, or for \"six hats\", \"thinking hats\", \"look at this from every angle\", \"structured devil's advocate\". Do NOT use for analytical work like debugging, code review, or implementation tasks.",
+    "category": "UI & Design",
+    "tags": [
+      "six-hats",
+      "parallel",
+      "thinking",
+      "with",
+      "enforced",
+      "perspectives",
+      "based",
+      "edward"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/six-hats",
+    "enabled": true
+  },
+  "swap-integration": {
+    "id": "swap-integration",
+    "name": "swap-integration",
+    "description": "Integrate Uniswap swaps into applications. Use when user says \"integrate swaps\", \"uniswap\", \"trading api\", \"add swap functionality\", \"build a swap frontend\", \"create a swap script\", \"smart contract swap integration\", \"use Universal Router\", \"Trading API\", or mentions swapping tokens via Uniswap.",
+    "category": "UI & Design",
+    "tags": [
+      "swap-integration",
+      "integrate",
+      "uniswap",
+      "swaps",
+      "into",
+      "applications",
+      "when",
+      "user"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/swap-integration",
+    "enabled": true
+  },
+  "tailwind-design-system": {
+    "id": "tailwind-design-system",
+    "name": "tailwind-design-system",
+    "description": "Build scalable design systems with Tailwind CSS v4, design tokens, component libraries, and responsive patterns. Use when creating component libraries, implementing design systems, or standardizing UI patterns.",
+    "category": "UI & Design",
+    "tags": [
+      "tailwind-design-system",
+      "build",
+      "scalable",
+      "design",
+      "systems",
+      "with",
+      "tailwind",
+      "tokens"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/tailwind-design-system",
+    "enabled": true
+  },
+  "teach-impeccable": {
+    "id": "teach-impeccable",
+    "name": "teach-impeccable",
+    "description": "One-time setup that gathers design context for your project and saves it to your AI config file. Run once to establish persistent design guidelines.",
+    "category": "UI & Design",
+    "tags": [
+      "teach-impeccable",
+      "one-time",
+      "setup",
+      "that",
+      "gathers",
+      "design",
+      "context",
+      "your"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/teach-impeccable",
+    "enabled": true
+  },
+  "thermo-nuclear-code-quality-review": {
+    "id": "thermo-nuclear-code-quality-review",
+    "name": "thermo-nuclear-code-quality-review",
+    "description": "Run an extremely strict maintainability review for abstraction quality, giant files, and spaghetti-condition growth. Use for a thermo-nuclear code quality review, thermonuclear review, deep code quality audit, or especially harsh maintainability review.",
+    "category": "Quality & Review",
+    "tags": [
+      "thermo-nuclear-code-quality-review",
+      "extremely",
+      "strict",
+      "maintainability",
+      "review",
+      "abstraction",
+      "quality",
+      "giant"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/thermo-nuclear-code-quality-review",
+    "enabled": true
+  },
+  "typeset": {
+    "id": "typeset",
+    "name": "typeset",
+    "description": "Improves typography by fixing font choices, hierarchy, sizing, weight, and readability so text feels intentional. Use when the user mentions fonts, type, readability, text hierarchy, sizing looks off, or wants more polished, intentional typography.",
+    "category": "UI & Design",
+    "tags": [
+      "typeset",
+      "improves",
+      "typography",
+      "fixing",
+      "font",
+      "choices",
+      "hierarchy",
+      "sizing"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/typeset",
+    "enabled": true
+  },
+  "ui-animation": {
+    "id": "ui-animation",
+    "name": "ui-animation",
+    "description": "Creates, reviews, and debugs UI motion and animation implementations. Use when designing, implementing, or reviewing motion, easing, timing, reduced-motion behaviour, CSS transitions, keyframes, framer-motion, spring animations, asking \"add animations to\", or \"make this feel smooth\".",
+    "category": "UI & Design",
+    "tags": [
+      "ui-animation",
+      "creates",
+      "reviews",
+      "debugs",
+      "motion",
+      "animation",
+      "implementations",
+      "when"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/ui-animation",
+    "enabled": true
+  },
+  "web-accessibility": {
+    "id": "web-accessibility",
+    "name": "web-accessibility",
+    "description": "Implement web accessibility (a11y) standards following WCAG 2.1 guidelines. Use when building accessible UIs, fixing accessibility issues, or ensuring compliance with disability standards. Handles ARIA attributes, keyboard navigation, screen readers, semantic HTML, and accessibility testing.",
+    "category": "UI & Design",
+    "tags": [
+      "web-accessibility",
+      "implement",
+      "accessibility",
+      "a11y",
+      "standards",
+      "following",
+      "wcag",
+      "guidelines"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/web-accessibility",
+    "enabled": true
+  },
+  "zustand-store-ts": {
+    "id": "zustand-store-ts",
+    "name": "zustand-store-ts",
+    "description": "Create Zustand stores with TypeScript, subscribeWithSelector middleware, and proper state/action separation. Use when building React state management, creating global stores, or implementing reactive state patterns with Zustand.",
+    "category": "UI & Design",
+    "tags": [
+      "zustand-store-ts",
+      "create",
+      "zustand",
+      "stores",
+      "with",
+      "typescript",
+      "subscribewithselector",
+      "middleware"
+    ],
+    "sources": [
+      "agents"
+    ],
+    "installedPath": "skills/definitions/zustand-store-ts",
+    "enabled": true
+  }
+}

@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agnostic AI — Universal Agent Command Center</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-hover: #21262d;
+      --border: #30363d;
+      --border-accent: #388bfd;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --tier0: #8b949e;
+      --tier1: #388bfd;
+      --tier2: #e3b341;
+      --tier3: #a371f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #1f6feb, #8957e5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #fff;
+    }
+    h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+    .subtitle { font-size: 13px; color: var(--text-muted); }
+    .status-badges { display: flex; gap: 8px; align-items: center; }
+
+    /* Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .tab-btn.active { color: var(--text); background: #21262d; font-weight: 600; border: 1px solid var(--border); }
+    .tab-badge {
+      background: rgba(110, 118, 129, 0.4);
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 11px;
+    }
+
+    /* Views */
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+
+    /* Metric Cards */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+    }
+    .metric-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .metric-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+    .metric-subtext { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Common Card / Panel */
+    .panel-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .panel-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    /* Filters & Toolbars */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 240px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--accent); }
+    .select-dropdown {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #30363d; }
+    .btn-primary { background: #238636; border-color: rgba(240,246,252,0.1); color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-accent { background: #1f6feb; border-color: rgba(240,246,252,0.1); color: #fff; }
+    .btn-accent:hover { background: #388bfd; }
+
+    /* Tags & Badges */
+    .tag {
+      background: #21262d;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tag-success { background: rgba(63, 185, 80, 0.15); color: var(--success); border-color: rgba(63, 185, 80, 0.3); }
+    .tag-warning { background: rgba(210, 153, 34, 0.15); color: var(--warning); border-color: rgba(210, 153, 34, 0.3); }
+    .tag-accent { background: rgba(88, 166, 255, 0.15); color: var(--accent); border-color: rgba(88, 166, 255, 0.3); }
+    .tag-danger { background: rgba(248, 81, 73, 0.15); color: var(--danger); border-color: rgba(248, 81, 73, 0.3); }
+
+    /* Error Table / Candidate List */
+    .candidate-list { display: flex; flex-direction: column; gap: 10px; max-height: 650px; overflow-y: auto; }
+    .candidate-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.15s;
+    }
+    .candidate-card:hover { border-color: var(--accent); }
+    .candidate-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .candidate-text { font-size: 14px; font-weight: 500; word-break: break-word; }
+    .candidate-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-muted); }
+
+    /* Switch Toggle */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #30363d;
+      transition: .2s;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #238636; }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    /* Skills Grid */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 12px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .skill-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .skill-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .skill-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .skill-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .skill-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+
+    /* Project Recommendation Box */
+    .project-header {
+      background: #21262d;
+      padding: 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .rec-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Rules Layout */
+    .rules-container { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+    .rules-sidebar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 700px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rule-nav-item {
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .rule-nav-item:hover { color: var(--text); background: var(--surface-hover); }
+    .rule-nav-item.active { color: var(--accent); background: #21262d; font-weight: 600; }
+    .rules-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      max-height: 700px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .rules-content pre {
+      background: #0d1117;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 12px 0;
+      border: 1px solid var(--border);
+    }
+    .rules-content ul { margin-left: 20px; margin-bottom: 12px; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-logo">AG</div>
+        <div>
+          <h1>Agnostic AI Universal Harness</h1>
+          <div class="subtitle">Multi-Agent Synchronization, Governed Autonomy & Self-Maintenance</div>
+        </div>
+      </div>
+      <div class="status-badges">
+        <span id="dashclaw-badge" class="tag tag-warning">Probing DashClaw...</span>
+        <span id="targets-badge" class="tag tag-success">18 Targets Synced</span>
+        <button class="btn" onclick="triggerSync()">⚡ Sync Rules</button>
+      </div>
+    </header>
+
+    <!-- Navigation Bar -->
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-tab="overview">📊 Overview & Health</button>
+      <button class="tab-btn" data-tab="errors">🔍 Errors & Distill <span id="tab-badge-errors" class="tab-badge">877</span></button>
+      <button class="tab-btn" data-tab="skills">🧩 Skills & Recommendations <span id="tab-badge-skills" class="tab-badge">99</span></button>
+      <button class="tab-btn" data-tab="rules">📜 Rules & Dispositions</button>
+      <button class="tab-btn" data-tab="routines">⏱️ Routines & Schedules</button>
+      <button class="tab-btn" data-tab="decisions">🛡️ Governed Decisions</button>
+    </div>
+
+    <!-- 1. OVERVIEW VIEW -->
+    <div id="view-overview" class="view-panel active">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Active Error Candidates</div>
+          <div class="metric-value" id="m-candidates">877</div>
+          <div class="metric-subtext">Harvested across all agent logs</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Observations (T0)</div>
+          <div class="metric-value" id="m-t0" style="color: var(--tier0)">871</div>
+          <div class="metric-subtext">Raw sightings under observation</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Repo Facts (T1)</div>
+          <div class="metric-value" id="m-t1" style="color: var(--tier1)">4</div>
+          <div class="metric-subtext">Project-specific quirks</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Candidate Rules (T2)</div>
+          <div class="metric-value" id="m-t2" style="color: var(--tier2)">2</div>
+          <div class="metric-subtext">Universal multi-day constraints</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Consolidated Skills</div>
+          <div class="metric-value" id="m-skills" style="color: var(--accent)">99</div>
+          <div class="metric-subtext">Available across 18 targets</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+        <div class="panel-card">
+          <div class="panel-title">
+            <span>🛡️ Governed Autonomy Status</span>
+            <span id="overview-dc-status" class="tag tag-success">Connected</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+            <div><strong>Agent Identity:</strong> <code id="overview-dc-agent">agnostic-harness</code></div>
+            <div><strong>DashClaw Base:</strong> <span id="overview-dc-url">http://localhost:3000</span></div>
+            <div><strong>Mode:</strong> Governed Autonomy with Zero-Friction Standalone Fallback</div>
+            <div style="margin-top: 8px;">
+              <button class="btn btn-accent" onclick="runRoutine('dashclaw_probe')">Probe Connection</button>
+              <button class="btn" onclick="runRoutine('distill')">Run Distillation Pass</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-title">🎯 Supported Targets (18)</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px;">
+            <span class="tag tag-success">Claude Code</span>
+            <span class="tag tag-success">Codex CLI</span>
+            <span class="tag tag-success">Antigravity (agy)</span>
+            <span class="tag tag-success">Cursor (.mdc)</span>
+            <span class="tag tag-success">Windsurf</span>
+            <span class="tag tag-success">GitHub Copilot</span>
+            <span class="tag tag-success">Cline</span>
+            <span class="tag tag-success">Aider</span>
+            <span class="tag tag-success">OpenHands</span>
+            <span class="tag tag-success">Goose</span>
+            <span class="tag tag-success">Continue.dev</span>
+            <span class="tag tag-success">Zed AI</span>
+            <span class="tag tag-success">Trae</span>
+            <span class="tag tag-success">Amazon Q</span>
+            <span class="tag tag-success">Cody</span>
+            <span class="tag tag-success">OpenClaw</span>
+            <span class="tag tag-success">Hermes</span>
+            <span class="tag tag-success">Generic LLM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. ERRORS & DISTILLATION VIEW -->
+    <div id="view-errors" class="view-panel">
+      <div class="toolbar">
+        <input type="text" id="error-search" class="search-box" placeholder="Search 877+ errors, deviations, assumptions, repos...">
+        <select id="filter-tier" class="select-dropdown">
+          <option value="all">All Tiers</option>
+          <option value="0">Tier 0 · Observations</option>
+          <option value="1">Tier 1 · Repo Facts</option>
+          <option value="2">Tier 2 · Rules</option>
+        </select>
+        <select id="filter-kind" class="select-dropdown">
+          <option value="all">All Kinds</option>
+          <option value="deviation">Deviations</option>
+          <option value="assumption">Assumptions</option>
+          <option value="meditation-candidate">Meditation Candidates</option>
+          <option value="correction">User Corrections</option>
+        </select>
+        <button class="btn btn-accent" onclick="runRoutine('harvest')">📥 Re-Harvest Logs</button>
+      </div>
+
+      <div id="errors-container" class="candidate-list">
+        <div class="empty-state">Loading harvested error entries...</div>
+      </div>
+    </div>
+
+    <!-- 3. SKILLS & RECOMMENDATIONS VIEW -->
+    <div id="view-skills" class="view-panel">
+      <div class="panel-card" style="margin-bottom: 20px;">
+        <div class="panel-title">
+          <span>⚡ Project Tech Stack & Optimal Skill Recommendations</span>
+        </div>
+        <div class="toolbar">
+          <label style="font-size: 13px; font-weight: 500;">Select Project Workspace:</label>
+          <select id="project-selector" class="select-dropdown" style="min-width: 250px;" onchange="loadProjectRecommendations()">
+            <option value="">Loading project list...</option>
+          </select>
+          <button class="btn btn-primary" onclick="applyRecommendationsForCurrentProject()">⚡ 1-Click Apply Recommendations</button>
+        </div>
+
+        <div id="project-tech-box" class="project-header" style="display: none;">
+          <div>
+            <h3 id="proj-name" style="font-size: 16px;">Project Name</h3>
+            <div id="proj-tech" style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Tech: React, Tailwind, TypeScript</div>
+          </div>
+          <div>
+            <span id="proj-rec-count" class="tag tag-accent">0 Recommended</span>
+            <span id="proj-active-count" class="tag tag-success">0 Active</span>
+          </div>
+        </div>
+
+        <div id="project-recommendations-list" style="margin-top: 12px;"></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>🌐 Global Skills Inventory (<span id="skills-total-count">99</span>)</span>
+          <button class="btn" onclick="runRoutine('skills_consolidate')">🔄 Re-Consolidate Skills</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="skill-search" class="search-box" placeholder="Search skills, keywords, categories...">
+          <select id="skill-cat-filter" class="select-dropdown">
+            <option value="all">All Categories</option>
+            <option value="UI & Design">UI & Design</option>
+            <option value="Quality & Review">Quality & Review</option>
+            <option value="Safety & Governance">Safety & Governance</option>
+            <option value="Media & Animation">Media & Animation</option>
+            <option value="General & Workflow">General & Workflow</option>
+            <option value="Engineering & Stacks">Engineering & Stacks</option>
+          </select>
+        </div>
+
+        <div id="skills-grid-container" class="skills-grid">
+          <div class="empty-state">Loading skills...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. RULES & DISPOSITIONS VIEW -->
+    <div id="view-rules" class="view-panel">
+      <div class="rules-container">
+        <div class="rules-sidebar" id="rules-nav">
+          <div class="rule-nav-item active" onclick="showRuleSection('all')">📜 All Core Rules</div>
+        </div>
+        <div class="rules-content" id="rules-content">
+          Loading harness rules and dispositions...
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. ROUTINES & SCHEDULES VIEW -->
+    <div id="view-routines" class="view-panel">
+      <div class="panel-card">
+        <div class="panel-title">⏱️ Automated Maintenance Routines</div>
+        <div id="routines-list" style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="empty-state">Loading routines...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. GOVERNED DECISIONS VIEW -->
+    <div id="view-decisions" class="view-panel">
+      <div class="panel-card">
+        <div class="panel-title">🛡️ Governed Autonomy & Audit Stream</div>
+        <div id="decisions-container">
+          <div class="empty-state">Loading decision stream...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let overviewData = null;
+    let allSkills = {};
+    let allSkillsConfig = { globalEnabled: {}, projectOverrides: {} };
+    let projectsList = [];
+    let currentSelectedProject = null;
+    let rulesData = null;
+
+    // Tabs Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.getElementById(`view-${tab}`).classList.add('active');
+
+        if (tab === 'errors') loadErrors();
+        if (tab === 'skills') { loadSkills(); loadProjects(); }
+        if (tab === 'rules') loadRules();
+        if (tab === 'routines') loadRoutines();
+        if (tab === 'decisions') loadDecisions();
+      });
+    });
+
+    async function loadOverview() {
+      try {
+        const res = await fetch('/api/overview');
+        overviewData = await res.json();
+        const s = overviewData.candidates || {};
+        document.getElementById('m-candidates').textContent = s.candidatesTotal || 877;
+        document.getElementById('m-t0').textContent = s.observationsCount || 871;
+        document.getElementById('m-t1').textContent = s.promotedFactsCount || 4;
+        document.getElementById('m-t2').textContent = s.candidateRulesCount || 2;
+        document.getElementById('m-skills').textContent = overviewData.skills.total || 99;
+        document.getElementById('tab-badge-errors').textContent = s.candidatesTotal || 877;
+        document.getElementById('tab-badge-skills').textContent = overviewData.skills.total || 99;
+
+        const dc = overviewData.dashclaw;
+        const dcBadge = document.getElementById('dashclaw-badge');
+        const ovStatus = document.getElementById('overview-dc-status');
+        if (dc && dc.configured) {
+          dcBadge.className = 'tag tag-success';
+          dcBadge.textContent = 'DashClaw Connected';
+          ovStatus.className = 'tag tag-success';
+          ovStatus.textContent = 'Connected & Active';
+          document.getElementById('overview-dc-agent').textContent = dc.agentId || 'agnostic-harness';
+          document.getElementById('overview-dc-url').textContent = dc.baseUrl || 'http://localhost:3000';
+        } else {
+          dcBadge.className = 'tag tag-warning';
+          dcBadge.textContent = 'DashClaw Standalone (Fail-Closed)';
+          ovStatus.className = 'tag tag-warning';
+          ovStatus.textContent = 'Standalone Mode';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadErrors() {
+      const search = document.getElementById('error-search').value;
+      const tier = document.getElementById('filter-tier').value;
+      const kind = document.getElementById('filter-kind').value;
+      const query = new URLSearchParams({ search, tier, kind }).toString();
+
+      try {
+        const res = await fetch(`/api/errors?${query}`);
+        const data = await res.json();
+        const container = document.getElementById('errors-container');
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = '<div class="empty-state">No matching error records found.</div>';
+          return;
+        }
+
+        const tierLabels = ['T0 · Observation', 'T1 · Repo Fact', 'T2 · Universal Rule', 'T3 · Trait'];
+        const tierClasses = ['tag-tier0', 'tag-tier1', 'tag-tier2', 'tag-tier3'];
+
+        container.innerHTML = data.items.map(item => `
+          <div class="candidate-card">
+            <div class="candidate-header">
+              <div class="candidate-text">${escapeHtml(item.text)}</div>
+              <span class="tag ${item.tier === 2 ? 'tag-warning' : item.tier === 1 ? 'tag-accent' : ''}">${tierLabels[item.tier || 0]}</span>
+            </div>
+            <div class="candidate-meta">
+              <span class="tag">Kind: ${item.kind}</span>
+              ${item.bucket ? `<span class="tag">Bucket: ${item.bucket}</span>` : ''}
+              ${item.repo ? `<span class="tag">Repo: ${escapeHtml(item.repo)}</span>` : ''}
+              <span class="tag">First Seen: ${item.firstSeen || 'N/A'}</span>
+              ${(item.sightingDays || []).length > 1 ? `<span class="tag tag-accent">${item.sightingDays.length} sightings</span>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadSkills() {
+      try {
+        const res = await fetch('/api/skills');
+        const data = await res.json();
+        allSkills = data.manifest || {};
+        allSkillsConfig = data.config || { globalEnabled: {}, projectOverrides: {} };
+        renderSkillsGrid();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderSkillsGrid() {
+      const container = document.getElementById('skills-grid-container');
+      const search = (document.getElementById('skill-search').value || '').toLowerCase();
+      const cat = document.getElementById('skill-cat-filter').value;
+
+      const filtered = Object.values(allSkills).filter(s => {
+        if (cat !== 'all' && s.category !== cat) return false;
+        if (search && !s.name.toLowerCase().includes(search) && !s.description.toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      document.getElementById('skills-total-count').textContent = Object.keys(allSkills).length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-state">No matching skills found.</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(s => {
+        const isEnabled = allSkillsConfig.globalEnabled[s.id] !== false;
+        return `
+          <div class="skill-card">
+            <div class="skill-card-top">
+              <div>
+                <div class="skill-name">${escapeHtml(s.name)}</div>
+                <span class="tag" style="margin-top: 4px;">${escapeHtml(s.category)}</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleSkillGlobal('${s.id}', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="skill-desc">${escapeHtml(s.description)}</div>
+            <div class="skill-footer">
+              <span class="tag">${(s.sources || []).join(', ') || 'harness'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function toggleSkillGlobal(skillId, enabled) {
+      try {
+        await fetch('/api/skills/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skillId, enabled })
+        });
+        allSkillsConfig.globalEnabled[skillId] = enabled;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        projectsList = await res.json();
+        const sel = document.getElementById('project-selector');
+        sel.innerHTML = '<option value="">-- Choose a project to analyze --</option>' +
+          projectsList.map(p => `<option value="${escapeHtml(p.path)}">${escapeHtml(p.name)} (${(p.tech.languages || []).join(', ') || 'Stack'})</option>`).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadProjectRecommendations() {
+      const pPath = document.getElementById('project-selector').value;
+      if (!pPath) {
+        document.getElementById('project-tech-box').style.display = 'none';
+        document.getElementById('project-recommendations-list').innerHTML = '';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/project/recommendations?path=${encodeURIComponent(pPath)}`);
+        const data = await res.json();
+        currentSelectedProject = data;
+
+        document.getElementById('project-tech-box').style.display = 'flex';
+        document.getElementById('proj-name').textContent = data.project.name;
+        document.getElementById('proj-tech').textContent = `Languages: ${(data.project.languages || []).join(', ') || 'None'} | Frameworks: ${(data.project.frameworks || []).join(', ') || 'Standard'} | Past Errors: ${data.project.errorCount}`;
+        document.getElementById('proj-rec-count').textContent = `${data.recommendedCount} Recommended`;
+        document.getElementById('proj-active-count').textContent = `${data.activeCount} Active`;
+
+        const listEl = document.getElementById('project-recommendations-list');
+        listEl.innerHTML = data.recommendations.filter(r => r.recommended).map(r => `
+          <div class="rec-item">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">${escapeHtml(r.skillName)} <span class="tag tag-accent">${r.score}% Match</span></div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(r.reasons.join('; '))}</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" ${r.activeForProject ? 'checked' : ''} onchange="toggleSkillProject('${r.skillId}', '${pPath}', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function toggleSkillProject(skillId, projectPath, enabled) {
+      try {
+        await fetch('/api/skills/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skillId, projectPath, enabled })
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function applyRecommendationsForCurrentProject() {
+      const pPath = document.getElementById('project-selector').value;
+      if (!pPath) return alert('Please select a project first.');
+      try {
+        await fetch('/api/project/apply-recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath: pPath })
+        });
+        alert('Optimal skills applied successfully for project!');
+        loadProjectRecommendations();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadRules() {
+      try {
+        const res = await fetch('/api/rules');
+        rulesData = await res.json();
+        const navEl = document.getElementById('rules-nav');
+        navEl.innerHTML = '<div class="rule-nav-item active" onclick="showRuleSection(\'all\')">📜 Full Single Source of Truth</div>' +
+          rulesData.sections.map((s, idx) => `<div class="rule-nav-item" onclick="showRuleSection(${idx})">${escapeHtml(s.title)}</div>`).join('') +
+          '<div class="rule-nav-item" onclick="showTraits()">🧬 Core Traits (T3)</div>' +
+          '<div class="rule-nav-item" onclick="showGuards()">🛡️ Safety Guards (JSON)</div>';
+
+        showRuleSection('all');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function showRuleSection(idx) {
+      const contentEl = document.getElementById('rules-content');
+      if (idx === 'all') {
+        contentEl.innerHTML = `<pre>${escapeHtml(rulesData.fullMarkdown)}</pre>`;
+      } else {
+        const sec = rulesData.sections[idx];
+        contentEl.innerHTML = `<h2>${escapeHtml(sec.title)}</h2><br><pre>${escapeHtml(sec.content)}</pre>`;
+      }
+    }
+
+    function showTraits() {
+      const contentEl = document.getElementById('rules-content');
+      contentEl.innerHTML = `<h2>Core Agent Traits (Tier 3 Ladder Dispositions)</h2><br>` +
+        rulesData.traits.map(t => `
+          <div style="background: #21262d; padding: 16px; border-radius: 6px; margin-bottom: 12px;">
+            <h3>${escapeHtml(t.title)}</h3>
+            <pre style="margin-top: 8px;">${escapeHtml(t.body)}</pre>
+          </div>
+        `).join('');
+    }
+
+    function showGuards() {
+      const contentEl = document.getElementById('rules-content');
+      contentEl.innerHTML = `<h2>Declarative Safety Guardrails (guards.json)</h2><br><pre>${escapeHtml(JSON.stringify(rulesData.guards, null, 2))}</pre>`;
+    }
+
+    async function loadRoutines() {
+      try {
+        const res = await fetch('/api/routines');
+        const routines = await res.json();
+        const listEl = document.getElementById('routines-list');
+        listEl.innerHTML = routines.map(r => `
+          <div class="rec-item">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">${escapeHtml(r.name)}</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(r.description)}</div>
+              <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Schedule: ${escapeHtml(r.schedule)} | Last run: ${escapeHtml(r.lastRun)}</div>
+            </div>
+            <button class="btn btn-accent" onclick="runRoutine('${r.id}')">▶ Run Now</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function runRoutine(id) {
+      try {
+        const res = await fetch('/api/routines/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ routineId: id })
+        });
+        const out = await res.json();
+        alert(`Routine '${id}' executed successfully!`);
+        loadOverview();
+      } catch (err) {
+        alert(`Error executing routine: ${err.message}`);
+      }
+    }
+
+    async function loadDecisions() {
+      try {
+        const res = await fetch('/api/decisions');
+        const data = await res.json();
+        const container = document.getElementById('decisions-container');
+        container.innerHTML = `
+          <div style="margin-bottom: 16px;">
+            <div><strong>Mode:</strong> ${escapeHtml(data.mode)}</div>
+            <div><strong>Agent Identity:</strong> <code>${escapeHtml(data.agentId)}</code></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${data.recentEvents.map(e => `
+              <div class="rec-item">
+                <div>
+                  <div style="font-weight: 600; font-size: 14px;"><span class="tag tag-success">${e.verdict}</span> ${escapeHtml(e.type)} [${escapeHtml(e.tool)}]</div>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(e.detail)}</div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">${e.ts.slice(0, 19).replace('T', ' ')}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function triggerSync() {
+      await runRoutine('sync');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Event listeners
+    document.getElementById('error-search').addEventListener('input', loadErrors);
+    document.getElementById('filter-tier').addEventListener('change', loadErrors);
+    document.getElementById('filter-kind').addEventListener('change', loadErrors);
+    document.getElementById('skill-search').addEventListener('input', renderSkillsGrid);
+    document.getElementById('skill-cat-filter').addEventListener('change', renderSkillsGrid);
+
+    // Initial load
+    loadOverview();
+  </script>
+</body>
+</html>

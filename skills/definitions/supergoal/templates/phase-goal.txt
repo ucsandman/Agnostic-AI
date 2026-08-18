@@ -1,0 +1,59 @@
+# Phase spec template — write to {{RUN_ROOT}}/phases/phase-N.md
+# ({{RUN_ROOT}} is this run's namespaced dir, e.g. .supergoal/add-dark-mode-Ab3Kx9;
+#  substitute the concrete path along with the other {{...}} placeholders below.)
+#
+# This is a free-form work spec the executing agent reads from disk.
+# No char budget. The agent follows {{RUN_ROOT}}/PROTOCOL.md for the
+# execution loop, failure recovery, and memory writeback.
+#
+# Replace {{...}} placeholders. Keep the SUPERGOAL_PHASE_START block
+# verbatim so validate-phase.sh and the runtime can anchor on it.
+
+SUPERGOAL_PHASE_START
+Phase: {{N}} of {{TOTAL}} — {{PHASE_NAME}}
+Task: {{ONE_LINE_TASK}}
+Type: {{TAGS}}
+Mandatory commands: {{COMMANDS_CSV}}
+Acceptance criteria: {{CRIT_COUNT}}
+Evidence required: {{EVIDENCE_CSV}}
+Depends on phases: {{DEPS}}
+
+## Why
+
+{{WHY_ONE_SENTENCE}}
+
+## Work
+
+- {{WORK_BULLET_1}}
+- {{WORK_BULLET_2}}
+- ...
+
+## Acceptance criteria (all must pass — verify each in transcript)
+
+- {{CRITERION_1}}
+- {{CRITERION_2}}
+- ...
+
+## Mandatory commands (run each, surface last ~10 lines + exit code)
+
+- {{COMMAND_1}}
+- {{COMMAND_2}}
+- ...
+
+## Evidence required in transcript
+
+- {{EVIDENCE_1}}
+- {{EVIDENCE_2}}
+- ...
+
+## Notes
+
+{{ANY_PHASE_SPECIFIC_GUIDANCE}}
+
+---
+
+The agent will, during execution, print SUPERGOAL_PHASE_START (above),
+do the work, then print SUPERGOAL_PHASE_VERIFY, MEMORY_SAVED, and
+SUPERGOAL_PHASE_DONE in order. On failure, the agent follows the
+3-strike recovery protocol in {{RUN_ROOT}}/PROTOCOL.md without further
+instruction needed here.

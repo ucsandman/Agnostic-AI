@@ -17,8 +17,12 @@ def main():
     print("==================================================")
     print(f"Root: {ROOT_DIR}\n")
 
+    # 0. First-Run Default Harness Onboarding Check
+    print("[0/4] Checking default harness installation & skill consolidation...")
+    subprocess.run(["node", "engine/setup/first-run.cjs"], cwd=ROOT_DIR)
+
     # 1. Run Parity Check
-    print("[1/4] Checking harness parity across clients...")
+    print("\n[1/4] Checking harness parity across 18 clients...")
     subprocess.run(["node", "engine/sync/sync.cjs", "--check"], cwd=ROOT_DIR)
 
     # 2. Check DashClaw Governed Autonomy Integration
@@ -33,12 +37,12 @@ def main():
         sys.exit(1)
 
     # 4. Launch Dashboard
-    print("\n[4/4] Launching Agnostic Error & Parity Dashboard...")
+    print("\n[4/4] Launching Agnostic AI Universal Command Center...")
     server_process = subprocess.Popen(
-        ["node", "tools/errorlog/errorlog.cjs", "--open"], cwd=ROOT_DIR
+        ["node", "tools/dashboard/dashboard.cjs", "--open"], cwd=ROOT_DIR
     )
 
-    print("\nServer running on http://127.0.0.1:7842")
+    print("\nCommand Center running on http://127.0.0.1:7842")
     print("Press Ctrl+C to stop.")
 
     try:

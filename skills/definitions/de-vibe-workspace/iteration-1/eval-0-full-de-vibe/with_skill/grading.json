@@ -1,0 +1,25 @@
+{
+  "eval_id": 0,
+  "eval_name": "full-de-vibe-before-ship",
+  "run": "with_skill",
+  "expectations": [
+    {"text": "report.md exists with categorized structure and file:line evidence", "passed": false, "evidence": "Subagent Write policy blocked report files; full categorized report was returned in the final message instead. Skill fixed to make the conversation the report's home."},
+    {"text": ".env untracked from git but kept locally; .gitignore covers .env and node_modules", "passed": true, "evidence": "git ls-files shows only 5 source files; .env still on disk; .gitignore covers .env, node_modules/, dist/, build/, AI artifacts"},
+    {"text": ".env.example exists with placeholders for all four keys", "passed": true, "evidence": "All 4 keys present with obvious placeholder values"},
+    {"text": "Committed secrets flagged as burned/needing rotation", "passed": true, "evidence": "Report's CRITICAL section states keys are in git history and must be rotated"},
+    {"text": "CLAUDE.md, .claude/, .cursorrules untracked but not deleted", "passed": true, "evidence": "Absent from git ls-files; all present on disk"},
+    {"text": ".claude/settings.json sets includeCoAuthoredBy false", "passed": true, "evidence": "Setting present and JSON valid; agent correctly dropped the invalid boolean 'attribution' form"},
+    {"text": "Hardcoded sk_live key and admin123 removed or explicitly escalated", "passed": true, "evidence": "0 grep hits in source; key moved to process.env via dotenv"},
+    {"text": "No empty catch blocks remain", "passed": true, "evidence": "0 grep hits; catches now console.error and return 500"},
+    {"text": "console.log debris, Step N comments, commented-out code removed", "passed": true, "evidence": "Only intentional startup log + error logging remain"},
+    {"text": "CORS, unauth DELETE, Math.random token, rate limiting each fixed or escalated", "passed": true, "evidence": "All four listed in WOULD ASK USER section with proposed fixes; none applied silently, none missed"},
+    {"text": "Indigo palette, Inter, default title replaced; favicon present", "passed": true, "evidence": "0 hits for indigo hexes/Inter; title now product-specific; favicon.svg created and linked"},
+    {"text": "Buzzwords, fake stat, lorem ipsum, em dashes gone", "passed": true, "evidence": "0 grep hits for all"},
+    {"text": "docs/DESIGN.md records derived identity with five commitments", "passed": true, "evidence": "'Sturdy' direction: warm paper neutrals, 0px radius, serif/system-sans pairing, rust-orange accent, 3px focus-ring signature token"},
+    {"text": "README matches reality; fake feature claims removed", "passed": true, "evidence": "0 hits for AI-powered/analytics/multi-currency; npm start documented; Known Limitations section added"},
+    {"text": "node --check passes on both JS files", "passed": true, "evidence": "server-ok, app-ok"},
+    {"text": "Git history not rewritten", "passed": true, "evidence": "Initial commit 10a5723 intact, single commit, no rewrite"}
+  ],
+  "pass_rate": "15/16",
+  "notes": "Sole failure caused by subagent harness policy, not skill content. Agent also self-caught a copy-rewrite overpromise (invented checkout feature) before finalizing - now guarded in the skill."
+}
