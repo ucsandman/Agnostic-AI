@@ -73,19 +73,57 @@ class ContextManager:
         recent_turns = messages[-3:]  # Retain last 3 turns verbatim
         middle_turns = messages[1:-3]
 
-        # Condense middle turns into dense summary
+        # Condense middle turns into dense structured distillation
         summary_lines = []
+        files_touched = set()
+        test_findings = []
+
         for m in middle_turns:
             role = m.get("role", "msg").upper()
             content = (m.get("content") or "").strip()
-            if content:
-                summary_lines.append(f"• [{role}]: {content[:160]}...")
+            if not content:
+                continue
 
-        condensed_text = (
-            "### [Session Distillation / Compacted History]:\n"
-            + "\n".join(summary_lines[:10])
-            + f"\n(Compacted {len(middle_turns)} older turns to free memory)"
+            # Extract any touched file paths
+            import re
+
+            found_paths = re.findall(
+                r'[\'"]?([a-zA-Z0-9_\-\.\/\\]+\.(?:py|ts|tsx|js|json|md|yaml|yml|html|css))[\'"]?',
+                content,
+            )
+            for p in found_paths:
+                if not p.startswith(".git") and not p.startswith(".secrets"):
+                    files_touched.add(p)
+
+            # Note test failures or passes
+            if "FAILED" in content or "PASSED" in content or "pytest" in content:
+                for line in content.splitlines():
+                    if any(
+                        kw in line for kw in ("PASSED", "FAILED", "ERROR", "assert")
+                    ):
+                        test_findings.append(line.strip()[:100])
+
+            summary_lines.append(f"• [{role}]: {content[:160]}...")
+
+        condensed_sections = ["### [Session Distillation / Compacted History]:"]
+        if files_touched:
+            condensed_sections.append(
+                f"**Referenced / Modified Files:** {', '.join(sorted(list(files_touched))[:12])}"
+            )
+        if test_findings:
+            condensed_sections.append(
+                "**Key Test/Execution Findings:**\n"
+                + "\n".join(f"  - {tf}" for tf in test_findings[:5])
+            )
+
+        condensed_sections.append(
+            "**Chronological Dialogue Digest:**\n" + "\n".join(summary_lines[:12])
         )
+        condensed_sections.append(
+            f"(Compacted {len(middle_turns)} older turns to free context window)"
+        )
+
+        condensed_text = "\n\n".join(condensed_sections)
 
         compacted_messages = [
             system_msg,

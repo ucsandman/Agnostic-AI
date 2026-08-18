@@ -55,7 +55,9 @@ SLASH_COMMANDS = [
     "/harvest",
     "/test",
     "/doctor",
+    "/model",
     "/undo",
+    "/checkpoint",
     "/commit",
     "/learn",
     "/grill-me",
@@ -459,12 +461,147 @@ def main():
                 )
                 continue
 
+            elif user_input.startswith("/model"):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    target_key = parts[1].lower()
+                    effort = parts[2].lower() if len(parts) > 2 else None
+                    msg = agent.llm_client.switch_model(
+                        preset_key=target_key, reasoning_effort=effort
+                    )
+                    console.print(f"[bold green]🧠 {msg}[/bold green]")
+                else:
+                    import questionary
+
+                    # 1. Select Provider / Ecosystem
+                    providers = [
+                        {
+                            "name": "🌟 Google Antigravity (Gemini 3.7 Flash & Pro)",
+                            "value": "google",
+                        },
+                        {
+                            "name": "⚡ Anthropic Claude Code (Claude 3.7 Sonnet & Haiku)",
+                            "value": "anthropic",
+                        },
+                        {
+                            "name": "🧠 OpenAI Codex (o3-mini, o1, GPT-4o)",
+                            "value": "openai",
+                        },
+                        {"name": "🔬 DeepSeek (R1 Reasoning)", "value": "deepseek"},
+                        {
+                            "name": "💻 Local Offline (LM Studio / Ollama)",
+                            "value": "local",
+                        },
+                    ]
+
+                    selected_provider = questionary.select(
+                        "🏢 Select Subscription Provider / Company:",
+                        choices=[
+                            questionary.Choice(title=p["name"], value=p["value"])
+                            for p in providers
+                        ],
+                    ).ask()
+
+                    if not selected_provider:
+                        continue
+
+                    # 2. Select Specific Model Preset within Provider
+                    matching_presets = [
+                        (k, p)
+                        for k, p in LLMConfig.PRESETS.items()
+                        if p["provider"] == selected_provider
+                    ]
+
+                    model_choices = []
+                    for k, p in matching_presets:
+                        active_tag = (
+                            " (ACTIVE)"
+                            if agent.llm_client.config.model == p["model"]
+                            else ""
+                        )
+                        model_choices.append(
+                            questionary.Choice(
+                                title=f"{p['name']}{active_tag}",
+                                value=k,
+                            )
+                        )
+
+                    selected_preset_key = questionary.select(
+                        f"🤖 Select Model ({selected_provider.upper()}):",
+                        choices=model_choices,
+                    ).ask()
+
+                    if not selected_preset_key:
+                        continue
+
+                    preset_info = LLMConfig.PRESETS[selected_preset_key]
+
+                    # 3. Select Reasoning / Thinking Effort Level
+                    effort_choices = [
+                        questionary.Choice(
+                            title="🟢 Low (Fastest response, minimal reasoning tokens)",
+                            value="low",
+                        ),
+                        questionary.Choice(
+                            title="🟡 Medium (Balanced deep thinking)", value="medium"
+                        ),
+                        questionary.Choice(
+                            title="🔴 High (Maximum reasoning depth, exhaustive planning)",
+                            value="high",
+                        ),
+                    ]
+
+                    selected_effort = questionary.select(
+                        "⚙️  Select Reasoning / Thinking Effort Level (Arrow Keys):",
+                        choices=effort_choices,
+                        default=questionary.Choice(
+                            title="default",
+                            value=preset_info.get("default_effort", "medium"),
+                        ),
+                    ).ask()
+
+                    if not selected_effort:
+                        selected_effort = preset_info.get("default_effort", "medium")
+
+                    msg = agent.llm_client.switch_model(
+                        preset_key=selected_preset_key, reasoning_effort=selected_effort
+                    )
+                    console.print(f"\n[bold green]✅ {msg}[/bold green]")
+                continue
+
             elif user_input == "/undo":
                 success, msg = undo_manager.rollback_last()
                 if success:
                     console.print(f"[bold green]⏪ {msg}[/bold green]")
                 else:
                     console.print(f"[bold yellow]⚠️ {msg}[/bold yellow]")
+                continue
+
+            elif user_input.startswith("/checkpoint"):
+                parts = user_input.split()
+                subcmd = parts[1].lower() if len(parts) > 1 else "list"
+                cp_name = parts[2] if len(parts) > 2 else "latest"
+
+                if subcmd == "save":
+                    msg = undo_manager.create_checkpoint(cp_name)
+                    console.print(f"[bold green]🏷️ {msg}[/bold green]")
+                elif subcmd in ("rollback", "load", "restore"):
+                    success, msg = undo_manager.rollback_to_checkpoint(cp_name)
+                    if success:
+                        console.print(f"[bold green]⏪ {msg}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]⚠️ {msg}[/bold yellow]")
+                elif subcmd == "list":
+                    if not undo_manager.checkpoints:
+                        console.print(
+                            "[dim]No checkpoints saved. Use: /checkpoint save <name>[/dim]"
+                        )
+                    else:
+                        console.print("[bold cyan]Available Checkpoints:[/bold cyan]")
+                        for name, history in undo_manager.checkpoints.items():
+                            console.print(
+                                f"• [bold green]{name}[/bold green] ({len(history)} history entries)"
+                            )
                 continue
 
             elif user_input == "/commit":
@@ -675,6 +812,7 @@ def main():
 • [bold cyan]/clear[/bold cyan]              - Clear the terminal screen while keeping session memory
 • [bold cyan]/plan <task>[/bold cyan]         - Generate a step-by-step goal-driven plan before coding
 • [bold cyan]/doctor[/bold cyan]             - Auto-detect local model status, context size & endpoint health
+• [bold cyan]/model [preset] [effort][/bold cyan] - Switch between AGY, Claude, Codex, DeepSeek, Local & effort level
 • [bold cyan]/exit[/bold cyan]               - Exit the interactive REPL
                 """)
                 continue

@@ -52,8 +52,10 @@ agnostic > /fix
 | Command / Trigger | Capability | What It Does |
 |---|---|---|
 | `@<filename>` / `#<symbol>` | **AST Context Injection** | Dynamic fuzzy auto-completion in terminal; injects exact file content or AST class/function slice directly into prompt. |
+| `/model` | **Interactive Model & Effort Picker** | Arrow-key navigation to choose provider (Google Antigravity, Claude Code, OpenAI Codex, DeepSeek, Local) and reasoning effort (`low`, `medium`, `high`). |
 | `/fix [cmd]` | **One-Click Quick Fix** | Runs tests or inspects stack traces, diagnoses root cause, and executes a surgical fix in a single turn. |
-| `/compact` | **Smart Context Compaction** | Manually condenses older turns into a dense distillation to free context window memory. |
+| `/compact` | **Smart Context Compaction** | Manually condenses older turns into structured distillation preserving touched files, test results, and symbol anchors. |
+| `/checkpoint save\|restore\|list` | **Atomic Multi-File Checkpoints** | Creates named checkpoints to atomically roll back multi-file transactions across refactors. |
 | `/session save\|load\|list` | **Session Bookmarking** | Saves and restores conversation snapshots and whiteboard state across tasks and branches. |
 | `/trust [reads\|tests\|all]` | **Smart Trust Tiers** | Sets permission mode (`strict`, `trust-reads`, `trust-tests`, `trust-all`) while keeping secrets strictly protected. |
 | `/audit` / `/retro` | **Session Retro & Audit** | Compiles and exports an end-of-session Markdown report of all tool calls, hard stops, and file modifications. |

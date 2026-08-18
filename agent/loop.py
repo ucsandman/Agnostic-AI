@@ -27,7 +27,7 @@ class AgentLoop:
         self.subagents = SubagentManager(
             client=self.llm_client, workspace_root=str(self.workspace_root)
         )
-        self.mcp_bridge = MCPBridge(self.registry)
+        self.mcp_bridge = MCPBridge(self.registry)  # noqa: vulture
 
         self.confirm_callback = confirm_callback or self._default_confirm
         self.output_callback = output_callback or self._default_output
@@ -58,7 +58,7 @@ class AgentLoop:
     def _register_subagent_tool(self):
         self.registry.register(
             name="invoke_subagent",
-            description="Spawn an isolated worker subagent (e.g. 'researcher', 'reviewer', 'tester') with its own context window to perform deep tasks without cluttering main context.",
+            description="Spawn an isolated worker subagent (e.g. 'researcher', 'reviewer', 'tester') with its own context window and optional workspace isolation mode ('inherit', 'share', 'branch').",
             parameters={
                 "type": "object",
                 "properties": {
@@ -74,6 +74,11 @@ class AgentLoop:
                         "type": "string",
                         "description": "Optional extra system instructions.",
                     },
+                    "workspace_mode": {
+                        "type": "string",
+                        "enum": ["inherit", "share", "branch"],
+                        "description": "Workspace isolation mode: 'inherit' (shared root), 'share' (shallow clone), or 'branch' (isolated git worktree).",
+                    },
                 },
                 "required": ["role", "task_prompt"],
             },
@@ -84,9 +89,12 @@ class AgentLoop:
         role = args["role"]
         prompt = args["task_prompt"]
         custom = args.get("custom_instructions")
-        self.output_callback("subagent", f"Spawning Subagent '{role}' for task...")
+        mode = args.get("workspace_mode", "inherit")
+        self.output_callback(
+            "subagent", f"Spawning Subagent '{role}' (workspace: {mode}) for task..."
+        )
         result = self.subagents.spawn(
-            role=role, prompt=prompt, custom_instructions=custom
+            role=role, prompt=prompt, custom_instructions=custom, workspace_mode=mode
         )
         return ToolResult(result)
 

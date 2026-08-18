@@ -210,6 +210,61 @@ class ToolRegistry:
             func=self._tool_find_files,
         )
 
+        # 7. apply_patch
+        self.register(
+            name="apply_patch",
+            description="Apply a unified diff / patch to a file with fuzzy block matching tolerance.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path of the file to patch.",
+                    },
+                    "patch_content": {
+                        "type": "string",
+                        "description": "Unified diff or search/replace hunk block.",
+                    },
+                },
+                "required": ["file_path", "patch_content"],
+            },
+            func=self._tool_apply_patch,
+        )
+
+        # 8. get_outline
+        self.register(
+            name="get_outline",
+            description="Extract class definitions, function signatures, methods, and docstrings from a file (AST symbol tree) without reading full lines.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "File to generate symbol outline for.",
+                    },
+                },
+                "required": ["file_path"],
+            },
+            func=self._tool_get_outline,
+        )
+
+        # 9. simulate_command
+        self.register(
+            name="simulate_command",
+            description="Simulate and dry-run a shell command using AST/Regex safety inspection before actual execution.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Shell command to analyze and simulate.",
+                    },
+                },
+                "required": ["command"],
+            },
+            func=self._tool_simulate_command,
+        )
+
     # --- Tool Implementations ---
 
     def _tool_run_command(
@@ -323,6 +378,16 @@ class ToolRegistry:
             except Exception:
                 pass
 
+        # Post-edit syntax interceptor validation
+        from agent.governance.interceptor import CodeInterceptor
+
+        valid, syntax_err = CodeInterceptor.validate_syntax(target_file, content)
+        if not valid:
+            return ToolResult(
+                f"Validation Error (Intercepted before write): {syntax_err}. Modification aborted to avoid syntax breakage.",
+                is_error=True,
+            )
+
         try:
             target_file.parent.mkdir(parents=True, exist_ok=True)
             from agent.governance.undo import undo_manager
@@ -392,6 +457,18 @@ class ToolRegistry:
                 )
 
             new_content = content.replace(target, replacement, 1)
+
+            # Post-edit syntax interceptor validation
+            from agent.governance.interceptor import CodeInterceptor
+
+            valid, syntax_err = CodeInterceptor.validate_syntax(
+                target_file, new_content
+            )
+            if not valid:
+                return ToolResult(
+                    f"Validation Error (Intercepted before save): {syntax_err}. File edit was reverted.",
+                    is_error=True,
+                )
 
             # Render visual diff card
             from agent.tools.diff_viewer import DiffViewer
@@ -490,3 +567,203 @@ class ToolRegistry:
             return ToolResult("\n".join(matches))
         except Exception as e:
             return ToolResult(f"Error finding files: {str(e)}", is_error=True)
+
+    def _tool_apply_patch(
+        self,
+        args: Dict[str, Any],
+        confirm_callback: Optional[Callable[[str], bool]] = None,
+        **_kwargs,
+    ) -> ToolResult:
+        raw_path = args["file_path"]
+        patch = args["patch_content"]
+
+        safe, reason = guard.check_path_access(raw_path)
+        if not safe:
+            return ToolResult(reason, is_error=True)
+
+        target_file = (self.workspace_root / raw_path).resolve()
+        if not target_file.exists():
+            return ToolResult(f"File not found: {raw_path}", is_error=True)
+
+        try:
+            original_content = target_file.read_text(encoding="utf-8", errors="replace")
+
+            # Parse unified diff or search/replace block
+            # Handle <<<<<<< SEARCH / ======= / >>>>>>> REPLACE blocks or Unified Diff
+            if (
+                "<<<<<<< SEARCH" in patch
+                and "=======" in patch
+                and ">>>>>>> REPLACE" in patch
+            ):
+                import re
+
+                blocks = re.findall(
+                    r"<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE",
+                    patch,
+                    re.DOTALL,
+                )
+                if not blocks:
+                    return ToolResult(
+                        "Could not parse search/replace patch blocks.", is_error=True
+                    )
+
+                patched_text = original_content
+                for search_blk, replace_blk in blocks:
+                    if search_blk not in patched_text:
+                        return ToolResult(
+                            f"Patch hunk search block not found in {raw_path}",
+                            is_error=True,
+                        )
+                    patched_text = patched_text.replace(search_blk, replace_blk, 1)
+                new_content = patched_text
+            else:
+                # Fallback: line-by-line unified diff parser
+                diff_lines = patch.strip().splitlines()
+                removals = []
+                additions = []
+                for dl in diff_lines:
+                    if dl.startswith("-") and not dl.startswith("---"):
+                        removals.append(dl[1:].strip())
+                    elif dl.startswith("+") and not dl.startswith("+++"):
+                        additions.append(dl[1:].strip())
+
+                if removals:
+                    search_str = "\n".join(removals)
+                    replace_str = "\n".join(additions)
+                    if search_str in original_content:
+                        new_content = original_content.replace(
+                            search_str, replace_str, 1
+                        )
+                    else:
+                        # Fuzzy match: try single line matches
+                        new_content = original_content
+                        for rem, add in zip(removals, additions):
+                            if rem in new_content:
+                                new_content = new_content.replace(rem, add, 1)
+                else:
+                    return ToolResult(
+                        "Unrecognized patch format. Use unified diff or SEARCH/REPLACE blocks.",
+                        is_error=True,
+                    )
+
+            # Syntax interceptor
+            from agent.governance.interceptor import CodeInterceptor
+
+            valid, syntax_err = CodeInterceptor.validate_syntax(
+                target_file, new_content
+            )
+            if not valid:
+                return ToolResult(
+                    f"Validation Error in patch: {syntax_err}", is_error=True
+                )
+
+            from agent.governance.undo import undo_manager
+
+            undo_manager.record_change(
+                target_file, original_content, new_content, "patch"
+            )
+            target_file.write_text(new_content, encoding="utf-8")
+            return ToolResult(f"Successfully applied patch to {raw_path}")
+
+        except Exception as e:
+            return ToolResult(f"Error applying patch: {str(e)}", is_error=True)
+
+    def _tool_get_outline(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        raw_path = args["file_path"]
+        safe, reason = guard.check_path_access(raw_path)
+        if not safe:
+            return ToolResult(reason, is_error=True)
+
+        target_file = (self.workspace_root / raw_path).resolve()
+        if not target_file.exists():
+            return ToolResult(f"File not found: {raw_path}", is_error=True)
+
+        if target_file.suffix == ".py":
+            import ast
+
+            try:
+                content = target_file.read_text(encoding="utf-8", errors="replace")
+                tree = ast.parse(content, filename=str(target_file))
+                outline = []
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        doc = ast.get_docstring(node)
+                        doc_str = f' — "{doc.splitlines()[0]}"' if doc else ""
+                        outline.append(
+                            f"• class {node.name} (Line {node.lineno}){doc_str}"
+                        )
+                    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        args_list = [a.arg for a in node.args.args]
+                        doc = ast.get_docstring(node)
+                        doc_str = f' — "{doc.splitlines()[0]}"' if doc else ""
+                        outline.append(
+                            f"  └─ def {node.name}({', '.join(args_list)}) (Line {node.lineno}){doc_str}"
+                        )
+
+                if not outline:
+                    return ToolResult(
+                        f"No classes or top-level functions found in {raw_path}"
+                    )
+                return ToolResult(
+                    f"### [AST Outline: {raw_path}]\n" + "\n".join(outline)
+                )
+            except Exception as e:
+                return ToolResult(
+                    f"Error generating Python AST outline: {str(e)}", is_error=True
+                )
+
+        # Fallback for JS/TS/Other files: Regex signature scanner
+        try:
+            content = target_file.read_text(encoding="utf-8", errors="replace")
+            import re
+
+            sig_matches = []
+            for idx, line in enumerate(content.splitlines(), 1):
+                clean = line.strip()
+                if re.match(
+                    r"^(export\s+)?(class|interface|type|function|const\s+[a-zA-Z0-9_]+\s*=\s*(?:async\s*)?\()",
+                    clean,
+                ):
+                    sig_matches.append(f"Line {idx:3d}: {clean[:100]}")
+            if sig_matches:
+                return ToolResult(
+                    f"### [Symbol Signatures: {raw_path}]\n"
+                    + "\n".join(sig_matches[:40])
+                )
+            return ToolResult(f"No symbols extracted from {raw_path}")
+        except Exception as e:
+            return ToolResult(f"Error reading outline: {str(e)}", is_error=True)
+
+    def _tool_simulate_command(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        cmd = args["command"]
+        is_blocked, req_approval, reason = guard.check_command_safety(cmd)
+
+        sim_report = [
+            f"### [Command Simulation & Safety Pre-Flight]: `{cmd}`",
+            f"• **Hard-Stop Guard Status:** {'⛔ BLOCKED' if is_blocked else ('⚠️ REQUIRES CONFIRMATION' if req_approval else '✅ SAFE / ALLOWED')}",
+            f"• **Policy Reason:** {reason or 'Standard safe development tool'}",
+        ]
+
+        # Check network indicators
+        import re
+
+        if re.search(r"\b(curl|wget|fetch|git push|ssh|scp|nc|ping)\b", cmd):
+            sim_report.append(
+                "• **Network Activity:** 🌐 Outbound network request detected."
+            )
+        else:
+            sim_report.append(
+                "• **Network Activity:** 🔒 Local operation (no outbound network detected)."
+            )
+
+        # Check filesystem mutation indicators
+        if re.search(r"\b(rm|del|rmdir|mkdir|touch|mv|cp|git clean|git reset)\b", cmd):
+            sim_report.append(
+                "• **Filesystem Impact:** ⚠️ Modifies or removes files on disk."
+            )
+        else:
+            sim_report.append(
+                "• **Filesystem Impact:** 📄 Read-only or process execution."
+            )
+
+        return ToolResult("\n".join(sim_report))

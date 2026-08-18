@@ -235,3 +235,175 @@ def test_subagent_parallel_spawning(temp_workspace):
     assert hasattr(sm, "spawn_parallel")
     assert len(tasks) == 2
 
+
+def test_syntax_interceptor_and_pre_save_validation(temp_workspace):
+    from agent.governance.interceptor import CodeInterceptor
+    from agent.tools.registry import ToolRegistry
+
+    # 1. Direct Interceptor unit checks
+    valid, err = CodeInterceptor.validate_syntax(
+        temp_workspace / "valid.py", "def foo():\n    return 42\n"
+    )
+    assert valid is True
+    assert err is None
+
+    invalid, err = CodeInterceptor.validate_syntax(
+        temp_workspace / "broken.py", "def foo(\n"
+    )
+    assert invalid is False
+    assert "SyntaxError" in err
+
+    # 2. Tool Registry Integration check (write_file and edit_file abort on broken Python syntax)
+    reg = ToolRegistry(workspace_root=str(temp_workspace))
+
+    # Attempting to write invalid python
+    res = reg.execute(
+        "write_file", {"file_path": "broken.py", "content": "def bad_func("}
+    )
+    assert res.is_error is True
+    assert "Validation Error (Intercepted before write)" in res.output
+    assert not (temp_workspace / "broken.py").exists()
+
+    # Valid write
+    res = reg.execute(
+        "write_file",
+        {"file_path": "clean.py", "content": "def good():\n    return 1\n"},
+    )
+    assert res.is_error is False
+    assert (temp_workspace / "clean.py").exists()
+
+    # Attempting to edit with broken syntax
+    res = reg.execute(
+        "edit_file",
+        {
+            "file_path": "clean.py",
+            "target_content": "return 1",
+            "replacement_content": "return (((",
+        },
+    )
+    assert res.is_error is True
+    assert "Validation Error (Intercepted before save)" in res.output
+
+
+def test_subagent_workspace_modes(temp_workspace):
+    from agent.tools.subagent import SubagentWorker
+    from agent.llm.client import LLMClient
+
+    worker_inherit = SubagentWorker(
+        role="tester",
+        system_prompt="Test",
+        client=LLMClient(),
+        workspace_root=temp_workspace,
+        workspace_mode="inherit",
+    )
+    assert worker_inherit.active_workspace == temp_workspace
+    worker_inherit.cleanup()
+
+    worker_share = SubagentWorker(
+        role="tester",
+        system_prompt="Test",
+        client=LLMClient(),
+        workspace_root=temp_workspace,
+        workspace_mode="share",
+    )
+    assert worker_share.active_workspace != temp_workspace
+    worker_share.cleanup()
+
+
+def test_checkpoint_transactions(temp_workspace):
+    from agent.governance.undo import UndoManager
+
+    um = UndoManager(workspace_root=str(temp_workspace))
+    file_a = temp_workspace / "a.py"
+    file_b = temp_workspace / "b.py"
+
+    file_a.write_text("v1", encoding="utf-8")
+    um.record_change(file_a, None, "v1", "create")
+
+    # Create checkpoint
+    msg = um.create_checkpoint("base_state")
+    assert "Checkpoint 'base_state' created" in msg
+
+    # Mutate files
+    file_a.write_text("v2", encoding="utf-8")
+    um.record_change(file_a, "v1", "v2", "edit")
+    file_b.write_text("b1", encoding="utf-8")
+    um.record_change(file_b, None, "b1", "create")
+
+    assert file_a.read_text(encoding="utf-8") == "v2"
+    assert file_b.exists()
+
+    # Rollback to checkpoint
+    ok, rollback_msg = um.rollback_to_checkpoint("base_state")
+    assert ok is True
+    assert "Rolled back to checkpoint" in rollback_msg
+    assert file_a.read_text(encoding="utf-8") == "v1"
+    assert not file_b.exists()
+
+
+def test_apply_patch_tool(temp_workspace):
+    from agent.tools.registry import ToolRegistry
+
+    reg = ToolRegistry(workspace_root=str(temp_workspace))
+    target = temp_workspace / "patched.py"
+    target.write_text("def calculate():\n    return 10\n", encoding="utf-8")
+
+    search_replace_patch = (
+        "<<<<<<< SEARCH\n    return 10\n=======\n    return 20\n>>>>>>> REPLACE"
+    )
+    res = reg.execute(
+        "apply_patch",
+        {
+            "file_path": "patched.py",
+            "patch_content": search_replace_patch,
+        },
+    )
+    assert res.is_error is False
+    assert "Successfully applied patch" in res.output
+    assert "return 20" in target.read_text(encoding="utf-8")
+
+
+def test_get_outline_tool(temp_workspace):
+    from agent.tools.registry import ToolRegistry
+
+    reg = ToolRegistry(workspace_root=str(temp_workspace))
+    res = reg.execute("get_outline", {"file_path": "math_lib.py"})
+    assert res.is_error is False
+    assert "class Calculator" in res.output
+    assert "def add" in res.output
+    assert "def multiply" in res.output
+
+
+def test_simulate_command_tool(temp_workspace):
+    from agent.tools.registry import ToolRegistry
+
+    reg = ToolRegistry(workspace_root=str(temp_workspace))
+    res_safe = reg.execute("simulate_command", {"command": "git status"})
+    assert "SAFE / ALLOWED" in res_safe.output
+
+    res_blocked = reg.execute("simulate_command", {"command": "cat .secrets.env"})
+    assert "BLOCKED" in res_blocked.output
+
+
+def test_model_switching_and_presets():
+    from agent.llm.client import LLMClient
+
+    client = LLMClient()
+    assert client.config.model == "local-model"
+
+    # Switch to Google Antigravity Pro preset with high reasoning effort
+    msg = client.switch_model(preset_key="agy-pro", reasoning_effort="high")
+    assert "Google Antigravity Pro" in msg
+    assert client.config.model == "gemini-3.7-pro"
+    assert client.config.reasoning_effort == "high"
+
+    # Switch to Claude Sonnet preset
+    msg = client.switch_model(preset_key="claude-sonnet")
+    assert "Claude Code Sonnet" in msg
+    assert client.config.model == "claude-3-7-sonnet-latest"
+
+    # Switch to OpenAI Codex o3-mini preset
+    msg = client.switch_model(preset_key="codex-o3-mini", reasoning_effort="medium")
+    assert "OpenAI Codex o3-mini" in msg
+    assert client.config.model == "o3-mini"
+    assert client.config.reasoning_effort == "medium"
