@@ -6,7 +6,7 @@
 [![Targets: 18 Synced](https://img.shields.io/badge/Targets-18%20AI%20Clients-success.svg)](#-supported-clients--runtimes)
 [![Local First](https://img.shields.io/badge/Architecture-Local--First-9cf.svg)](#-core-pillars)
 [![Zero Bloat](https://img.shields.io/badge/Dependencies-Zero%20Bloat-orange.svg)](#-quick-start)
-[![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg)](#-optional-governed-autonomy-dashclaw)
+[![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg)](https://github.com/ucsandman/DashClaw)
 
 **The single-source harness for developers juggling Claude Code, Cursor, Codex, Windsurf, Copilot, and CLI coding agents.**
 
