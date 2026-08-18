@@ -169,7 +169,7 @@ def test_safety_guard_and_trust_tiers(temp_workspace):
     assert req_appr is False
 
     # But secrets commands remain strictly blocked
-    blocked, _, reason = guard.check_command_safety("cat .secrets.env")
+    blocked, _, _ = guard.check_command_safety("cat .secrets.env")
     assert blocked is True
 
 
@@ -391,19 +391,24 @@ def test_model_switching_and_presets():
     client = LLMClient()
     assert client.config.model == "local-model"
 
-    # Switch to Google Antigravity Pro preset with high reasoning effort
-    msg = client.switch_model(preset_key="agy-pro", reasoning_effort="high")
+    # Switch to Google Antigravity Pro 3.1 preset with high reasoning effort
+    msg = client.switch_model(preset_key="agy-pro-3.1", reasoning_effort="high")
     assert "Google Antigravity Pro" in msg
-    assert client.config.model == "gemini-3.7-pro"
+    assert client.config.model == "gemini-3.1-pro"
     assert client.config.reasoning_effort == "high"
 
-    # Switch to Claude Sonnet preset
-    msg = client.switch_model(preset_key="claude-sonnet")
-    assert "Claude Code Sonnet" in msg
-    assert client.config.model == "claude-3-7-sonnet-latest"
+    # Switch to Claude Sonnet 5 preset
+    msg = client.switch_model(preset_key="claude-sonnet-5")
+    assert "Claude Code Sonnet 5" in msg
+    assert client.config.model == "claude-sonnet-5"
 
-    # Switch to OpenAI Codex o3-mini preset
-    msg = client.switch_model(preset_key="codex-o3-mini", reasoning_effort="medium")
-    assert "OpenAI Codex o3-mini" in msg
-    assert client.config.model == "o3-mini"
-    assert client.config.reasoning_effort == "medium"
+    # Switch to OpenAI Codex GPT-5.6 Sol preset
+    msg = client.switch_model(preset_key="codex-gpt-5.6-sol", reasoning_effort="high")
+    assert "OpenAI Codex GPT-5.6 Sol" in msg
+    assert client.config.model == "gpt-5.6-sol"
+    assert client.config.reasoning_effort == "high"
+
+    # Switch to DeepSeek V4-Pro preset
+    msg = client.switch_model(preset_key="deepseek-v4-pro")
+    assert "DeepSeek V4-Pro" in msg
+    assert client.config.model == "deepseek-v4-pro"

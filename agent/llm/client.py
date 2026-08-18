@@ -9,74 +9,135 @@ from openai import OpenAI
 
 
 class LLMConfig:
-    # Popular subscription presets
+    # Comprehensive Frontier Subscription Presets
     PRESETS: Dict[str, Dict[str, Any]] = {
-        "agy-flash": {
-            "name": "Google Antigravity Flash (Gemini 3.7 Flash)",
+        # --- Google Antigravity (Gemini Series) ---
+        "agy-flash-3.7": {
+            "name": "Google Antigravity Flash (Gemini 3.7 Flash - Agentic Workhorse)",
             "provider": "google",
             "model": "gemini-3.7-flash",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "api_key_env": "GEMINI_API_KEY",
             "default_effort": "low",
         },
-        "agy-pro": {
-            "name": "Google Antigravity Pro (Gemini 3.7 Pro Thinking)",
+        "agy-pro-3.1": {
+            "name": "Google Antigravity Pro (Gemini 3.1 Pro - Deep Reasoning Flagship)",
             "provider": "google",
-            "model": "gemini-3.7-pro",
+            "model": "gemini-3.1-pro",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "api_key_env": "GEMINI_API_KEY",
             "default_effort": "high",
         },
-        "claude-sonnet": {
-            "name": "Claude Code Sonnet (Claude 3.7 Sonnet Thinking)",
+        "agy-flash-3.6": {
+            "name": "Google Antigravity Flash (Gemini 3.6 Flash)",
+            "provider": "google",
+            "model": "gemini-3.6-flash",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "api_key_env": "GEMINI_API_KEY",
+            "default_effort": "low",
+        },
+        # --- Anthropic (Claude 5 & 4.5 Series) ---
+        "claude-sonnet-5": {
+            "name": "Claude Code Sonnet 5 (Flagship Balanced Agent)",
             "provider": "anthropic",
-            "model": "claude-3-7-sonnet-latest",
+            "model": "claude-sonnet-5",
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "high",
         },
-        "claude-haiku": {
-            "name": "Claude Code Haiku (Claude 3.5 Haiku)",
+        "claude-opus-5": {
+            "name": "Claude Code Opus 5 (Enterprise Heavy Coding)",
             "provider": "anthropic",
-            "model": "claude-3-5-haiku-latest",
+            "model": "claude-opus-5",
+            "base_url": "https://api.anthropic.com/v1",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "default_effort": "high",
+        },
+        "claude-fable-5": {
+            "name": "Claude Code Fable 5 (Next-Gen Autonomous Thinking)",
+            "provider": "anthropic",
+            "model": "claude-fable-5",
+            "base_url": "https://api.anthropic.com/v1",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "default_effort": "high",
+        },
+        "claude-haiku-4.5": {
+            "name": "Claude Code Haiku 4.5 (High-Speed Lightweight)",
+            "provider": "anthropic",
+            "model": "claude-haiku-4.5",
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "low",
         },
-        "codex-o3-mini": {
-            "name": "OpenAI Codex o3-mini (High Reasoning)",
+        # --- OpenAI Codex (GPT-5.6 & o-Series) ---
+        "codex-gpt-5.6-sol": {
+            "name": "OpenAI Codex GPT-5.6 Sol (Flagship Architecture & Coding)",
             "provider": "openai",
-            "model": "o3-mini",
+            "model": "gpt-5.6-sol",
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "high",
         },
-        "codex-o1": {
-            "name": "OpenAI Codex o1 (Deep Research / Max Effort)",
+        "codex-gpt-5.6-terra": {
+            "name": "OpenAI Codex GPT-5.6 Terra (Mid-Tier Balanced)",
             "provider": "openai",
-            "model": "o1",
-            "base_url": "https://api.openai.com/v1",
-            "api_key_env": "OPENAI_API_KEY",
-            "default_effort": "high",
-        },
-        "codex-gpt-4o": {
-            "name": "OpenAI Codex GPT-4o (Fast Multimodal)",
-            "provider": "openai",
-            "model": "gpt-4o",
+            "model": "gpt-5.6-terra",
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "medium",
         },
+        "codex-gpt-5.6-luna": {
+            "name": "OpenAI Codex GPT-5.6 Luna (Fast Agentic)",
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "default_effort": "low",
+        },
+        "codex-o3-pro": {
+            "name": "OpenAI Codex o3-pro (Deep Multi-Step Reasoning)",
+            "provider": "openai",
+            "model": "o3-pro",
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "default_effort": "high",
+        },
+        "codex-o4-mini": {
+            "name": "OpenAI Codex o4-mini (Fast Mathematical Reasoning)",
+            "provider": "openai",
+            "model": "o4-mini",
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "default_effort": "medium",
+        },
+        # --- DeepSeek (V4 & R-Series) ---
+        "deepseek-v4-pro": {
+            "name": "DeepSeek V4-Pro (1.6T MoE / 1M Context Flagship)",
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "default_effort": "high",
+        },
+        "deepseek-v4-flash": {
+            "name": "DeepSeek V4-Flash (High-Efficiency 300B MoE)",
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "default_effort": "low",
+        },
         "deepseek-r1": {
-            "name": "DeepSeek R1 Reasoning (vLLM / OpenRouter)",
+            "name": "DeepSeek R1 (Distilled Chain-of-Thought)",
             "provider": "deepseek",
             "model": "deepseek-reasoner",
             "base_url": "https://api.deepseek.com/v1",
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_effort": "high",
         },
+        # --- Local Offline ---
         "local-lmstudio": {
-            "name": "Local LM Studio / Ollama (Offline Free)",
+            "name": "Local LM Studio / Ollama (Offline Free Qwen/Llama/DeepSeek)",
             "provider": "local",
             "model": "local-model",
             "base_url": "http://localhost:1234/v1",
@@ -154,7 +215,7 @@ class LLMClient:
         self._init_client()
         return f"Updated model configuration: {self.config.model} (Effort: {self.config.reasoning_effort.upper()})"
 
-    def chat_completion(
+    def chat_completion(  # noqa: vulture
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
