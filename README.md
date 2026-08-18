@@ -1,38 +1,71 @@
-# 🛡️ Agnostic AI Harness
+# 🛡️ Agnostic AI Harness & Autonomous Coding Agent
 
 <div align="center">
 
 [![Template Repository](https://img.shields.io/badge/Template-GitHub%20Template-blueviolet.svg?style=flat-square)](#-using-this-template)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Targets: 18 Synced](https://img.shields.io/badge/Targets-18%20AI%20Clients-success.svg?style=flat-square)](#-supported-clients--runtimes)
+[![Native Agent](https://img.shields.io/badge/CLI%20Agent-Open--Source%20Claude%20Code%20Parity-brightgreen.svg?style=flat-square)](#-native-autonomous-coding-agent)
 [![Local First](https://img.shields.io/badge/Architecture-Local--First-9cf.svg?style=flat-square)](#-core-pillars)
-[![Zero Bloat](https://img.shields.io/badge/Dependencies-Zero%20Bloat-orange.svg?style=flat-square)](#-quick-start)
 [![Governed Autonomy](https://img.shields.io/badge/Governance-DashClaw%20%7C%20Opt--Out%20Ready-purple.svg?style=flat-square)](https://github.com/ucsandman/DashClaw)
 
-**The universal open-source template harness for developers juggling Claude Code, Cursor, Codex, Windsurf, Copilot, and CLI coding agents.**
+**The unified open-source ecosystem combining an 18-target cross-agent SSOT harness with a native, autonomous terminal coding agent (Claude Code parity for local LLMs).**
 
-*Keep your rules, custom skills, safety guards, and learned lessons synchronized across every AI tool on your machine — with zero config drift and zero bloat.*
+*Run an autonomous coding agent powered by LM Studio, Ollama, or OpenAI with subagent swarms, AST symbol indexers, live diffs, test-and-repair loops, and instant harness distillation.*
 
 ---
 
-[Features](#-key-features) • [Using This Template](#-using-this-template) • [Supported Clients](#-supported-clients--runtimes) • [Quick Start](#-quick-start) • [Command Center](#-local-command-center-port-7842) • [Governance & Opt-Out](#-optional-governed-autonomy-dashclaw)
+[Native Coding Agent](#-native-autonomous-coding-agent) • [Harness Features](#-harness-key-features) • [Supported Clients](#-supported-clients--runtimes) • [Quick Start](#-quick-start) • [Command Center](#-local-command-center-port-7842)
 
 </div>
 
 ---
 
-## ⚡ The Problem: Context & Rules Drift
+## ⚡ What is Agnostic AI?
 
-If you bounce between multiple AI coding assistants, you've likely hit these friction points:
-1. **Rule Drift:** You patch a critical instruction in `CLAUDE.md`, forget to update `.cursorrules` or `AGENTS.md`, and an IDE agent touches `.secrets.env` or executes an unsafe command.
-2. **Skill Fragmentation:** Custom skills and MCP tools must be manually copied, configured, and updated across 5+ tool config paths.
-3. **Forgotten Corrections:** When you correct an agent's repeated hallucination, the lesson is lost across subsequent sessions or other tools.
+Agnostic AI is a two-in-one system designed for developers who want complete autonomy and zero vendor lock-in:
 
-**Agnostic AI Harness** provides a single source of truth on your machine with automated polyglot compilation, bidirectional lesson ingestion, cross-agent skill consolidation, and deterministic safety guardrails.
+1. **The Native Autonomous Coding Agent (`agnostic` CLI)**: An open-source, terminal coding agent that brings **Claude Code** capabilities (parallel subagents, AST symbol slicing, autonomous test-and-fix loops, `/swarm`, `/diagram`, visual diffs, and live context meters) to open-weight models (Qwen 2.5/3.8 Coder, DeepSeek, Llama 3) via LM Studio, Ollama, or OpenAI APIs.
+2. **The 18-Target Universal SSOT Harness**: A single source of truth that keeps your rules, custom skills, safety guards, and learned lessons synchronized across Claude Code, Cursor, Codex, Windsurf, Copilot, Cline, and 12 other AI tools.
 
 ---
 
-## 🌟 Key Features
+## 🤖 Native Autonomous Coding Agent
+
+Run the autonomous coding agent in any directory or project:
+
+```bash
+# Global interactive coding agent
+agnostic
+
+# Direct prompt execution
+agnostic -p "inspect the auth system and add token validation"
+
+# Run tests and auto-repair until green
+agnostic
+agnostic > /test
+```
+
+### 🏆 Built-in Agent Capabilities & Slash Shortcuts
+
+| Command | Capability | What It Does |
+|---|---|---|
+| `/swarm <task>` | **Parallel Worker Swarm** | Spawns 3 background subagents (Researcher, Implementer, Reviewer) concurrently and synthesizes a unified diff. |
+| `/test [cmd]` | **Auto Test-and-Fix Loop** | Detects test runners (`npm test`, `pytest`, `cargo test`), catches failures, and loops surgical fixes until tests pass. |
+| `/diagram` / `/map` | **Mermaid Architecture** | Scans imports across the project and outputs clean Mermaid architecture dependency charts. |
+| `/learn <lesson>` | **Instant SSOT Learning** | Records candidate rules directly into the harness 4-Tier Promotion Ladder (`candidates.jsonl`). |
+| `/grill-me <task>` | **Design Interview Mode** | Interrogates the developer with 3 lead architect trade-off questions to eliminate wrong assumptions before coding. |
+| `/pr` | **PR & Branch Auto-Pilot** | Analyzes git diffs and drafts a conventional GitHub Pull Request summary. |
+| `/undo` | **Snapshot Rollback** | Instantly reverts the most recent file edit or deletes newly generated files. |
+| `/commit` | **Conventional Git Commit** | Inspects `git status` + `git diff` and generates conventional commits with one-click approval. |
+| `/state` | **Persistent Whiteboard** | Displays active objectives, completed milestones, and scratchpad notes from `.agnostic/state.md`. |
+| `/doctor` | **Endpoint Auto-Detector** | Queries local LM Studio / Ollama endpoints, reporting model name, context length, and latency. |
+| `/multiline` | **Multi-line Paste Mode** | Paste massive error logs and specs without premature execution (`Ctrl+Z` + `Enter` to submit). |
+| `/clear` | **Viewport Reset** | Clears the terminal screen while preserving working session memory. |
+
+---
+
+## 🌟 Harness Key Features
 
 ```
                                ┌───────────────────────────┐
