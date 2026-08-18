@@ -27,7 +27,7 @@ const PORT = parseInt(process.env.PORT || '7842', 10);
 const OPEN_FLAG = process.argv.includes('--open');
 
 // Dependencies from engine
-const { runHarvest } = require('../../engine/harvest/harvest.cjs');
+const { runHarvest, getCandidate, updateCandidate, deleteCandidate } = require('../../engine/harvest/harvest.cjs');
 const { consolidateSkills } = require('../../engine/skills/consolidate.cjs');
 const {
   recommendSkillsForProject,
@@ -40,6 +40,7 @@ const {
 const { run: runSync, loadSource, expandPath } = require('../../engine/sync/sync.cjs');
 const { getStoredDashClawConfig, autoConfigureDashClaw, checkEndpointHealth } = require('../../engine/hooks/dashclaw-setup.cjs');
 const { runDistillation } = require('../../engine/distill/distill.cjs');
+const { auditHarnessBloat, applyBloatOptimizations } = require('../../engine/audit/bloat-audit.cjs');
 
 function getOverviewData() {
   const digestFile = path.join(STORAGE, 'distill-digest.json');
@@ -497,6 +498,33 @@ function serveDashboard() {
       if (req.method === 'GET' && pathname === '/api/errors') {
         return sendJson(getErrorsData(query));
       }
+      if (req.method === 'GET' && pathname === '/api/candidate') {
+        const id = query.id;
+        if (!id) return sendJson({ error: 'Missing candidate id' }, 400);
+        const item = getCandidate(id);
+        if (!item) return sendJson({ error: 'Candidate not found' }, 404);
+        return sendJson(item);
+      }
+      if (req.method === 'POST' && pathname === '/api/candidate/update') {
+        const body = await readBody();
+        if (!body.id) return sendJson({ error: 'Missing candidate id' }, 400);
+        try {
+          const updated = updateCandidate(body.id, body);
+          return sendJson({ success: true, item: updated });
+        } catch (err) {
+          return sendJson({ error: err.message }, 400);
+        }
+      }
+      if (req.method === 'POST' && pathname === '/api/candidate/delete') {
+        const body = await readBody();
+        if (!body.id) return sendJson({ error: 'Missing candidate id' }, 400);
+        try {
+          const resObj = deleteCandidate(body.id);
+          return sendJson(resObj);
+        } catch (err) {
+          return sendJson({ error: err.message }, 400);
+        }
+      }
       if (req.method === 'GET' && pathname === '/api/rules') {
         return sendJson(getRulesData());
       }
@@ -522,8 +550,16 @@ function serveDashboard() {
       if (req.method === 'POST' && pathname === '/api/project/apply-recommendations') {
         const body = await readBody();
         if (!body.projectPath) return sendJson({ error: 'Missing projectPath' }, 400);
-        const updated = applyProjectRecommendations(body.projectPath);
+        const updated = applyProjectRecommendations(body.projectPath, body.skillOverrides);
         return sendJson({ success: true, config: updated });
+      }
+      if (req.method === 'GET' && pathname === '/api/audit/bloat') {
+        return sendJson(auditHarnessBloat());
+      }
+      if (req.method === 'POST' && pathname === '/api/audit/bloat/apply') {
+        const body = await readBody();
+        const results = applyBloatOptimizations(body);
+        return sendJson({ success: true, results });
       }
       if (req.method === 'GET' && pathname === '/api/routines') {
         return sendJson(getRoutinesData());

@@ -280,6 +280,48 @@ async function run() {
     assert.strictEqual(typeof firstRun, 'boolean', 'isFirstRun should return boolean');
   });
 
+  // 14. Test Candidate Update & Tombstoned Deletion
+  const { getCandidate, updateCandidate, deleteCandidate, loadDeletedIds, loadAllCandidatesMap } = require('../harvest/harvest.cjs');
+  await test('Candidates: supports editing message and permanent tombstone deletion', () => {
+    const testId = 'test-cand-001';
+    const testText = 'Temporary testing observation for deletion verification';
+    const map = loadAllCandidatesMap();
+    map.set(testId, {
+      id: testId,
+      text: testText,
+      tier: 0,
+      kind: 'deviation',
+      bucket: 'testing',
+      firstSeen: '2026-08-18',
+      sightingDays: ['2026-08-18'],
+      tags: ['test']
+    });
+    const CANDIDATES_FILE = path.join(__dirname, '..', '..', 'storage', 'candidates.jsonl');
+    fs.writeFileSync(CANDIDATES_FILE, Array.from(map.values()).map(v => JSON.stringify(v)).join('\n') + '\n');
+
+    const fetched = getCandidate(testId);
+    assert(fetched !== null, 'Should find test candidate');
+    const updated = updateCandidate(testId, { text: 'Updated test observation message', tier: 1 });
+    assert.strictEqual(updated.text, 'Updated test observation message');
+    assert.strictEqual(updated.tier, 1);
+
+    const delRes = deleteCandidate(testId);
+    assert.strictEqual(delRes.success, true);
+    assert.strictEqual(getCandidate(testId), null, 'Candidate should be deleted from candidates.jsonl');
+    const deletedIds = loadDeletedIds();
+    assert(deletedIds.has(testId), 'Candidate ID should be in tombstone deleted-candidates set');
+  });
+
+  // 15. Test Bloat Audit Engine
+  const { auditHarnessBloat } = require('../audit/bloat-audit.cjs');
+  await test('Bloat Audit: audits tool bloat, context tax, and calculates token savings', () => {
+    const audit = auditHarnessBloat();
+    assert(typeof audit.score === 'number', 'Audit score should be a number');
+    assert(audit.skills.total >= 50, 'Should detect consolidated skills');
+    assert(audit.tokenTax.estimatedTokenSavings >= 0, 'Should calculate estimated token savings');
+    assert(audit.recommendations.length > 0, 'Should produce actionable recommendations');
+  });
+
   console.log(`\n=== Tests Complete: ${passed} passed, ${failed} failed ===`);
   if (failed > 0) process.exit(1);
 }

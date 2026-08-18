@@ -29,6 +29,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const STORAGE = path.join(ROOT, 'storage');
 const CANDIDATES_FILE = path.join(STORAGE, 'candidates.jsonl');
 const DIGEST_FILE = path.join(STORAGE, 'distill-digest.json');
+const DELETED_FILE = path.join(STORAGE, 'deleted-candidates.json');
 
 const HOME = os.homedir();
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -37,6 +38,118 @@ const STATS_ONLY = process.argv.includes('--stats');
 function hashFingerprint(text) {
   const normalized = text.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
   return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+}
+
+function loadDeletedIds() {
+  if (!fs.existsSync(DELETED_FILE)) return new Set();
+  try {
+    const raw = JSON.parse(fs.readFileSync(DELETED_FILE, 'utf8'));
+    return new Set(Array.isArray(raw) ? raw : Object.keys(raw));
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function saveDeletedId(id, text = '') {
+  if (!fs.existsSync(STORAGE)) fs.mkdirSync(STORAGE, { recursive: true });
+  const ids = loadDeletedIds();
+  if (id) ids.add(String(id));
+  if (text) ids.add(hashFingerprint(text));
+  fs.writeFileSync(DELETED_FILE, JSON.stringify(Array.from(ids), null, 2), 'utf8');
+}
+
+function loadAllCandidatesMap() {
+  if (!fs.existsSync(CANDIDATES_FILE)) return new Map();
+  const lines = fs.readFileSync(CANDIDATES_FILE, 'utf8').trim().split('\n').filter(Boolean);
+  const map = new Map();
+  for (const line of lines) {
+    try {
+      const item = JSON.parse(line);
+      map.set(item.id, item);
+    } catch (_) {}
+  }
+  return map;
+}
+
+function saveCandidatesMap(map) {
+  if (!fs.existsSync(STORAGE)) fs.mkdirSync(STORAGE, { recursive: true });
+  const lines = Array.from(map.values()).map(v => JSON.stringify(v));
+  fs.writeFileSync(CANDIDATES_FILE, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
+
+  // Re-sync digest
+  const observations = Array.from(map.values()).filter(c => c.tier === 0);
+  const facts = Array.from(map.values()).filter(c => c.tier === 1);
+  const rules = Array.from(map.values()).filter(c => c.tier === 2);
+
+  const digest = {
+    date: new Date().toISOString().slice(0, 10),
+    stats: {
+      candidatesTotal: map.size,
+      observationsCount: observations.length,
+      promotedFactsCount: facts.length,
+      candidateRulesCount: rules.length,
+      refusedCount: 0
+    },
+    candidateRules: rules,
+    promotedFacts: facts,
+    refusedItems: [],
+    allCandidates: Array.from(map.values())
+  };
+  fs.writeFileSync(DIGEST_FILE, JSON.stringify(digest, null, 2), 'utf8');
+  return digest;
+}
+
+function getCandidate(id) {
+  const map = loadAllCandidatesMap();
+  return map.get(id) || null;
+}
+
+function updateCandidate(id, updates = {}) {
+  const map = loadAllCandidatesMap();
+  const existing = map.get(id);
+  if (!existing) {
+    throw new Error(`Candidate with ID '${id}' not found`);
+  }
+
+  if (typeof updates.text === 'string' && updates.text.trim()) {
+    existing.text = updates.text.trim();
+  }
+  if (updates.tier !== undefined && updates.tier !== null) {
+    existing.tier = Number(updates.tier);
+  }
+  if (updates.kind) {
+    existing.kind = String(updates.kind).trim();
+  }
+  if (updates.bucket !== undefined) {
+    existing.bucket = String(updates.bucket).trim();
+  }
+  if (updates.repo !== undefined) {
+    existing.repo = updates.repo ? String(updates.repo).trim() : null;
+  }
+  if (Array.isArray(updates.tags)) {
+    existing.tags = updates.tags.map(t => String(t).trim()).filter(Boolean);
+  } else if (typeof updates.tags === 'string') {
+    existing.tags = updates.tags.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  existing.updatedAt = new Date().toISOString();
+  map.set(id, existing);
+  saveCandidatesMap(map);
+  return existing;
+}
+
+function deleteCandidate(id) {
+  const map = loadAllCandidatesMap();
+  const existing = map.get(id);
+  if (existing) {
+    saveDeletedId(id, existing.text);
+    map.delete(id);
+    saveCandidatesMap(map);
+    return { success: true, deleted: existing, remainingCount: map.size };
+  } else {
+    saveDeletedId(id);
+    return { success: true, id, remainingCount: map.size };
+  }
 }
 
 // ── Source 1: Claude error-log JSONL ──────────────────────────────────────────
@@ -272,12 +385,16 @@ function harvestWesErrorLog() {
   return items;
 }
 
-// ── Deduplication & Merge ────────────────────────────────────────────────────
-
 function deduplicateAndMerge(allItems) {
   const map = new Map();
+  const deletedIds = loadDeletedIds();
 
   for (const item of allItems) {
+    // Strictly exclude any candidate that was deleted/tombstoned by the user
+    if (deletedIds.has(item.id) || deletedIds.has(hashFingerprint(item.text))) {
+      continue;
+    }
+
     const existing = map.get(item.id);
     if (existing) {
       // Merge sighting days
@@ -403,4 +520,14 @@ if (require.main === module) {
   runHarvest();
 }
 
-module.exports = { runHarvest, harvestClaudeErrorLog, harvestMeditationCandidates };
+module.exports = {
+  runHarvest,
+  harvestClaudeErrorLog,
+  harvestMeditationCandidates,
+  getCandidate,
+  updateCandidate,
+  deleteCandidate,
+  loadDeletedIds,
+  saveDeletedId,
+  loadAllCandidatesMap
+};

@@ -200,12 +200,43 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      transition: border-color 0.15s;
+      transition: all 0.15s ease;
+      cursor: pointer;
     }
-    .candidate-card:hover { border-color: var(--accent); }
+    .candidate-card:hover {
+      border-color: var(--accent);
+      background: #1c2128;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    }
     .candidate-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-    .candidate-text { font-size: 14px; font-weight: 500; word-break: break-word; }
+    .candidate-text { font-size: 14px; font-weight: 500; word-break: break-word; flex: 1; }
+    .candidate-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .candidate-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-muted); }
+
+    .btn-icon-subtle {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+    }
+    .btn-icon-subtle:hover {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .btn-icon-subtle.delete:hover {
+      background: rgba(248, 81, 73, 0.15);
+      border-color: rgba(248, 81, 73, 0.4);
+      color: var(--danger);
+    }
 
     /* Switch Toggle */
     .switch {
@@ -457,6 +488,233 @@
 
     /* Empty state */
     .empty-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 14px; }
+
+    /* Modal Backdrop & Dialog */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(12px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+    .modal-dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 95%;
+      max-width: 860px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+      animation: slideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1c2128;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .modal-close-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      background: #0d1117;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Diff Summary Cards Grid */
+    .diff-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .diff-summary-card {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .diff-summary-card.accent { border-color: rgba(88, 166, 255, 0.4); background: rgba(88, 166, 255, 0.05); }
+    .diff-summary-card.success { border-color: rgba(63, 185, 80, 0.4); background: rgba(63, 185, 80, 0.05); }
+    .diff-summary-card.danger { border-color: rgba(248, 81, 73, 0.4); background: rgba(248, 81, 73, 0.05); }
+    .diff-summary-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+    .diff-summary-val { font-size: 20px; font-weight: 700; }
+
+    /* Diff Filter Tabs */
+    .diff-filters {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      overflow-x: auto;
+    }
+    .diff-filter-btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .diff-filter-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .diff-filter-btn.active { color: #fff; background: #1f6feb; border-color: #388bfd; }
+
+    /* Diff Item Row */
+    .diff-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .diff-item {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      transition: border-color 0.15s;
+    }
+    .diff-item:hover { border-color: var(--accent); }
+    .diff-item.add { border-left: 4px solid var(--success); background: linear-gradient(90deg, rgba(63,185,80,0.06) 0%, #161b22 100%); }
+    .diff-item.remove { border-left: 4px solid var(--danger); background: linear-gradient(90deg, rgba(248,81,73,0.06) 0%, #161b22 100%); }
+    .diff-item.same { border-left: 4px solid #30363d; opacity: 0.85; }
+
+    .diff-item-left {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex: 1;
+    }
+    .diff-item-info { display: flex; flex-direction: column; gap: 2px; }
+    .diff-item-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .diff-item-reason { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+    .diff-item-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .diff-state-flow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      background: #0d1117;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .state-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .state-pill.inactive { color: #8b949e; background: rgba(139, 148, 158, 0.15); }
+    .state-pill.active { color: #3fb950; background: rgba(63, 185, 80, 0.2); }
+    .diff-action-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .diff-action-tag.add { background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
+    .diff-action-tag.remove { background: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.4); }
+    .diff-action-tag.same { background: rgba(139, 148, 158, 0.15); color: #8b949e; border: 1px solid rgba(139, 148, 158, 0.3); }
+
+    /* Toast Notification */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 20000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      background: #1c2128;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 18px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastIn 0.2s ease-out;
+      pointer-events: auto;
+    }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.info { border-left: 4px solid var(--accent); }
+    .toast.warning { border-left: 4px solid var(--warning); }
+    .toast.error { border-left: 4px solid var(--danger); }
+    @keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>
 </head>
 <body>
@@ -466,28 +724,48 @@
         <div class="brand-logo">AG</div>
         <div>
           <h1>Agnostic AI Universal Harness</h1>
-          <div class="subtitle">Multi-Agent Synchronization, Governed Autonomy & Self-Maintenance</div>
+          <div class="subtitle">Multi-Agent Synchronization, Governed Autonomy &amp; Self-Maintenance</div>
         </div>
       </div>
       <div class="status-badges">
+        <span id="bloat-header-badge" class="tag tag-accent" style="cursor: pointer;" onclick="openBloatAuditModal()" title="Harness Context Health Score">🧹 Harness Health: 40/100</span>
         <span id="dashclaw-badge" class="tag tag-warning">Probing DashClaw...</span>
         <span id="targets-badge" class="tag tag-success">18 Targets Synced</span>
+        <button class="btn btn-accent" onclick="openBloatAuditModal()">🧹 Reduce Bloat</button>
         <button class="btn" onclick="triggerSync()">⚡ Sync Rules</button>
       </div>
     </header>
 
     <!-- Navigation Bar -->
     <div class="nav-tabs">
-      <button class="tab-btn active" data-tab="overview">📊 Overview & Health</button>
-      <button class="tab-btn" data-tab="errors">🔍 Errors & Distill <span id="tab-badge-errors" class="tab-badge">877</span></button>
-      <button class="tab-btn" data-tab="skills">🧩 Skills & Recommendations <span id="tab-badge-skills" class="tab-badge">99</span></button>
-      <button class="tab-btn" data-tab="rules">📜 Rules & Dispositions</button>
-      <button class="tab-btn" data-tab="routines">⏱️ Routines & Schedules</button>
+      <button class="tab-btn active" data-tab="overview">📊 Overview &amp; Health</button>
+      <button class="tab-btn" data-tab="errors">🔍 Errors &amp; Distill <span id="tab-badge-errors" class="tab-badge">877</span></button>
+      <button class="tab-btn" data-tab="skills">🧩 Skills &amp; Recommendations <span id="tab-badge-skills" class="tab-badge">99</span></button>
+      <button class="tab-btn" data-tab="rules">📜 Rules &amp; Dispositions</button>
+      <button class="tab-btn" data-tab="routines">⏱️ Routines &amp; Schedules</button>
       <button class="tab-btn" data-tab="decisions">🛡️ Governed Decisions (DashClaw)</button>
     </div>
 
     <!-- 1. OVERVIEW VIEW -->
     <div id="view-overview" class="view-panel active">
+      <!-- Bloat Audit & Context Health Banner -->
+      <div class="panel-card" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(31, 111, 235, 0.08) 0%, rgba(137, 87, 229, 0.08) 100%); border-color: rgba(88, 166, 255, 0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+              <span>🧹 Harness Context Health &amp; Subtraction Principle Audit</span>
+              <span id="overview-bloat-badge" class="tag tag-warning">Score: 40/100 · High Context Tax</span>
+            </div>
+            <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">
+              Industry consensus (Anthropic/Agentic Benchmarks): 3–8 active tools per context prevents selection confusion. Current prompt tax: <strong id="ov-bloat-tax">~20,140 tokens</strong> (Potential savings: <strong id="ov-bloat-savings" style="color: var(--success);">~16,200 tokens / 80%</strong>).
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-accent" onclick="openBloatAuditModal()">🔍 Run Bloat Audit &amp; Prune</button>
+          </div>
+        </div>
+      </div>
+
       <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Active Error Candidates</div>
@@ -596,7 +874,8 @@
           <select id="project-selector" class="select-dropdown" style="min-width: 250px;" onchange="loadProjectRecommendations()">
             <option value="">Loading project list...</option>
           </select>
-          <button class="btn btn-primary" onclick="applyRecommendationsForCurrentProject()">⚡ 1-Click Apply Recommendations</button>
+          <button class="btn btn-primary" onclick="openRecommendationsDiffModal()">⚡ 1-Click Apply Recommendations</button>
+          <button class="btn btn-accent" onclick="openRecommendationsDiffModal()">🔍 Preview Before &amp; After Diff</button>
         </div>
 
         <div id="project-tech-box" class="project-header" style="display: none;">
@@ -604,9 +883,11 @@
             <h3 id="proj-name" style="font-size: 16px;">Project Name</h3>
             <div id="proj-tech" style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Tech: React, Tailwind, TypeScript</div>
           </div>
-          <div>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <span id="proj-rec-count" class="tag tag-accent">0 Recommended</span>
             <span id="proj-active-count" class="tag tag-success">0 Active</span>
+            <span id="proj-pending-diff" class="tag tag-warning">0 Changes Pending</span>
+            <button class="btn btn-primary" style="font-size: 12px; padding: 4px 10px;" onclick="openRecommendationsDiffModal()">Review &amp; Apply</button>
           </div>
         </div>
 
@@ -1172,6 +1453,274 @@ dashclaw install claude --trial</code></pre>
 
   </div>
 
+  <!-- BEFORE & AFTER RECOMMENDATIONS DIFF MODAL -->
+  <div id="rec-diff-modal" class="modal-backdrop" style="display: none;" onclick="handleModalBackdropClick(event)">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>⚡ Skill Recommendations: Before vs. After</span>
+          <span id="diff-modal-proj-badge" class="tag tag-accent">Project Name</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeRecommendationsDiffModal()" title="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Summary Diff Grid -->
+        <div class="diff-summary-grid">
+          <div class="diff-summary-card">
+            <div class="diff-summary-label">Current State (Before)</div>
+            <div class="diff-summary-val" id="diff-count-before">0 Active</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Currently enabled skills</div>
+          </div>
+          <div class="diff-summary-card accent">
+            <div class="diff-summary-label">Target State (After)</div>
+            <div class="diff-summary-val" id="diff-count-after" style="color: var(--accent);">0 Active</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Recommended skills</div>
+          </div>
+          <div class="diff-summary-card success">
+            <div class="diff-summary-label">To Be Enabled</div>
+            <div class="diff-summary-val" id="diff-count-add" style="color: var(--success);">+0 Skills</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Will be activated</div>
+          </div>
+          <div class="diff-summary-card danger">
+            <div class="diff-summary-label">To Be Disabled</div>
+            <div class="diff-summary-val" id="diff-count-remove" style="color: var(--danger);">-0 Skills</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Will be turned off</div>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="diff-filters">
+          <button class="diff-filter-btn active" id="diff-filter-btn-changes" onclick="setDiffFilter('changes')">
+            <span>⚡ Proposed Changes</span>
+            <span class="tag" id="diff-filter-badge-changes">0</span>
+          </button>
+          <button class="diff-filter-btn" id="diff-filter-btn-enable" onclick="setDiffFilter('enable')">
+            <span>+ To Enable</span>
+            <span class="tag tag-success" id="diff-filter-badge-enable">0</span>
+          </button>
+          <button class="diff-filter-btn" id="diff-filter-btn-disable" onclick="setDiffFilter('disable')">
+            <span>- To Disable</span>
+            <span class="tag tag-danger" id="diff-filter-badge-disable">0</span>
+          </button>
+          <button class="diff-filter-btn" id="diff-filter-btn-all" onclick="setDiffFilter('all')">
+            <span>🌐 All Project Skills</span>
+            <span class="tag" id="diff-filter-badge-all">0</span>
+          </button>
+        </div>
+
+        <!-- Comparison List -->
+        <div id="diff-items-container" class="diff-list">
+          <div class="empty-state">Loading recommendations comparison...</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div style="font-size: 12px; color: var(--text-muted);">
+          <span id="diff-footer-note">Review changes before applying to project workspace.</span>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn" onclick="closeRecommendationsDiffModal()">Cancel / Keep Current</button>
+          <button class="btn btn-primary" id="diff-confirm-btn" onclick="confirmApplyRecommendations()">⚡ Confirm &amp; Apply Recommendations</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANDIDATE EDIT & DISTILLATION MODAL -->
+  <div id="candidate-edit-modal" class="modal-backdrop" style="display: none;" onclick="handleCandidateModalBackdropClick(event)">
+    <div class="modal-dialog" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>✏️ Edit Observation &amp; Distillation Record</span>
+          <span id="c-edit-id-badge" class="tag tag-accent">ID</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeCandidateEditModal()" title="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="c-edit-id">
+
+        <!-- Error/Observation Message -->
+        <div class="form-group">
+          <label class="form-label" for="c-edit-text">Observation / Error Message (Editable)</label>
+          <textarea id="c-edit-text" class="form-input" style="min-height: 130px; font-family: monospace; font-size: 13px; resize: vertical; line-height: 1.5;" placeholder="Enter the exact observation, deviation, assumption, or error message..."></textarea>
+          <div class="form-hint">Refine the distilled message or add clarifying context so agents adhere to accurate guidance.</div>
+        </div>
+
+        <!-- Tier & Classification Controls -->
+        <div class="form-grid" style="margin-top: 4px;">
+          <div class="form-group">
+            <label class="form-label" for="c-edit-tier">Distillation Tier</label>
+            <select id="c-edit-tier" class="form-input">
+              <option value="0">T0 · Observation (Raw sighting under observation)</option>
+              <option value="1">T1 · Repo Fact (Project-specific quirk)</option>
+              <option value="2">T2 · Candidate Rule (Universal multi-day constraint)</option>
+              <option value="3">T3 · Core Trait (Universal philosophical disposition)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="c-edit-kind">Classification Kind</label>
+            <select id="c-edit-kind" class="form-input">
+              <option value="deviation">deviation (Unintended deviation from plan)</option>
+              <option value="assumption">assumption (Unchecked assumption surfaced)</option>
+              <option value="correction">correction (Direct user correction)</option>
+              <option value="meditation-candidate">meditation-candidate (Reflective candidate)</option>
+              <option value="learned-rule">learned-rule (Promoted rule constraint)</option>
+              <option value="other">other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="c-edit-bucket">Bucket / Category</label>
+            <input type="text" id="c-edit-bucket" class="form-input" placeholder="e.g. stated-assumption, scope-shift, plan-was-wrong">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="c-edit-repo">Project Repository (Optional)</label>
+            <input type="text" id="c-edit-repo" class="form-input" placeholder="e.g. practical-systems, or leave empty for global">
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="form-group" style="margin-top: 4px;">
+          <label class="form-label" for="c-edit-tags">Tags (Comma-separated)</label>
+          <input type="text" id="c-edit-tags" class="form-input" placeholder="e.g. windows, powershell, git, verification">
+        </div>
+
+        <!-- Metadata Readout -->
+        <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <span><strong>First Seen:</strong> <span id="c-edit-firstseen" style="color: var(--text);">-</span></span>
+            <span><strong>Total Sightings:</strong> <span id="c-edit-sightings-count" class="tag tag-accent">1</span></span>
+            <span><strong>Client:</strong> <span id="c-edit-client" style="color: var(--text);">claude-code</span></span>
+            <span><strong>Source:</strong> <span id="c-edit-source" style="color: var(--text);">error-log</span></span>
+          </div>
+          <div id="c-edit-days-container" style="margin-top: 4px; font-size: 11px;">
+            <strong>Sighting Dates:</strong> <span id="c-edit-days">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div>
+          <button class="btn" style="color: var(--danger); border-color: rgba(248,81,73,0.35); background: rgba(248,81,73,0.12);" onclick="deleteCandidatePrompt()">🗑️ Delete Permanently (Tombstone)</button>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn" onclick="closeCandidateEditModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveCandidateFromModal()">💾 Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HARNESS BLOAT AUDIT & OPTIMIZATION MODAL -->
+  <div id="bloat-audit-modal" class="modal-backdrop" style="display: none;" onclick="handleBloatModalBackdropClick(event)">
+    <div class="modal-dialog" style="max-width: 860px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🧹 Harness Health &amp; Bloat Audit Engine</span>
+          <span id="bloat-score-badge" class="tag tag-warning">Score: 40/100 · High Context Tax</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeBloatAuditModal()" title="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Leading Agentic Theory & Research Insight Box -->
+        <div style="background: linear-gradient(135deg, rgba(31, 111, 235, 0.12) 0%, rgba(137, 87, 229, 0.12) 100%); border: 1px solid rgba(88, 166, 255, 0.35); border-radius: 8px; padding: 14px 16px; font-size: 12.5px; line-height: 1.5; color: var(--text);">
+          <div style="font-weight: 700; font-size: 13px; color: var(--accent); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            <span>🔬 Leading Research &amp; Architectural Consensus (Anthropic &amp; Agentic Systems)</span>
+          </div>
+          <div>
+            • <strong>The Subtraction Principle &amp; Tool Cliff:</strong> Industry consensus establishes that <strong>3–8 active tools/skills per prompt context</strong> is optimal. Enabling 50+ tools upfront degrades reasoning accuracy, triggers selection confusion, and imposes a 15k–30k token context tax per call.
+            <br>• <strong>Just-in-Time (JIT) Scoping:</strong> Keep only universal safety &amp; voice skills enabled globally; load specialized domain skills on-demand per project workspace.
+          </div>
+        </div>
+
+        <!-- Audit Summary Metric Cards -->
+        <div class="diff-summary-grid">
+          <div class="diff-summary-card danger" id="card-bloat-score">
+            <div class="diff-summary-label">Harness Health Score</div>
+            <div class="diff-summary-val" id="audit-val-score" style="color: var(--warning);">40 / 100</div>
+            <div style="font-size: 11px; color: var(--text-muted);" id="audit-sub-score">High Context Tax</div>
+          </div>
+          <div class="diff-summary-card">
+            <div class="diff-summary-label">Global Active Skills</div>
+            <div class="diff-summary-val" id="audit-val-skills">98 Active</div>
+            <div style="font-size: 11px; color: var(--text-muted);" id="audit-sub-skills">Target: 8 Universal Core</div>
+          </div>
+          <div class="diff-summary-card">
+            <div class="diff-summary-label">Stale T0 Observations</div>
+            <div class="diff-summary-val" id="audit-val-t0">223 Stale</div>
+            <div style="font-size: 11px; color: var(--text-muted);">1-off sightings (&gt;7d old)</div>
+          </div>
+          <div class="diff-summary-card success">
+            <div class="diff-summary-label">Potential Token Savings</div>
+            <div class="diff-summary-val" id="audit-val-savings" style="color: var(--success);">-16,200 / req</div>
+            <div style="font-size: 11px; color: var(--text-muted);" id="audit-sub-savings">~80% prompt reduction</div>
+          </div>
+        </div>
+
+        <!-- Actionable Recommendations & Toggles -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--text); display: flex; justify-content: space-between; align-items: center;">
+            <span>Recommended Harness Pruning Actions</span>
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">Select optimizations to apply</span>
+          </div>
+
+          <!-- Optimization 1 -->
+          <div style="background: #161b22; border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; align-items: flex-start; gap: 12px;">
+            <label style="cursor: pointer; margin-top: 2px;">
+              <input type="checkbox" id="opt-scope-skills" checked style="width: 16px; height: 16px; cursor: pointer;">
+            </label>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>Switch Global Skills to Just-in-Time Project Scoping</span>
+                <span class="tag tag-success">⚡ High Impact</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
+                Deactivates <strong id="opt-desc-nonuniversal">90 domain-specific skills</strong> from universal prompt injection across all 18 agent targets. Retains 8 universal safety/voice guard skills globally (<code>blindspot</code>, <code>harden</code>, <code>wes-voice</code>, <code>dashclaw-governance</code>, <code>preflight</code>, <code>secrets</code>), and activates other skills per-project.
+              </div>
+              <div style="font-size: 11.5px; color: var(--accent); margin-top: 4px;">
+                Estimated Savings: <strong id="opt-desc-savings">~16,200 tokens per interaction (80% context tax reduction)</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optimization 2 -->
+          <div style="background: #161b22; border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; align-items: flex-start; gap: 12px;">
+            <label style="cursor: pointer; margin-top: 2px;">
+              <input type="checkbox" id="opt-purge-t0" checked style="width: 16px; height: 16px; cursor: pointer;">
+            </label>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>Archive &amp; Tombstone Stale Single-Sighting T0 Observations</span>
+                <span class="tag tag-accent">🧹 Memory Cleanup</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
+                Permanently tombstones <strong id="opt-desc-t0count">223 raw observations</strong> that occurred only once and never graduated to T1/T2 over 7+ days. Prevents unpromoted candidate noise from resurfacing.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div style="font-size: 12px; color: var(--text-muted);">
+          <span>Safe operation: project-level overrides and promoted T1/T2 rules are preserved.</span>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn" onclick="closeBloatAuditModal()">Cancel</button>
+          <button class="btn btn-primary" id="btn-apply-bloat" onclick="applySelectedBloatOptimizations()">🧹 Apply Bloat Reductions &amp; Optimize</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
   <script>
     let overviewData = null;
     let allSkills = {};
@@ -1260,8 +1809,117 @@ dashclaw install claude --trial</code></pre>
           ovStatus.className = 'tag tag-warning';
           ovStatus.textContent = 'Standalone Mode';
         }
+        await loadBloatAuditSummary();
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    /* BLOAT AUDIT & SUBTRACTION PRINCIPLE OPTIMIZER */
+    let currentBloatAuditData = null;
+
+    async function loadBloatAuditSummary() {
+      try {
+        const res = await fetch('/api/audit/bloat');
+        const data = await res.json();
+        currentBloatAuditData = data;
+
+        const headerBadge = document.getElementById('bloat-header-badge');
+        const ovBadge = document.getElementById('overview-bloat-badge');
+        const ovTax = document.getElementById('ov-bloat-tax');
+        const ovSavings = document.getElementById('ov-bloat-savings');
+
+        if (headerBadge) {
+          headerBadge.className = `tag ${data.score >= 80 ? 'tag-success' : data.score >= 50 ? 'tag-warning' : 'tag-danger'}`;
+          headerBadge.textContent = `🧹 Harness Health: ${data.score}/100`;
+        }
+        if (ovBadge) {
+          ovBadge.className = `tag ${data.score >= 80 ? 'tag-success' : data.score >= 50 ? 'tag-warning' : 'tag-danger'}`;
+          ovBadge.textContent = `Score: ${data.score}/100 · ${data.status}`;
+        }
+        if (ovTax) {
+          ovTax.textContent = `~${data.tokenTax.currentTotalTokens.toLocaleString()} tokens/req`;
+        }
+        if (ovSavings) {
+          ovSavings.textContent = `~${data.tokenTax.estimatedTokenSavings.toLocaleString()} tokens / ${data.tokenTax.percentageSavings}%`;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function openBloatAuditModal() {
+      try {
+        const res = await fetch('/api/audit/bloat');
+        const data = await res.json();
+        currentBloatAuditData = data;
+
+        document.getElementById('bloat-score-badge').className = `tag ${data.score >= 80 ? 'tag-success' : data.score >= 50 ? 'tag-warning' : 'tag-danger'}`;
+        document.getElementById('bloat-score-badge').textContent = `Score: ${data.score}/100 · ${data.status}`;
+
+        document.getElementById('audit-val-score').textContent = `${data.score} / 100`;
+        document.getElementById('audit-val-score').style.color = data.score >= 80 ? 'var(--success)' : data.score >= 50 ? 'var(--warning)' : 'var(--danger)';
+        document.getElementById('audit-sub-score').textContent = data.status;
+
+        document.getElementById('audit-val-skills').textContent = `${data.skills.globalEnabledCount} Active`;
+        document.getElementById('audit-sub-skills').textContent = `Target: ${data.skills.universalCoreCount} Universal Core`;
+
+        document.getElementById('audit-val-t0').textContent = `${data.observations.staleT0Count} Stale`;
+
+        document.getElementById('audit-val-savings').textContent = `-${data.tokenTax.estimatedTokenSavings.toLocaleString()} / req`;
+        document.getElementById('audit-sub-savings').textContent = `~${data.tokenTax.percentageSavings}% prompt reduction`;
+
+        document.getElementById('opt-desc-nonuniversal').textContent = `${data.skills.nonUniversalGlobalCount} domain-specific skills`;
+        document.getElementById('opt-desc-savings').textContent = `~${data.tokenTax.estimatedTokenSavings.toLocaleString()} tokens per interaction (${data.tokenTax.percentageSavings}% context tax reduction)`;
+        document.getElementById('opt-desc-t0count').textContent = `${data.observations.staleT0Count} raw observations`;
+
+        document.getElementById('bloat-audit-modal').style.display = 'flex';
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to load bloat audit: ' + err.message, 'error');
+      }
+    }
+
+    function closeBloatAuditModal() {
+      document.getElementById('bloat-audit-modal').style.display = 'none';
+    }
+
+    function handleBloatModalBackdropClick(event) {
+      if (event.target.id === 'bloat-audit-modal') {
+        closeBloatAuditModal();
+      }
+    }
+
+    async function applySelectedBloatOptimizations() {
+      const scopeSkills = document.getElementById('opt-scope-skills').checked;
+      const purgeStaleT0 = document.getElementById('opt-purge-t0').checked;
+
+      const btn = document.getElementById('btn-apply-bloat');
+      btn.disabled = true;
+      btn.textContent = 'Optimizing Harness...';
+
+      try {
+        const res = await fetch('/api/audit/bloat/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scopeSkills, purgeStaleT0 })
+        });
+        const data = await res.json();
+        const out = data.results || {};
+
+        closeBloatAuditModal();
+        showToast(`✓ Harness optimized! Health Score is now ${out.newHealthScore}/100. Saved ~${(out.tokensSaved || 0).toLocaleString()} tokens/req.`, 'success');
+
+        loadOverview();
+        loadBloatAuditSummary();
+        loadSkills();
+        loadErrors();
+      } catch (err) {
+        console.error(err);
+        showToast('Error applying bloat optimizations: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `🧹 Apply Bloat Reductions &amp; Optimize`;
       }
     }
 
@@ -1699,6 +2357,8 @@ dashclaw install claude --trial</code></pre>
     }
 
     /* ERRORS & SKILLS & RULES IMPLEMENTATIONS */
+    let cachedCandidatesMap = {};
+
     async function loadErrors() {
       const search = document.getElementById('error-search').value;
       const tier = document.getElementById('filter-tier').value;
@@ -1714,13 +2374,22 @@ dashclaw install claude --trial</code></pre>
           return;
         }
 
+        cachedCandidatesMap = {};
+        for (const item of data.items) {
+          cachedCandidatesMap[item.id] = item;
+        }
+
         const tierLabels = ['T0 · Observation', 'T1 · Repo Fact', 'T2 · Universal Rule', 'T3 · Trait'];
 
         container.innerHTML = data.items.map(item => `
-          <div class="candidate-card">
+          <div class="candidate-card" onclick="openCandidateEditModal('${item.id}')" title="Click to view, edit, or delete this observation">
             <div class="candidate-header">
               <div class="candidate-text">${escapeHtml(item.text)}</div>
-              <span class="tag ${item.tier === 2 ? 'tag-warning' : item.tier === 1 ? 'tag-accent' : ''}">${tierLabels[item.tier || 0]}</span>
+              <div class="candidate-actions" onclick="event.stopPropagation()">
+                <span class="tag ${item.tier === 2 ? 'tag-warning' : item.tier === 1 ? 'tag-accent' : ''}">${tierLabels[item.tier || 0]}</span>
+                <button class="btn-icon-subtle" title="Edit observation" onclick="openCandidateEditModal('${item.id}')">✏️ Edit</button>
+                <button class="btn-icon-subtle delete" title="Delete permanently (never resurface)" onclick="deleteCandidatePrompt('${item.id}')">🗑️</button>
+              </div>
             </div>
             <div class="candidate-meta">
               <span class="tag">Kind: ${item.kind}</span>
@@ -1733,6 +2402,119 @@ dashclaw install claude --trial</code></pre>
         `).join('');
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    async function openCandidateEditModal(id) {
+      let item = cachedCandidatesMap[id];
+      if (!item) {
+        try {
+          const res = await fetch(`/api/candidate?id=${encodeURIComponent(id)}`);
+          if (res.ok) {
+            item = await res.json();
+            cachedCandidatesMap[id] = item;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      if (!item) {
+        showToast('Could not load candidate details.', 'error');
+        return;
+      }
+
+      document.getElementById('c-edit-id').value = item.id;
+      document.getElementById('c-edit-id-badge').textContent = item.id;
+      document.getElementById('c-edit-text').value = item.text || '';
+      document.getElementById('c-edit-tier').value = String(item.tier || 0);
+      document.getElementById('c-edit-kind').value = item.kind || 'deviation';
+      document.getElementById('c-edit-bucket').value = item.bucket || '';
+      document.getElementById('c-edit-repo').value = item.repo || '';
+      document.getElementById('c-edit-tags').value = (item.tags || []).join(', ');
+
+      document.getElementById('c-edit-firstseen').textContent = item.firstSeen || 'N/A';
+      document.getElementById('c-edit-sightings-count').textContent = (item.sightingDays || []).length || 1;
+      document.getElementById('c-edit-client').textContent = item.client || 'claude-code';
+      document.getElementById('c-edit-source').textContent = item.source || 'error-log';
+
+      const daysList = (item.sightingDays || []).join(', ') || item.firstSeen || 'N/A';
+      document.getElementById('c-edit-days').textContent = daysList;
+
+      document.getElementById('candidate-edit-modal').style.display = 'flex';
+    }
+
+    function closeCandidateEditModal() {
+      document.getElementById('candidate-edit-modal').style.display = 'none';
+    }
+
+    function handleCandidateModalBackdropClick(event) {
+      if (event.target.id === 'candidate-edit-modal') {
+        closeCandidateEditModal();
+      }
+    }
+
+    async function saveCandidateFromModal() {
+      const id = document.getElementById('c-edit-id').value;
+      const text = document.getElementById('c-edit-text').value.trim();
+      const tier = parseInt(document.getElementById('c-edit-tier').value, 10);
+      const kind = document.getElementById('c-edit-kind').value;
+      const bucket = document.getElementById('c-edit-bucket').value.trim();
+      const repo = document.getElementById('c-edit-repo').value.trim();
+      const rawTags = document.getElementById('c-edit-tags').value;
+      const tags = rawTags.split(',').map(t => t.trim()).filter(Boolean);
+
+      if (!text) {
+        showToast('Observation message cannot be empty.', 'warning');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/candidate/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, text, tier, kind, bucket, repo, tags })
+        });
+        const out = await res.json();
+        if (out.error) {
+          throw new Error(out.error);
+        }
+
+        closeCandidateEditModal();
+        showToast('✓ Observation updated successfully!', 'success');
+        loadErrors();
+        loadOverview();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to save changes: ' + err.message, 'error');
+      }
+    }
+
+    async function deleteCandidatePrompt(candidateId = null) {
+      const id = candidateId || document.getElementById('c-edit-id').value;
+      if (!id) return;
+
+      const confirmed = confirm("Are you sure you want to permanently delete this observation?\n\nIt will be tombstoned so it never resurfaces, even when re-harvesting logs.");
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch('/api/candidate/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const out = await res.json();
+        if (out.error) {
+          throw new Error(out.error);
+        }
+
+        closeCandidateEditModal();
+        showToast('✓ Observation deleted permanently and tombstoned.', 'success');
+        loadErrors();
+        loadOverview();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to delete observation: ' + err.message, 'error');
       }
     }
 
@@ -1814,6 +2596,30 @@ dashclaw install claude --trial</code></pre>
       }
     }
 
+    let diffModalState = {
+      projectPath: '',
+      projectName: '',
+      tech: {},
+      skills: [],
+      currentFilter: 'changes'
+    };
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠️' : type === 'error' ? '❌' : 'ℹ️';
+      toast.innerHTML = `<span style="font-weight: bold; font-size: 14px;">${icon}</span> <span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.3s, transform 0.3s';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
     async function loadProjectRecommendations() {
       const pPath = document.getElementById('project-selector').value;
       if (!pPath) {
@@ -1833,19 +2639,43 @@ dashclaw install claude --trial</code></pre>
         document.getElementById('proj-rec-count').textContent = `${data.recommendedCount} Recommended`;
         document.getElementById('proj-active-count').textContent = `${data.activeCount} Active`;
 
+        const pendingChanges = (data.recommendations || []).filter(r => Boolean(r.activeForProject) !== Boolean(r.recommended)).length;
+        const pendingEl = document.getElementById('proj-pending-diff');
+        if (pendingEl) {
+          if (pendingChanges > 0) {
+            pendingEl.className = 'tag tag-warning';
+            pendingEl.textContent = `${pendingChanges} Changes Pending`;
+          } else {
+            pendingEl.className = 'tag tag-success';
+            pendingEl.textContent = `✓ Optimal Config Active`;
+          }
+        }
+
         const listEl = document.getElementById('project-recommendations-list');
-        listEl.innerHTML = data.recommendations.filter(r => r.recommended).map(r => `
-          <div class="rec-item">
-            <div>
-              <div style="font-weight: 600; font-size: 14px;">${escapeHtml(r.skillName)} <span class="tag tag-accent">${r.score}% Match</span></div>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(r.reasons.join('; '))}</div>
+        listEl.innerHTML = data.recommendations.filter(r => r.recommended).map(r => {
+          const isCurrentlyActive = Boolean(r.activeForProject);
+          const isRec = Boolean(r.recommended);
+          const stateTag = isCurrentlyActive
+            ? '<span class="state-pill active">● Active</span>'
+            : '<span class="state-pill inactive">○ Inactive (Proposed: Active)</span>';
+
+          return `
+            <div class="rec-item">
+              <div style="flex: 1; padding-right: 12px;">
+                <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span>${escapeHtml(r.skillName)}</span>
+                  <span class="tag tag-accent">${r.score}% Match</span>
+                  ${stateTag}
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(r.reasons.join('; '))}</div>
+              </div>
+              <label class="switch" title="Toggle active status for this project">
+                <input type="checkbox" ${r.activeForProject ? 'checked' : ''} onchange="toggleSkillProject('${r.skillId}', '${pPath}', this.checked)">
+                <span class="slider"></span>
+              </label>
             </div>
-            <label class="switch">
-              <input type="checkbox" ${r.activeForProject ? 'checked' : ''} onchange="toggleSkillProject('${r.skillId}', '${pPath}', this.checked)">
-              <span class="slider"></span>
-            </label>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } catch (err) {
         console.error(err);
       }
@@ -1858,25 +2688,227 @@ dashclaw install claude --trial</code></pre>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ skillId, projectPath, enabled })
         });
+        showToast(`Updated '${skillId}' for project workspace`, 'info');
       } catch (err) {
         console.error(err);
       }
     }
 
-    async function applyRecommendationsForCurrentProject() {
-      const pPath = document.getElementById('project-selector').value;
-      if (!pPath) return alert('Please select a project first.');
+    async function openRecommendationsDiffModal(pPath = null) {
+      const targetPath = pPath || document.getElementById('project-selector').value;
+      if (!targetPath) {
+        showToast('Please select a project workspace first.', 'warning');
+        return;
+      }
+
       try {
-        await fetch('/api/project/apply-recommendations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectPath: pPath })
-        });
-        alert('Optimal skills applied successfully for project!');
-        loadProjectRecommendations();
+        const res = await fetch(`/api/project/recommendations?path=${encodeURIComponent(targetPath)}`);
+        const data = await res.json();
+        
+        diffModalState.projectPath = targetPath;
+        diffModalState.projectName = data.project.name || 'Project';
+        diffModalState.tech = data.project;
+        diffModalState.skills = (data.recommendations || []).map(r => ({
+          skillId: r.skillId,
+          skillName: r.skillName || r.skillId,
+          category: r.category || 'General',
+          description: r.description || '',
+          score: r.score || 50,
+          reasons: r.reasons || [],
+          beforeActive: Boolean(r.activeForProject),
+          recommended: Boolean(r.recommended),
+          stagedActive: Boolean(r.recommended)
+        }));
+
+        document.getElementById('diff-modal-proj-badge').textContent = `${data.project.name} (${(data.project.languages || []).join(', ') || 'Standard'})`;
+
+        const totalChanges = diffModalState.skills.filter(s => s.beforeActive !== s.stagedActive).length;
+        diffModalState.currentFilter = totalChanges > 0 ? 'changes' : 'all';
+
+        updateDiffStatsAndBadges();
+        renderDiffItems();
+
+        document.getElementById('rec-diff-modal').style.display = 'flex';
       } catch (err) {
         console.error(err);
+        showToast('Failed to load project recommendation diff: ' + err.message, 'error');
       }
+    }
+
+    function updateDiffStatsAndBadges() {
+      const skills = diffModalState.skills;
+      const beforeActiveCount = skills.filter(s => s.beforeActive).length;
+      const stagedActiveCount = skills.filter(s => s.stagedActive).length;
+      const toEnableCount = skills.filter(s => !s.beforeActive && s.stagedActive).length;
+      const toDisableCount = skills.filter(s => s.beforeActive && !s.stagedActive).length;
+      const totalChanges = toEnableCount + toDisableCount;
+      const totalSkills = skills.length;
+
+      document.getElementById('diff-count-before').textContent = `${beforeActiveCount} Active`;
+      document.getElementById('diff-count-after').textContent = `${stagedActiveCount} Active`;
+      document.getElementById('diff-count-add').textContent = `+${toEnableCount} Skills`;
+      document.getElementById('diff-count-remove').textContent = `-${toDisableCount} Skills`;
+
+      document.getElementById('diff-filter-badge-changes').textContent = totalChanges;
+      document.getElementById('diff-filter-badge-enable').textContent = toEnableCount;
+      document.getElementById('diff-filter-badge-disable').textContent = toDisableCount;
+      document.getElementById('diff-filter-badge-all').textContent = totalSkills;
+
+      const confirmBtn = document.getElementById('diff-confirm-btn');
+      if (totalChanges > 0) {
+        confirmBtn.innerHTML = `⚡ Confirm &amp; Apply (${totalChanges} Changes)`;
+      } else {
+        confirmBtn.innerHTML = `⚡ Confirm &amp; Apply Recommendations`;
+      }
+    }
+
+    function setDiffFilter(filterKey) {
+      diffModalState.currentFilter = filterKey;
+      ['changes', 'enable', 'disable', 'all'].forEach(k => {
+        const btn = document.getElementById(`diff-filter-btn-${k}`);
+        if (btn) {
+          if (k === filterKey) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+      });
+      renderDiffItems();
+    }
+
+    function renderDiffItems() {
+      const container = document.getElementById('diff-items-container');
+      const filter = diffModalState.currentFilter;
+      let list = diffModalState.skills;
+
+      if (filter === 'changes') {
+        list = list.filter(s => s.beforeActive !== s.stagedActive);
+      } else if (filter === 'enable') {
+        list = list.filter(s => !s.beforeActive && s.stagedActive);
+      } else if (filter === 'disable') {
+        list = list.filter(s => s.beforeActive && !s.stagedActive);
+      }
+
+      if (list.length === 0) {
+        if (filter === 'changes') {
+          container.innerHTML = `
+            <div class="empty-state" style="padding: 32px 16px;">
+              <div style="font-size: 24px; margin-bottom: 8px;">🎉</div>
+              <div style="font-weight: 600; color: var(--text);">Zero Changes Pending</div>
+              <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">The project's active skills already match the optimal recommendations.</div>
+              <button class="btn btn-accent" style="margin-top: 14px;" onclick="setDiffFilter('all')">View All Skills (${diffModalState.skills.length})</button>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `<div class="empty-state">No skills match the selected filter '${filter}'.</div>`;
+        }
+        return;
+      }
+
+      container.innerHTML = list.map(s => {
+        const willEnable = !s.beforeActive && s.stagedActive;
+        const willDisable = s.beforeActive && !s.stagedActive;
+        const itemClass = willEnable ? 'add' : willDisable ? 'remove' : 'same';
+
+        let actionTag = '';
+        if (willEnable) {
+          actionTag = `<span class="diff-action-tag add">+ Will Enable</span>`;
+        } else if (willDisable) {
+          actionTag = `<span class="diff-action-tag remove">- Will Disable</span>`;
+        } else if (s.stagedActive) {
+          actionTag = `<span class="diff-action-tag same">● Keep Active</span>`;
+        } else {
+          actionTag = `<span class="diff-action-tag same">○ Keep Inactive</span>`;
+        }
+
+        const beforePill = s.beforeActive 
+          ? `<span class="state-pill active">● Active</span>` 
+          : `<span class="state-pill inactive">○ Inactive</span>`;
+        const afterPill = s.stagedActive 
+          ? `<span class="state-pill active">● Active</span>` 
+          : `<span class="state-pill inactive">○ Inactive</span>`;
+
+        return `
+          <div class="diff-item ${itemClass}">
+            <div class="diff-item-left">
+              <label style="cursor: pointer; display: flex; align-items: center; margin-top: 2px;">
+                <input type="checkbox" ${s.stagedActive ? 'checked' : ''} onchange="toggleDiffStagedSkill('${s.skillId}', this.checked)" style="cursor: pointer; width: 16px; height: 16px;">
+              </label>
+              <div class="diff-item-info">
+                <div class="diff-item-title">
+                  <span>${escapeHtml(s.skillName)}</span>
+                  <span class="tag tag-accent">${s.score}% Match</span>
+                  <span class="tag">${escapeHtml(s.category)}</span>
+                </div>
+                <div class="diff-item-reason">${escapeHtml(s.reasons.join('; ') || 'General project utility')}</div>
+              </div>
+            </div>
+            <div class="diff-item-right">
+              <div class="diff-state-flow">
+                <span>Before: ${beforePill}</span>
+                <span style="color: var(--text-muted); font-size: 11px;">➔</span>
+                <span>After: ${afterPill}</span>
+              </div>
+              ${actionTag}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleDiffStagedSkill(skillId, isChecked) {
+      const item = diffModalState.skills.find(s => s.skillId === skillId);
+      if (item) {
+        item.stagedActive = Boolean(isChecked);
+        updateDiffStatsAndBadges();
+        renderDiffItems();
+      }
+    }
+
+    async function confirmApplyRecommendations() {
+      const pPath = diffModalState.projectPath;
+      if (!pPath) return;
+
+      const confirmBtn = document.getElementById('diff-confirm-btn');
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Applying...';
+
+      try {
+        const overrides = {};
+        for (const s of diffModalState.skills) {
+          overrides[s.skillId] = s.stagedActive;
+        }
+
+        const res = await fetch('/api/project/apply-recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath: pPath, skillOverrides: overrides })
+        });
+        const out = await res.json();
+
+        closeRecommendationsDiffModal();
+        showToast(`✓ Optimal skills configuration applied for ${diffModalState.projectName}!`, 'success');
+        loadProjectRecommendations();
+        renderSkillsGrid();
+      } catch (err) {
+        console.error(err);
+        showToast('Error applying recommendations: ' + err.message, 'error');
+      } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `⚡ Confirm &amp; Apply Recommendations`;
+      }
+    }
+
+    function closeRecommendationsDiffModal() {
+      document.getElementById('rec-diff-modal').style.display = 'none';
+    }
+
+    function handleModalBackdropClick(event) {
+      if (event.target.id === 'rec-diff-modal') {
+        closeRecommendationsDiffModal();
+      }
+    }
+
+    async function applyRecommendationsForCurrentProject() {
+      openRecommendationsDiffModal();
     }
 
     async function loadRules() {

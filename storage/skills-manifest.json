@@ -2017,6 +2017,6 @@
       "agents"
     ],
     "installedPath": "skills/definitions/zustand-store-ts",
-    "enabled": true
+    "enabled": false
   }
 }

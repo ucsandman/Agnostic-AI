@@ -283,7 +283,7 @@ function listAllProjectsWithRecommendations() {
   return results;
 }
 
-function applyProjectRecommendations(projectPath) {
+function applyProjectRecommendations(projectPath, customOverrides = null) {
   const rec = recommendSkillsForProject(projectPath);
   const config = loadSkillsConfig();
 
@@ -291,12 +291,18 @@ function applyProjectRecommendations(projectPath) {
     config.projectOverrides[projectPath] = {};
   }
 
-  for (const r of rec.recommendations) {
-    config.projectOverrides[projectPath][r.skillId] = r.recommended;
+  if (customOverrides && typeof customOverrides === 'object') {
+    for (const [skillId, val] of Object.entries(customOverrides)) {
+      config.projectOverrides[projectPath][skillId] = Boolean(val);
+    }
+  } else {
+    for (const r of rec.recommendations) {
+      config.projectOverrides[projectPath][r.skillId] = r.recommended;
+    }
   }
 
   saveSkillsConfig(config);
-  console.log(`[Skills] Applied ${rec.recommendedCount} recommended skills to ${projectPath}`);
+  console.log(`[Skills] Applied recommendations configuration to ${projectPath}`);
   return config;
 }
 
