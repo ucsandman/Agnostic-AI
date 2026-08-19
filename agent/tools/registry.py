@@ -666,6 +666,27 @@ class ToolRegistry:
                 _con.print(
                     DiffViewer.render_diff(target_file.name, prev_content, content)
                 )
+                import difflib
+
+                raw_diff = "".join(
+                    difflib.unified_diff(
+                        prev_content.splitlines(keepends=True),
+                        content.splitlines(keepends=True),
+                        fromfile=f"a/{target_file.name}",
+                        tofile=f"b/{target_file.name}",
+                        n=2,
+                    )
+                )
+                if raw_diff:
+                    try:
+                        from agent.web.server import companion_telemetry
+
+                        companion_telemetry.set_diff(raw_diff, target_file.name)
+                        companion_telemetry.log_event(
+                            "diff", f"Wrote {target_file.name}:\n{raw_diff}"
+                        )
+                    except Exception:
+                        pass
 
             undo_manager.record_change(
                 file_path=target_file,
@@ -744,6 +765,27 @@ class ToolRegistry:
             Console().print(
                 DiffViewer.render_diff(target_file.name, content, new_content)
             )
+            import difflib
+
+            raw_diff = "".join(
+                difflib.unified_diff(
+                    content.splitlines(keepends=True),
+                    new_content.splitlines(keepends=True),
+                    fromfile=f"a/{target_file.name}",
+                    tofile=f"b/{target_file.name}",
+                    n=2,
+                )
+            )
+            if raw_diff:
+                try:
+                    from agent.web.server import companion_telemetry
+
+                    companion_telemetry.set_diff(raw_diff, target_file.name)
+                    companion_telemetry.log_event(
+                        "diff", f"Edited {target_file.name}:\n{raw_diff}"
+                    )
+                except Exception:
+                    pass
 
             # Record in undo history & audit
             from agent.governance.undo import undo_manager

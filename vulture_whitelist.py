@@ -3,13 +3,14 @@ from agent.tools.registry import ToolRegistry, ToolResult
 from agent.governance.audit import AuditRecord
 from agent.governance.context import ContextManager
 from agent.tools.indexer import SymbolInfo
-from agent.web.server import CompanionHandler
-from agent.cli import AgnosticCompleter
+from agent.web.server import CompanionHandler, CompanionTelemetry
+from agent.cli import AgnosticCompleter, _handle_alt_v
 from agent.governance.interceptor import CodeInterceptor
 from agent.governance.undo import ThemeManager, UndoManager
 from agent.governance.session_manager import SessionManager
 from agent.governance.state import SessionState
 from agent.governance.watchdog import SandboxWatchdog
+from agent.governance.learn import Learner
 from agent.tools.mcp_discovery import MCPDiscovery
 from agent.tools.subagent import SubagentManager
 from agent.workflows.planner import ExecutionPlanner
@@ -36,9 +37,13 @@ ToolRegistry.get_openai_tools
 ToolRegistry.execute
 CompanionHandler.do_GET
 CompanionHandler.log_message
+CompanionTelemetry.set_diff
+CompanionTelemetry.get_active_file
 ToolRegistry
 
 AgnosticCompleter.get_completions
+_handle_alt_v
+Learner.corrections_file
 CodeInterceptor.run_quick_lint
 ThemeManager.format_badge
 UndoManager.get_history_summary

@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Tuple
 
 class ContextManager:
     def __init__(
-        self, max_context_tokens: int = 16384, compaction_threshold: float = 0.75
+        self, max_context_tokens: int = 2000000, compaction_threshold: float = 0.75
     ):
         self.max_context_tokens = max_context_tokens
         self.compaction_threshold = compaction_threshold

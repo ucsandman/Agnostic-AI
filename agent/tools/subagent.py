@@ -185,6 +185,18 @@ class SubagentManager:
         custom_instructions: Optional[str] = None,
         workspace_mode: WorkspaceMode = "inherit",
     ) -> str:
+        subagent_id = f"sub_{str(uuid.uuid4())[:6]}"
+        subagent_registry.register_active(subagent_id, role, workspace_mode)
+        try:
+            from agent.web.server import companion_telemetry
+
+            companion_telemetry.log_event(
+                "subagent_start",
+                f"Spawned Subagent '{role}' ({subagent_id}, mode: {workspace_mode}): {prompt[:80]}",
+            )
+        except Exception:
+            pass
+
         role_key = role.lower().strip()
         base_prompt = self.subagent_roles.get(
             role_key,
@@ -200,10 +212,25 @@ class SubagentManager:
             workspace_root=self.workspace_root,
             workspace_mode=workspace_mode,
         )
-        result = worker.run_task(prompt)
+        try:
+            result = worker.run_task(prompt)
+            subagent_registry.update_state(
+                subagent_id, "completed", detail=f"Result len: {len(result)}"
+            )
+            try:
+                from agent.web.server import companion_telemetry
 
-        # Distill response header
-        return f"### [Subagent Report: {role.upper()}]\n{result}\n"
+                companion_telemetry.log_event(
+                    "subagent_end",
+                    f"Subagent '{role}' ({subagent_id}) finished task successfully.",
+                )
+            except Exception:
+                pass
+            # Distill response header
+            return f"### [Subagent Report: {role.upper()}]\n{result}\n"
+        except Exception as e:
+            subagent_registry.update_state(subagent_id, "error", detail=str(e))
+            return f"### [Subagent Report: {role.upper()} - ERROR]\n{str(e)}\n"
 
     def spawn_parallel(self, tasks: list[dict[str, Any]]) -> list[str]:
         """Spawn multiple subagents in parallel using concurrent worker threads."""

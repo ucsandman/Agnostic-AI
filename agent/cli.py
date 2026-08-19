@@ -24,6 +24,10 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.key_binding import KeyBindings
+from rich import box
+from PIL import ImageGrab
+from datetime import datetime
 
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
@@ -35,6 +39,17 @@ from agent.governance.audit import audit_manager
 from agent.governance.session_manager import session_manager
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 console = Console()
 
@@ -74,6 +89,11 @@ SLASH_COMMANDS = [
 ]
 
 
+def get_ui_width() -> int:
+    """Returns a bounded narrow column width for readable layout with clean word wrapping."""
+    return min(max(console.width - 4, 60), 94)
+
+
 class AgnosticCompleter(Completer):
     """Dynamic Completer for Slash commands, @file paths, and #symbol names."""
 
@@ -110,13 +130,88 @@ class AgnosticCompleter(Completer):
                     )
 
 
+# KeyBindings for interactive features (Alt+V clipboard image paste)
+kb = KeyBindings()
+
+
+@kb.add("escape", "v")
+@kb.add("escape", "V")
+def _handle_alt_v(event):  # noqa: vulture
+    """Alt+V handler: grabs image from clipboard, saves locally, and inserts reference into prompt."""
+    try:
+        img = ImageGrab.grabclipboard()
+        if img is not None:
+            attach_dir = Path(os.getcwd()) / ".agnostic" / "attachments"
+            attach_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            img_filename = f"clipboard_image_{ts}.png"
+            img_path = attach_dir / img_filename
+
+            if hasattr(img, "save"):
+                img.save(img_path, format="PNG")
+            elif isinstance(img, list) and len(img) > 0 and Path(img[0]).exists():
+                import shutil
+
+                shutil.copy(img[0], img_path)
+            else:
+                console.print(
+                    "\n[yellow]⚠️  Clipboard data is not a recognizable image format.[/yellow]"
+                )
+                return
+
+            rel_path = img_path.relative_to(Path(os.getcwd()))
+            insertion = f" @image:{rel_path} "
+            event.current_buffer.insert_text(insertion)
+            console.print(
+                f"\n[bold green]📷 Attached image from clipboard:[/bold green] [cyan]{rel_path}[/cyan]"
+            )
+        else:
+            console.print(
+                "\n[yellow]⚠️  No image found on clipboard (Take a screenshot or copy an image first).[/yellow]"
+            )
+    except Exception as e:
+        console.print(f"\n[red]Failed to attach image from clipboard: {str(e)}[/red]")
+
+
 def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
-    """Injects code snippets and references for any @file or #symbol found in prompt."""
+    """Injects code snippets and references for any @file, #symbol, or @image found in prompt."""
+    image_refs = re.findall(r"@image:([a-zA-Z0-9_\-\.\/\\]+)", user_prompt)
     file_refs = re.findall(r"@([a-zA-Z0-9_\-\.\/\\]+)", user_prompt)
     symbol_refs = re.findall(r"#([a-zA-Z0-9_\.\:]+)", user_prompt)
 
     injected_context = []
+
+    # Handle @image:... references
+    ws_root = getattr(indexer, "workspace_root", Path(os.getcwd()))
+    if isinstance(ws_root, str):
+        ws_root = Path(ws_root)
+
+    for img_rel in image_refs:
+        img_path = (ws_root / img_rel).resolve()
+        if not img_path.exists():
+            img_path = (Path(os.getcwd()) / img_rel).resolve()
+
+        if img_path.exists() and img_path.is_file():
+            try:
+                from PIL import Image
+
+                with Image.open(img_path) as im:
+                    w, h = im.size
+                    fmt = im.format
+                size_kb = img_path.stat().st_size / 1024.0
+                injected_context.append(
+                    f"### [Attached Image Reference: @image:{img_rel} ({w}x{h} {fmt}, {size_kb:.1f} KB)]\n"
+                    f"Image file on disk: `{str(img_path)}`"
+                )
+            except Exception:
+                injected_context.append(
+                    f"### [Attached Image Reference: @image:{img_rel}]\n"
+                    f"Image file on disk: `{str(img_path)}`"
+                )
+
     for f in file_refs:
+        if f == "image" or f.startswith("image:"):
+            continue
         res = indexer.resolve_file(f)
         if res:
             rel, content = res
@@ -150,27 +245,90 @@ def print_banner():
         "Commands: /plan, /fix, /swarm, /test, /compact, /session, /trust, /audit, /undo, /commit, /exit",
         style="yellow",
     )
-    console.print(Panel(banner_text, border_style="cyan"))
+    console.print(
+        Panel(banner_text, border_style="cyan", box=box.ROUNDED, width=get_ui_width())
+    )
+
+
+current_stream_buffer: List[str] = []
 
 
 def rich_output_callback(msg_type: str, content: str):
-    if msg_type == "tool_start":
+    global current_stream_buffer
+    w = get_ui_width()
+
+    try:
+        from agent.web.server import companion_telemetry
+
+        if msg_type != "assistant_chunk":
+            companion_telemetry.log_event(msg_type, content)
+    except Exception:
+        pass
+
+    if msg_type == "assistant_chunk":
+        if not current_stream_buffer:
+            console.print("[bold cyan]🛡️ Agnostic Agent:[/bold cyan] ", end="")
+        current_stream_buffer.append(content)
+        sys.stdout.write(content)
+        sys.stdout.flush()
+
+    elif msg_type == "assistant":
+        if current_stream_buffer:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            current_stream_buffer = []
+        else:
+            panel = Panel(
+                Markdown(content),
+                title="[bold cyan]🛡️ Agnostic Agent[/bold cyan]",
+                title_align="left",
+                border_style="cyan",
+                box=box.ROUNDED,
+                width=w,
+                padding=(0, 1),
+                style="on #0c151c"
+                if console.color_system in ("truecolor", "256")
+                else None,
+            )
+            console.print(panel)
+
+    elif msg_type == "tool_start":
         console.print(
-            f"[bold magenta]⚙️  Executing Tool:[/bold magenta] [yellow]{content}[/yellow]"
+            f"[dim magenta]⚙️  Executing Tool:[/dim magenta] [yellow]{content}[/yellow]"
         )
+
     elif msg_type == "tool_end":
         clipped = content[:600] + ("..." if len(content) > 600 else "")
         console.print(
-            Panel(clipped, title="Tool Output", border_style="dim blue", expand=False)
+            Panel(
+                clipped,
+                title="[dim blue]⚙️ Tool Output[/dim blue]",
+                title_align="left",
+                border_style="dim blue",
+                box=box.ROUNDED,
+                width=w,
+                padding=(0, 1),
+            )
         )
-    elif msg_type == "assistant":
-        console.print(Markdown(content))
+
     elif msg_type == "subagent":
         console.print(f"[bold green]🐝 Subagent Notification:[/bold green] {content}")
+
     elif msg_type == "system":
         console.print(f"[bold yellow]🔔 {content}[/bold yellow]")
+
     elif msg_type == "error":
-        console.print(f"[bold red]❌ Error:[/bold red] {content}")
+        console.print(
+            Panel(
+                f"[bold red]{content}[/bold red]",
+                title="[bold red]❌ Error[/bold red]",
+                title_align="left",
+                border_style="red",
+                box=box.ROUNDED,
+                width=w,
+                padding=(0, 1),
+            )
+        )
 
 
 def rich_confirm_callback(prompt_msg: str) -> bool:
@@ -294,10 +452,19 @@ def main():
     code_indexer.workspace_root = Path(os.getcwd()).resolve()
     code_indexer.index_workspace()
 
+    from agent.web.server import companion_telemetry
+
+    companion_telemetry.bind_agent(agent)
+
     if args.web:
         from agent.web.server import start_companion_server
+        import webbrowser
 
         ok, web_url = start_companion_server(7843)
+        try:
+            webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
+        except Exception:
+            pass
         if ok:
             console.print(
                 f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
@@ -321,7 +488,62 @@ def main():
             f"[dim yellow]⚠️ Local endpoint offline at {args.url} (Run LM Studio/Ollama)[/dim yellow]"
         )
 
-    # Setup persistent terminal history and dynamic autocomplete
+    # Set initial context window limit based on active model config
+    if hasattr(config, "context_window") and config.context_window:
+        context_manager.set_max_tokens(config.context_window)
+
+    def bottom_toolbar_callable():
+        cwd = os.getcwd()
+        home = str(Path.home())
+        if cwd.startswith(home):
+            display_cwd = "~" + cwd[len(home) :]
+        else:
+            display_cwd = cwd
+
+        git_str = ""
+        try:
+            b_res = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=0.3,
+            )
+            if b_res.returncode == 0 and b_res.stdout.strip():
+                branch = b_res.stdout.strip()
+                st_res = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    capture_output=True,
+                    text=True,
+                    timeout=0.3,
+                )
+                dirty_count = (
+                    len(st_res.stdout.strip().splitlines())
+                    if st_res.stdout.strip()
+                    else 0
+                )
+                if dirty_count > 0:
+                    git_str = f" | 🌿 {branch}* ({dirty_count} changed)"
+                else:
+                    git_str = f" | 🌿 {branch}"
+        except Exception:
+            pass
+
+        curr_model = agent.llm_client.config.model
+        curr_effort = (agent.llm_client.config.reasoning_effort or "med").upper()
+        disp_model = curr_model
+        for p in LLMConfig.PRESETS.values():
+            if p["model"] == curr_model:
+                disp_model = p["name"].split("(")[0].strip()
+                break
+
+        st = context_manager.get_status(agent.history)
+        used = st["used_tokens"]
+        total = st["max_tokens"]
+        pct = st["percentage"]
+
+        return f" 📁 {display_cwd}{git_str}  │  🤖 {disp_model} ({curr_effort})  │  📊 {used:,}/{total:,} tok ({pct:.1f}%)  │  Alt+V: Paste Image "
+
+    # Setup persistent terminal history, keybindings, bottom toolbar and dynamic autocomplete
     history_dir = Path.home() / ".agnostic"
     history_dir.mkdir(parents=True, exist_ok=True)
     history_file = history_dir / "agent_history.txt"
@@ -330,6 +552,8 @@ def main():
         history=FileHistory(str(history_file)),
         auto_suggest=AutoSuggestFromHistory(),
         completer=AgnosticCompleter(SLASH_COMMANDS, code_indexer),
+        key_bindings=kb,
+        bottom_toolbar=bottom_toolbar_callable,
     )
 
     test_runner = AutoTestRunner(
@@ -351,7 +575,23 @@ def main():
                 console.print("[dim]Exiting Agnostic Coding Agent. Goodbye![/dim]")
                 break
 
-            elif user_input == "/clear":
+            # Display distinct shaded User Panel in conversation flow for non-slash commands
+            if not user_input.startswith("/"):
+                user_panel = Panel(
+                    Text(user_input, style="bold bright_white"),
+                    title="[bold #58a6ff]🧑 You[/bold #58a6ff]",
+                    title_align="left",
+                    border_style="#1f6feb",
+                    box=box.ROUNDED,
+                    width=get_ui_width(),
+                    padding=(0, 1),
+                    style="on #0f1824"
+                    if console.color_system in ("truecolor", "256")
+                    else None,
+                )
+                console.print(user_panel)
+
+            if user_input == "/clear":
                 console.clear()
                 print_banner()
                 continue
@@ -461,16 +701,22 @@ def main():
                 continue
 
             elif user_input == "/web":
-                from agent.web.server import start_companion_server
+                from agent.web.server import start_companion_server, companion_telemetry
+                import webbrowser
 
+                companion_telemetry.bind_agent(agent)
                 ok, web_url = start_companion_server(7843)
+                try:
+                    webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
+                except Exception:
+                    pass
                 if ok:
                     console.print(
                         f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
                     )
                 else:
                     console.print(
-                        f"[yellow]Companion server is already running or error: {web_url}[/yellow]"
+                        "[yellow]Companion server is active at: http://127.0.0.1:7843[/yellow]"
                     )
                 continue
 
@@ -874,11 +1120,7 @@ def main():
             expanded_input = expand_prompt_references(user_input, code_indexer)
 
             start_time = time.time()
-            with console.status(
-                f"[bold cyan]Thinking ({agent.llm_client.config.model})...[/bold cyan]",
-                spinner="dots",
-            ):
-                agent.run_turn(expanded_input)
+            agent.run_turn(expanded_input)
             duration = time.time() - start_time
             console.print(f"[dim]⏱ Turn completed in {duration:.2f}s[/dim]")
 

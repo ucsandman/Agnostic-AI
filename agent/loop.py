@@ -36,12 +36,26 @@ class AgentLoop:
         self._register_subagent_tool()
         self._load_harness_system_prompt()
 
+        try:
+            from agent.web.server import companion_telemetry
+
+            companion_telemetry.bind_agent(self)
+        except Exception:
+            pass
+
     def _default_confirm(self, prompt: str) -> bool:
         print(f"\n⚠️  [CONFIRMATION REQUIRED]: {prompt}")
         ans = input("Proceed? [y/N]: ").strip().lower()
         return ans in ("y", "yes")
 
     def _default_output(self, msg_type: str, content: str):
+        try:
+            from agent.web.server import companion_telemetry
+
+            companion_telemetry.log_event(msg_type, content)
+        except Exception:
+            pass
+
         if msg_type == "tool_start":
             print(f"\n⚙️  [Tool: {content}]")
         elif msg_type == "tool_end":
@@ -163,6 +177,10 @@ class AgentLoop:
                     messages=self.history,
                     tools=tools,
                     tool_choice="auto",
+                    stream=True,
+                    stream_callback=lambda chunk: self.output_callback(
+                        "assistant_chunk", chunk
+                    ),
                 )
                 msg = response.choices[0].message
 

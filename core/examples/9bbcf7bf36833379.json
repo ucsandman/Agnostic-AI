@@ -12,5 +12,5 @@
   "exampleInput": "Task requiring action related to: What separates a job that ships from a job that ge",
   "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
   "expectedBehavior": "What separates a job that ships from a job that gets killed is not planning quality but whether the plan was amended in flight. A plan approved once and never rewritten is a stale plan, whatever its quality at signing.",
-  "created": "2026-08-18T23:48:19.666Z"
+  "created": "2026-08-19T01:26:01.216Z"
 }

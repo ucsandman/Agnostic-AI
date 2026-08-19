@@ -62,33 +62,63 @@ class SubprocessSubscriptionBridge:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         reasoning_effort: str = "medium",
+        stream_callback: Optional[Any] = None,
     ) -> Any:
         prompt_text = cls._format_conversation_prompt(messages, tools)
 
         if provider == "google-sub":
-            cmd = ["agy.exe" if os.name == "nt" else "agy", "--print", prompt_text]
+            cmd = [
+                "agy.exe" if os.name == "nt" else "agy",
+                "--print",
+                prompt_text,
+                "--dangerously-skip-permissions",
+                "--disable-slash-commands",
+            ]
             if reasoning_effort in ("low", "medium", "high"):
                 cmd.extend(["--effort", reasoning_effort])
         elif provider == "anthropic-sub":
-            cmd = ["claude.exe" if os.name == "nt" else "claude", "-p", prompt_text]
+            cmd = [
+                "claude.exe" if os.name == "nt" else "claude",
+                "-p",
+                prompt_text,
+                "--dangerously-skip-permissions",
+            ]
         elif provider == "openai-sub":
-            cmd = ["codex.cmd" if os.name == "nt" else "codex", "exec", prompt_text]
+            cmd = [
+                "codex.cmd" if os.name == "nt" else "codex",
+                "exec",
+                prompt_text,
+                "--dangerously-bypass-approvals",
+            ]
         else:
             raise ValueError(f"Unknown subscription provider: {provider}")
 
         try:
-            res = subprocess.run(
+            proc = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=180,
+                bufsize=1,
             )
-            raw_output = res.stdout.strip()
-            if res.returncode != 0 and not raw_output:
+            raw_lines = []
+            if proc.stdout:
+                for line in proc.stdout:
+                    raw_lines.append(line)
+                    if stream_callback:
+                        stream_callback(line)
+            stdout_remainder, stderr = proc.communicate(timeout=180)
+            if stdout_remainder:
+                raw_lines.append(stdout_remainder)
+                if stream_callback:
+                    stream_callback(stdout_remainder)
+
+            raw_output = "".join(raw_lines).strip()
+            if proc.returncode != 0 and not raw_output:
                 err_text = (
-                    res.stderr.strip() or f"Process exited with code {res.returncode}"
+                    stderr.strip() or f"Process exited with code {proc.returncode}"
                 )
                 raise RuntimeError(f"Subscription CLI execution failed: {err_text}")
         except FileNotFoundError:
@@ -136,7 +166,7 @@ class SubprocessSubscriptionBridge:
 
 
 class LLMConfig:
-    # Comprehensive Frontier Subscription Presets
+    # Comprehensive Frontier Subscription Presets with accurate context windows
     PRESETS: Dict[str, Dict[str, Any]] = {
         # --- Native Monthly Subscriptions (Zero API Key / OAuth CLI) ---
         "sub-google-antigravity": {
@@ -146,6 +176,7 @@ class LLMConfig:
             "base_url": "subscription://agy",
             "api_key_env": None,
             "default_effort": "medium",
+            "context_window": 2000000,
         },
         "sub-claude-code": {
             "name": "⚡ Anthropic Claude Code (Logged-In Monthly Subscription)",
@@ -154,6 +185,7 @@ class LLMConfig:
             "base_url": "subscription://claude",
             "api_key_env": None,
             "default_effort": "high",
+            "context_window": 200000,
         },
         "sub-openai-codex": {
             "name": "🧠 OpenAI Codex (Logged-In Monthly Subscription)",
@@ -162,6 +194,7 @@ class LLMConfig:
             "base_url": "subscription://codex",
             "api_key_env": None,
             "default_effort": "high",
+            "context_window": 200000,
         },
         # --- Google Antigravity (Gemini API Key) ---
         "agy-flash-3.7": {
@@ -172,6 +205,7 @@ class LLMConfig:
             "api_key_env": "GEMINI_API_KEY",
             "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "low",
+            "context_window": 1000000,
         },
         "agy-pro-3.1": {
             "name": "Google Antigravity Pro (Gemini 3.1 Pro - Developer API Key)",
@@ -181,6 +215,7 @@ class LLMConfig:
             "api_key_env": "GEMINI_API_KEY",
             "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "high",
+            "context_window": 2000000,
         },
         "agy-flash-3.6": {
             "name": "Google Antigravity Flash (Gemini 3.6 Flash - Developer API Key)",
@@ -190,6 +225,7 @@ class LLMConfig:
             "api_key_env": "GEMINI_API_KEY",
             "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "low",
+            "context_window": 1000000,
         },
         # --- Anthropic (Claude Developer API Key) ---
         "claude-sonnet-5": {
@@ -199,6 +235,7 @@ class LLMConfig:
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "high",
+            "context_window": 200000,
         },
         "claude-opus-5": {
             "name": "Claude Code Opus 5 (Developer API Key)",
@@ -207,6 +244,7 @@ class LLMConfig:
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "high",
+            "context_window": 200000,
         },
         "claude-fable-5": {
             "name": "Claude Code Fable 5 (Developer API Key)",
@@ -215,6 +253,7 @@ class LLMConfig:
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "high",
+            "context_window": 200000,
         },
         "claude-haiku-4.5": {
             "name": "Claude Code Haiku 4.5 (Developer API Key)",
@@ -223,6 +262,7 @@ class LLMConfig:
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "low",
+            "context_window": 200000,
         },
         # --- OpenAI Codex (Developer API Key) ---
         "codex-gpt-5.6-sol": {
@@ -232,6 +272,7 @@ class LLMConfig:
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "high",
+            "context_window": 200000,
         },
         "codex-gpt-5.6-terra": {
             "name": "OpenAI Codex GPT-5.6 Terra (Developer API Key)",
@@ -240,6 +281,7 @@ class LLMConfig:
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "medium",
+            "context_window": 200000,
         },
         "codex-gpt-5.6-luna": {
             "name": "OpenAI Codex GPT-5.6 Luna (Developer API Key)",
@@ -248,6 +290,7 @@ class LLMConfig:
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "low",
+            "context_window": 200000,
         },
         "codex-o3-pro": {
             "name": "OpenAI Codex o3-pro (Developer API Key)",
@@ -256,6 +299,7 @@ class LLMConfig:
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "high",
+            "context_window": 200000,
         },
         "codex-o4-mini": {
             "name": "OpenAI Codex o4-mini (Developer API Key)",
@@ -264,6 +308,7 @@ class LLMConfig:
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_effort": "medium",
+            "context_window": 128000,
         },
         # --- DeepSeek (V4 & R-Series) ---
         "deepseek-v4-pro": {
@@ -273,6 +318,7 @@ class LLMConfig:
             "base_url": "https://api.deepseek.com/v1",
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_effort": "high",
+            "context_window": 128000,
         },
         "deepseek-v4-flash": {
             "name": "DeepSeek V4-Flash (Developer API Key)",
@@ -281,6 +327,7 @@ class LLMConfig:
             "base_url": "https://api.deepseek.com/v1",
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_effort": "low",
+            "context_window": 128000,
         },
         "deepseek-r1": {
             "name": "DeepSeek R1 (Developer API Key)",
@@ -289,6 +336,7 @@ class LLMConfig:
             "base_url": "https://api.deepseek.com/v1",
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_effort": "high",
+            "context_window": 128000,
         },
         # --- Local Offline ---
         "local-lmstudio": {
@@ -298,6 +346,7 @@ class LLMConfig:
             "base_url": "http://localhost:1234/v1",
             "api_key_env": "LLM_API_KEY",
             "default_effort": "low",
+            "context_window": 32768,
         },
     }
 
@@ -310,6 +359,7 @@ class LLMConfig:
         max_tokens: int = 4096,
         reasoning_effort: str = "medium",  # "low", "medium", "high"
         provider: str = "local",
+        context_window: Optional[int] = None,
     ):
         self.base_url = base_url or os.getenv(
             "LLM_BASE_URL", "http://localhost:1234/v1"
@@ -320,6 +370,7 @@ class LLMConfig:
         self.max_tokens = max_tokens
         self.reasoning_effort = reasoning_effort
         self.provider = provider
+        self.context_window = context_window or 32768
 
 
 class LLMClient:
@@ -345,11 +396,16 @@ class LLMClient:
         reasoning_effort: Optional[str] = None,
     ) -> str:
         """Switch active model configuration or load from subscription presets."""
+        from agent.governance.context import context_manager
+
         if preset_key and preset_key in LLMConfig.PRESETS:
             preset = LLMConfig.PRESETS[preset_key]
             self.config.model = preset["model"]
             self.config.base_url = preset["base_url"]
             self.config.provider = preset["provider"]
+            self.config.context_window = preset.get("context_window", 32768)
+            context_manager.set_max_tokens(self.config.context_window)
+
             env_key = preset.get("api_key_env")
             found_key = None
             if env_key and os.getenv(env_key):
@@ -372,7 +428,7 @@ class LLMClient:
             else:
                 self.config.reasoning_effort = preset.get("default_effort", "medium")
             self._init_client()
-            return f"Switched to preset '{preset['name']}' (Effort: {self.config.reasoning_effort.upper()})"
+            return f"Switched to preset '{preset['name']}' (Effort: {self.config.reasoning_effort.upper()}, Context: {self.config.context_window:,} tokens)"
 
         if model:
             self.config.model = model
@@ -391,14 +447,16 @@ class LLMClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: str = "auto",
         stream: bool = False,
+        stream_callback: Optional[Any] = None,
     ):
-        """Invoke chat completion with tool calling and reasoning effort support."""
+        """Invoke chat completion with tool calling, live streaming, and reasoning effort support."""
         if self.config.provider.endswith("-sub"):
             return SubprocessSubscriptionBridge.execute_turn(
                 provider=self.config.provider,
                 messages=messages,
                 tools=tools,
                 reasoning_effort=self.config.reasoning_effort,
+                stream_callback=stream_callback,
             )
 
         kwargs: Dict[str, Any] = {
@@ -416,7 +474,58 @@ class LLMClient:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice
 
-        if stream:
-            return self.client.chat.completions.create(stream=True, **kwargs)
+        if stream or stream_callback is not None:
+            # Stream tokens live
+            response_stream = self.client.chat.completions.create(stream=True, **kwargs)
+            collected_chunks = []
+            tool_calls_dict = {}
+
+            for chunk in response_stream:
+                if not chunk.choices or len(chunk.choices) == 0:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    collected_chunks.append(delta.content)
+                    if stream_callback:
+                        stream_callback(delta.content)
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_dict:
+                            tool_calls_dict[idx] = {
+                                "id": tc.id or f"call_{idx}",
+                                "name": tc.function.name if tc.function else "",
+                                "arguments": tc.function.arguments or ""
+                                if tc.function
+                                else "",
+                            }
+                        else:
+                            if tc.function and tc.function.name:
+                                tool_calls_dict[idx]["name"] += tc.function.name
+                            if tc.function and tc.function.arguments:
+                                tool_calls_dict[idx]["arguments"] += (
+                                    tc.function.arguments
+                                )
+
+            full_content = "".join(collected_chunks)
+            tool_calls_list = []
+            for idx in sorted(tool_calls_dict.keys()):
+                tc_data = tool_calls_dict[idx]
+                tool_calls_list.append(
+                    SimpleNamespace(
+                        id=tc_data["id"],
+                        function=SimpleNamespace(
+                            name=tc_data["name"],
+                            arguments=tc_data["arguments"],
+                        ),
+                    )
+                )
+
+            msg_obj = SimpleNamespace(
+                content=full_content,
+                tool_calls=tool_calls_list if tool_calls_list else None,
+            )
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg_obj)])
         else:
             return self.client.chat.completions.create(**kwargs)

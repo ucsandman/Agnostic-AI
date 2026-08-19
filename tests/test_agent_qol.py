@@ -576,3 +576,112 @@ def test_harness_extended_tools(temp_workspace):
     )
     assert not res_q.is_error
     assert "Which database engine should we configure?" in res_q.output
+
+
+def test_dynamic_context_limits_and_image_expansion(temp_workspace):
+    from agent.llm.client import LLMClient
+    from agent.governance.context import context_manager
+    from agent.cli import expand_prompt_references, get_ui_width
+    from agent.tools.indexer import CodebaseIndexer
+
+    client = LLMClient()
+
+    # 1. Switch to Google Antigravity preset -> verify 2M context limit
+    client.switch_model(preset_key="sub-google-antigravity")
+    assert client.config.context_window == 2000000
+    st_google = context_manager.get_status([])
+    assert st_google["max_tokens"] == 2000000
+
+    # 2. Switch to Claude Sonnet preset -> verify 200k context limit
+    client.switch_model(preset_key="claude-sonnet-5")
+    assert client.config.context_window == 200000
+    st_claude = context_manager.get_status([])
+    assert st_claude["max_tokens"] == 200000
+
+    # 3. Switch to DeepSeek V4 preset -> verify 128k context limit
+    client.switch_model(preset_key="deepseek-v4-flash")
+    assert client.config.context_window == 128000
+    st_deepseek = context_manager.get_status([])
+    assert st_deepseek["max_tokens"] == 128000
+
+    # 4. Switch to Local LM Studio -> verify 32k context limit
+    client.switch_model(preset_key="local-lmstudio")
+    assert client.config.context_window == 32768
+    st_local = context_manager.get_status([])
+    assert st_local["max_tokens"] == 32768
+
+    # 5. Image reference expansion test
+    indexer = CodebaseIndexer(workspace_root=str(temp_workspace))
+    img_file = temp_workspace / "sample.png"
+    img_file.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...")
+    prompt = f"Analyze this architecture screenshot: @image:{img_file.name}"
+    expanded = expand_prompt_references(prompt, indexer)
+    assert "### [Attached Image Reference:" in expanded
+    assert img_file.name in expanded
+
+    # 6. Narrow UI width helper test
+    width = get_ui_width()
+    assert 60 <= width <= 94
+
+
+def test_web_companion_server_and_telemetry(temp_workspace):
+    import urllib.request
+    import json
+    from agent.web.server import (
+        start_companion_server,
+        companion_telemetry,
+    )
+    from agent.loop import AgentLoop
+    from agent.llm.client import LLMConfig
+    from agent.tools.subagent import subagent_registry
+
+    # 1. Start companion server
+    ok, url = start_companion_server(7843)
+    assert ok is True
+    assert "http://127.0.0.1:7843" in url
+
+    # 2. Test CompanionTelemetry logging and diffs
+    companion_telemetry.clear_logs()
+    companion_telemetry.log_event("tool_start", "edit_file(math_lib.py)")
+    companion_telemetry.log_event("tool_end", "Successfully edited math_lib.py")
+    companion_telemetry.set_diff(
+        "--- a/math_lib.py\n+++ b/math_lib.py\n@@ -1 +1 @@\n-old\n+new\n", "math_lib.py"
+    )
+
+    logs = companion_telemetry.get_logs()
+    assert len(logs) == 2
+    assert "edit_file(math_lib.py)" in logs[0]["message"]
+    assert "Successfully edited" in logs[1]["message"]
+    assert "+new" in companion_telemetry.get_active_diff()
+
+    # 3. Bind agent and verify dynamic context & model telemetry
+    dummy_agent = AgentLoop(
+        workspace_root=str(temp_workspace),
+        llm_config=LLMConfig(model="gemini-3.7-flash"),
+    )
+    dummy_agent.history.append({"role": "user", "content": "Test prompt"})
+    companion_telemetry.bind_agent(dummy_agent)
+
+    model_info = companion_telemetry.get_model_info()
+    assert model_info["model"] == "gemini-3.7-flash"
+
+    # 4. Register active subagents
+    subagent_registry.register_active("sub_live_01", "researcher", "branch")
+
+    # 5. Query /api/status HTTP endpoint
+    req = urllib.request.Request(f"{url}/api/status")
+    with urllib.request.urlopen(req, timeout=5) as response:
+        assert response.status == 200
+        data = json.loads(response.read().decode("utf-8"))
+        assert data["status"] == "online"
+        assert data["model"] == "gemini-3.7-flash"
+        assert data["context"]["used_tokens"] > 0
+        assert len(data["telemetry"]) >= 2
+        assert "+new" in data["active_diff"]
+        assert any(s["conversationId"] == "sub_live_01" for s in data["subagents"])
+
+    # 6. Test /api/clear_telemetry
+    req_clear = urllib.request.Request(f"{url}/api/clear_telemetry")
+    with urllib.request.urlopen(req_clear, timeout=5) as response:
+        assert response.status == 200
+        assert len(companion_telemetry.get_logs()) == 0
