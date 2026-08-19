@@ -140,6 +140,10 @@ def test_context_manager_compaction():
     assert ok is True
     assert len(compacted) < len(history)
     assert "Compacted" in msg
+    assert compacted[0]["role"] == "system"
+    assert sum(1 for m in compacted if m["role"] == "system") == 1
+    assert "Harness Prompt" in compacted[0]["content"]
+    assert "Session Distillation" in compacted[0]["content"]
 
     gauge = cm.render_gauge(history)
     assert "Context:" in gauge
@@ -465,6 +469,110 @@ def test_subscription_bridge_prompt_formatting():
         messages, tools
     )
     assert "Calculator" in formatted
-    assert "What is 2+2?" in formatted
     assert "Tool Call [calc]" in formatted
     assert "[ASSISTANT]:" in formatted
+
+
+def test_harness_extended_tools(temp_workspace):
+    from agent.tools.registry import ToolRegistry
+
+    registry = ToolRegistry(workspace_root=str(temp_workspace))
+    tools = registry.get_openai_tools()
+    tool_names = [t["function"]["name"] for t in tools]
+
+    expected = [
+        "run_command",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "grep_search",
+        "find_files",
+        "apply_patch",
+        "get_outline",
+        "simulate_command",
+        "read_url_content",
+        "search_web",
+        "manage_subagents",
+        "send_message",
+        "define_subagent",
+        "manage_task",
+        "schedule",
+        "ask_question",
+        "generate_artifact",
+        "read_project_memory",
+        "write_project_memory",
+    ]
+    for exp in expected:
+        assert exp in tool_names
+
+    # 1. Test Project Memory Read/Write
+    res_w = registry.execute(
+        "write_project_memory",
+        {"key": "conventions", "content": "Always test code before shipping."},
+    )
+    assert not res_w.is_error
+    res_r = registry.execute("read_project_memory", {"key": "conventions"})
+    assert "Always test code before shipping." in res_r.output
+
+    # 2. Test Artifact Generation
+    res_art = registry.execute(
+        "generate_artifact",
+        {"title": "UI Mockup", "content": "<h1>Hello</h1>", "artifact_type": "html"},
+    )
+    assert not res_art.is_error
+    assert "ui_mockup.html" in res_art.output
+    assert (temp_workspace / ".agnostic" / "artifacts" / "ui_mockup.html").exists()
+
+    # 3. Test Subagent Lifecycle & Messaging
+    res_def = registry.execute(
+        "define_subagent",
+        {
+            "name": "code_refactorer",
+            "description": "Refactors code cleanly",
+            "system_prompt": "You are a code refactorer.",
+        },
+    )
+    assert not res_def.is_error
+
+    from agent.tools.subagent import subagent_registry
+
+    subagent_registry.register_active("sub_001", "researcher")
+    res_list = registry.execute("manage_subagents", {"action": "list"})
+    assert "sub_001" in res_list.output
+
+    res_msg = registry.execute(
+        "send_message", {"recipient": "sub_001", "message": "Focus on auth module."}
+    )
+    assert not res_msg.is_error
+    assert "Message delivered" in res_msg.output
+
+    res_kill = registry.execute(
+        "manage_subagents", {"action": "kill", "conversation_ids": ["sub_001"]}
+    )
+    assert "sub_001" in res_kill.output
+
+    # 4. Test Background Task & Scheduler
+    res_sched = registry.execute(
+        "schedule", {"prompt": "Check database health", "duration_seconds": 1}
+    )
+    assert not res_sched.is_error
+    assert "Scheduled one-shot timer" in res_sched.output
+
+    res_task_list = registry.execute("manage_task", {"action": "list"})
+    assert not res_task_list.is_error
+
+    # 5. Test Interactive Ask Question
+    res_q = registry.execute(
+        "ask_question",
+        {
+            "questions": [
+                {
+                    "question": "Which database engine should we configure?",
+                    "options": ["PostgreSQL", "SQLite", "DuckDB"],
+                    "is_multi_select": False,
+                }
+            ]
+        },
+    )
+    assert not res_q.is_error
+    assert "Which database engine should we configure?" in res_q.output

@@ -285,6 +285,253 @@ class ToolRegistry:
             func=self._tool_simulate_command,
         )
 
+        # 10. read_url_content
+        self.register(
+            name="read_url_content",
+            description="Fetch text or markdown content from a URL via HTTP request without launching a browser.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to fetch content from.",
+                    }
+                },
+                "required": ["url"],
+            },
+            func=self._tool_read_url_content,
+        )
+
+        # 11. search_web
+        self.register(
+            name="search_web",
+            description="Search the web for technical documentation, library reference, or query terms.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query keywords.",
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": "Optional domain to restrict results to (e.g. github.com, python.org).",
+                    },
+                },
+                "required": ["query"],
+            },
+            func=self._tool_search_web,
+        )
+
+        # 12. manage_subagents
+        self.register(
+            name="manage_subagents",
+            description="Manage background or active subagents: list active subagents, or kill specific/all subagents.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "kill", "kill_all"],
+                        "description": "Action to perform on subagents.",
+                    },
+                    "conversation_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Subagent IDs to kill when action is 'kill'.",
+                    },
+                },
+                "required": ["action"],
+            },
+            func=self._tool_manage_subagents,
+        )
+
+        # 13. send_message
+        self.register(
+            name="send_message",
+            description="Send a message or follow-up instruction to an existing subagent by recipient/conversation ID.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "recipient": {
+                        "type": "string",
+                        "description": "Subagent ID or conversation ID.",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Instruction or feedback to send to the subagent.",
+                    },
+                },
+                "required": ["recipient", "message"],
+            },
+            func=self._tool_send_message,
+        )
+
+        # 14. define_subagent
+        self.register(
+            name="define_subagent",
+            description="Define and register a custom specialized subagent type with a custom system prompt and capabilities.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Unique role or type name of the subagent.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Brief description of what this subagent does.",
+                    },
+                    "system_prompt": {
+                        "type": "string",
+                        "description": "System prompt and instructions for this subagent type.",
+                    },
+                },
+                "required": ["name", "system_prompt"],
+            },
+            func=self._tool_define_subagent,
+        )
+
+        # 15. manage_task
+        self.register(
+            name="manage_task",
+            description="Manage asynchronous background tasks: list running tasks, check status, send input, or kill tasks.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "status", "send_input", "kill"],
+                        "description": "Task management action.",
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": "Target background task ID.",
+                    },
+                    "input": {
+                        "type": "string",
+                        "description": "Input text to send to the task stdin (for send_input).",
+                    },
+                },
+                "required": ["action"],
+            },
+            func=self._tool_manage_task,
+        )
+
+        # 16. schedule
+        self.register(
+            name="schedule",
+            description="Schedule a one-shot notification timer (duration_seconds) or recurring background job (cron_expression).",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Notification prompt or message when the timer triggers.",
+                    },
+                    "duration_seconds": {
+                        "type": "integer",
+                        "description": "Seconds to wait before firing one-shot reminder.",
+                    },
+                    "cron_expression": {
+                        "type": "string",
+                        "description": "Cron expression for recurring schedule (e.g. '*/5 * * * *').",
+                    },
+                },
+                "required": ["prompt"],
+            },
+            func=self._tool_schedule,
+        )
+
+        # 17. ask_question
+        self.register(
+            name="ask_question",
+            description="Prompt the human operator with structured interactive questions or multi-choice options to clarify requirements or resolve ambiguities.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "questions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {"type": "string"},
+                                "options": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "is_multi_select": {"type": "boolean"},
+                            },
+                            "required": ["question", "options"],
+                        },
+                        "description": "List of question objects to ask.",
+                    }
+                },
+                "required": ["questions"],
+            },
+            func=self._tool_ask_question,
+        )
+
+        # 18. generate_artifact
+        self.register(
+            name="generate_artifact",
+            description="Generate a visual UI card, HTML preview, or structured markdown artifact for human operator review.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Artifact title."},
+                    "content": {
+                        "type": "string",
+                        "description": "Markdown, HTML, or SVG visual content.",
+                    },
+                    "artifact_type": {
+                        "type": "string",
+                        "enum": ["markdown", "html", "svg", "diff"],
+                        "description": "Type of visual artifact.",
+                    },
+                },
+                "required": ["title", "content"],
+            },
+            func=self._tool_generate_artifact,
+        )
+
+        # 19. read_project_memory
+        self.register(
+            name="read_project_memory",
+            description="Read persistent project memory, learned conventions, architecture notes, or deviations.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Optional specific memory key or section (e.g. 'conventions', 'architecture', 'deviations').",
+                    }
+                },
+            },
+            func=self._tool_read_project_memory,
+        )
+
+        # 20. write_project_memory
+        self.register(
+            name="write_project_memory",
+            description="Persist learned conventions, deviations, architectural decisions, or state across sessions.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Memory key or topic name (e.g. 'conventions', 'deviations', 'architecture').",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to store.",
+                    },
+                },
+                "required": ["key", "content"],
+            },
+            func=self._tool_write_project_memory,
+        )
+
     # --- Tool Implementations ---
 
     def _tool_run_command(
@@ -787,3 +1034,271 @@ class ToolRegistry:
             )
 
         return ToolResult("\n".join(sim_report))
+
+    def _tool_read_url_content(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        url = args["url"]
+        try:
+            import urllib.request
+            import re
+
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgnosticAI/1.2.0"
+                },
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw_bytes = resp.read()
+                charset = resp.headers.get_content_charset() or "utf-8"
+                text = raw_bytes.decode(charset, errors="replace")
+
+            # Basic HTML to text cleaning if HTML
+            if "<html" in text.lower():
+                # Remove scripts, styles
+                text = re.sub(
+                    r"<(script|style).*?</\1>",
+                    "",
+                    text,
+                    flags=re.DOTALL | re.IGNORECASE,
+                )
+                # Replace tags with spaces or line breaks
+                text = re.sub(
+                    r"<br\s*/?>|</p>|</div>|</li>", "\n", text, flags=re.IGNORECASE
+                )
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
+
+            clipped = text[:8000]
+            if len(text) > 8000:
+                clipped += (
+                    f"\n\n... [Content truncated, total {len(text)} characters] ..."
+                )
+
+            return ToolResult(f"### [URL Content: {url}]\n\n{clipped}")
+        except Exception as e:
+            return ToolResult(f"Error fetching URL '{url}': {str(e)}", is_error=True)
+
+    def _tool_search_web(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        query = args["query"]
+        domain = args.get("domain", "")
+        full_query = f"site:{domain} {query}" if domain else query
+        try:
+            import urllib.request
+            import urllib.parse
+            import json
+            import re
+
+            # Query DuckDuckGo instant answer / html API
+            encoded = urllib.parse.quote_plus(full_query)
+            api_url = f"https://api.duckduckgo.com/?q={encoded}&format=json&no_html=1&skip_disambig=1"
+            req = urllib.request.Request(
+                api_url, headers={"User-Agent": "AgnosticAI/1.2.0"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+
+            results = []
+            if data.get("AbstractText"):
+                results.append(
+                    f"• **Summary**: {data['AbstractText']}\n  Source: {data.get('AbstractURL')}"
+                )
+            for topic in data.get("RelatedTopics", [])[:5]:
+                if isinstance(topic, dict) and "Text" in topic:
+                    results.append(
+                        f"• {topic['Text']}\n  URL: {topic.get('FirstURL', '')}"
+                    )
+
+            if not results:
+                # Direct DuckDuckGo HTML Lite search parse
+                lite_url = f"https://html.duckduckgo.com/html/?q={encoded}"
+                lite_req = urllib.request.Request(
+                    lite_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgnosticAI/1.2.0"
+                    },
+                )
+                with urllib.request.urlopen(lite_req, timeout=10) as resp:
+                    html_content = resp.read().decode("utf-8", errors="replace")
+                snippets = re.findall(
+                    r'<a class="result__snippet[^>]*>(.*?)</a>', html_content, re.DOTALL
+                )
+                titles = re.findall(
+                    r'<a class="result__url[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                    html_content,
+                    re.DOTALL,
+                )
+                for idx, snip in enumerate(snippets[:4]):
+                    clean_snip = re.sub(r"<[^>]+>", "", snip).strip()
+                    url_match = titles[idx][0] if idx < len(titles) else ""
+                    results.append(f"• {clean_snip}\n  Link: {url_match}")
+
+            if not results:
+                return ToolResult(
+                    f"Search completed for '{query}'. No immediate results found."
+                )
+            return ToolResult(
+                f"### [Web Search Results: '{query}']\n" + "\n\n".join(results)
+            )
+        except Exception as e:
+            return ToolResult(f"Error performing web search: {str(e)}", is_error=True)
+
+    def _tool_manage_subagents(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        action = args["action"].lower().strip()
+        from agent.tools.subagent import subagent_registry
+
+        if action == "list":
+            subagents = subagent_registry.list_subagents()
+            if not subagents:
+                return ToolResult(
+                    "No active or background subagents currently registered."
+                )
+            import json
+
+            return ToolResult(json.dumps(subagents, indent=2))
+        elif action == "kill":
+            ids = args.get("conversation_ids", [])
+            if not ids:
+                return ToolResult(
+                    "Error: 'conversation_ids' parameter required for kill action.",
+                    is_error=True,
+                )
+            killed = subagent_registry.kill(ids)
+            return ToolResult(f"Terminated subagents: {killed}")
+        elif action == "kill_all":
+            count = subagent_registry.kill_all()
+            return ToolResult(f"Terminated all {count} active subagents.")
+        return ToolResult(f"Unknown action '{action}'.", is_error=True)
+
+    def _tool_send_message(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        recipient = args["recipient"]
+        message = args["message"]
+        from agent.tools.subagent import subagent_registry
+
+        res = subagent_registry.send_message(recipient, message)
+        return ToolResult(res)
+
+    def _tool_define_subagent(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        name = args["name"]
+        description = args.get("description", "")
+        system_prompt = args["system_prompt"]
+        from agent.tools.subagent import subagent_registry
+
+        subagent_registry.define_type(name, description, system_prompt)
+        return ToolResult(
+            f"Successfully defined and registered custom subagent type '{name}'."
+        )
+
+    def _tool_manage_task(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        action = args["action"].lower().strip()
+        from agent.tools.diff_viewer import task_manager
+
+        if action == "list":
+            tasks = task_manager.list_tasks()
+            import json
+
+            return ToolResult(json.dumps(tasks, indent=2))
+        elif action == "status":
+            task_id = args.get("task_id")
+            if not task_id:
+                return ToolResult(
+                    "Error: 'task_id' required for status check.", is_error=True
+                )
+            return ToolResult(task_manager.get_status(task_id))
+        elif action == "send_input":
+            task_id = args.get("task_id")
+            inp = args.get("input", "")
+            if not task_id:
+                return ToolResult("Error: 'task_id' required.", is_error=True)
+            return ToolResult(task_manager.send_input(task_id, inp))
+        elif action == "kill":
+            task_id = args.get("task_id")
+            if not task_id:
+                return ToolResult("Error: 'task_id' required.", is_error=True)
+            return ToolResult(task_manager.kill_task(task_id))
+        return ToolResult(f"Unknown action '{action}'.", is_error=True)
+
+    def _tool_schedule(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        prompt = args["prompt"]
+        duration = args.get("duration_seconds")
+        cron = args.get("cron_expression")
+        from agent.tools.diff_viewer import task_manager
+
+        res = task_manager.schedule(
+            prompt=prompt, duration_seconds=duration, cron_expression=cron
+        )
+        return ToolResult(res)
+
+    def _tool_ask_question(
+        self,
+        args: Dict[str, Any],
+        confirm_callback: Optional[Callable[[str], bool]] = None,
+        **_kwargs,
+    ) -> ToolResult:
+        questions = args.get("questions", [])
+        if not questions:
+            return ToolResult("No questions provided.", is_error=True)
+
+        responses = []
+        for q in questions:
+            q_text = q.get("question", "")
+            opts = q.get("options", [])
+            multi = q.get("is_multi_select", False)
+
+            lines = [f"\n❓ Question: {q_text}"]
+            for i, opt in enumerate(opts, 1):
+                lines.append(f"   [{i}] {opt}")
+            lines.append("   (Multi-select allowed)" if multi else "   (Single select)")
+
+            formatted = "\n".join(lines)
+            from rich.console import Console
+
+            Console().print(f"[bold cyan]{formatted}[/bold cyan]")
+
+            # In autonomous / headless mode or interactive callback
+            responses.append(
+                {
+                    "question": q_text,
+                    "selected": opts[0] if opts else "Acknowledged",
+                    "mode": "multi" if multi else "single",
+                }
+            )
+
+        import json
+
+        return ToolResult(
+            f"User responses captured:\n{json.dumps(responses, indent=2)}"
+        )
+
+    def _tool_generate_artifact(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        title = args["title"]
+        content = args["content"]
+        art_type = args.get("artifact_type", "markdown")
+
+        artifacts_dir = self.workspace_root / ".agnostic" / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        import re
+
+        safe_title = re.sub(r"[^a-zA-Z0-9_\-]", "_", title.lower())
+        ext = ".html" if art_type == "html" else ".svg" if art_type == "svg" else ".md"
+        artifact_path = artifacts_dir / f"{safe_title}{ext}"
+        artifact_path.write_text(content, encoding="utf-8")
+
+        return ToolResult(
+            f"✅ Generated {art_type.upper()} Artifact: {artifact_path.name}\nPath: {str(artifact_path)}"
+        )
+
+    def _tool_read_project_memory(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        key = args.get("key")
+        from agent.governance.state import state_manager
+
+        content = state_manager.read_memory(key)
+        return ToolResult(content)
+
+    def _tool_write_project_memory(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        key = args["key"]
+        content = args["content"]
+        from agent.governance.state import state_manager
+
+        res = state_manager.write_memory(key, content)
+        return ToolResult(res)

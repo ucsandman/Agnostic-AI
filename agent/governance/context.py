@@ -125,9 +125,12 @@ class ContextManager:
 
         condensed_text = "\n\n".join(condensed_sections)
 
+        # Combine leading system message with the session distillation so system message is strictly at index 0
+        merged_system_content = (
+            f"{system_msg.get('content', '')}\n\n{condensed_text}".strip()
+        )
         compacted_messages = [
-            system_msg,
-            {"role": "system", "content": condensed_text},
+            {"role": "system", "content": merged_system_content}
         ] + recent_turns
 
         freed_estimate = max(
@@ -142,4 +145,4 @@ class ContextManager:
         return self.compact_messages(messages, force=False)
 
 
-context_manager = ContextManager()
+context_manager = ContextManager()  # noqa: vulture
