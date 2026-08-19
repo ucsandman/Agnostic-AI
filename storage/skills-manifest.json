@@ -298,7 +298,7 @@
       "claude"
     ],
     "installedPath": "skills/definitions/skill-snapshot",
-    "enabled": true
+    "enabled": false
   },
   "logo-reveal": {
     "id": "logo-reveal",
@@ -1110,7 +1110,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/skills",
-    "enabled": true
+    "enabled": false
   },
   "a11y-debugging": {
     "id": "a11y-debugging",
@@ -1131,7 +1131,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/a11y-debugging",
-    "enabled": true
+    "enabled": false
   },
   "chrome-devtools": {
     "id": "chrome-devtools",
@@ -1152,7 +1152,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/chrome-devtools",
-    "enabled": true
+    "enabled": false
   },
   "debug-optimize-lcp": {
     "id": "debug-optimize-lcp",
@@ -1173,7 +1173,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/debug-optimize-lcp",
-    "enabled": true
+    "enabled": false
   },
   "memory-leak-debugging": {
     "id": "memory-leak-debugging",
@@ -1194,7 +1194,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/memory-leak-debugging",
-    "enabled": true
+    "enabled": false
   },
   "troubleshooting": {
     "id": "troubleshooting",
@@ -1215,7 +1215,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/troubleshooting",
-    "enabled": true
+    "enabled": false
   },
   "accidental_data_loss_prevention": {
     "id": "accidental_data_loss_prevention",
@@ -1229,7 +1229,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/accidental_data_loss_prevention",
-    "enabled": true
+    "enabled": false
   },
   "bigquery_ai_ml": {
     "id": "bigquery_ai_ml",
@@ -1243,7 +1243,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/bigquery_ai_ml",
-    "enabled": true
+    "enabled": false
   },
   "bigquery_bigframes": {
     "id": "bigquery_bigframes",
@@ -1257,7 +1257,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/bigquery_bigframes",
-    "enabled": true
+    "enabled": false
   },
   "bigquery_data_transfer_service": {
     "id": "bigquery_data_transfer_service",
@@ -1278,7 +1278,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/bigquery_data_transfer_service",
-    "enabled": true
+    "enabled": false
   },
   "bigquery_graph": {
     "id": "bigquery_graph",
@@ -1292,7 +1292,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/bigquery_graph",
-    "enabled": true
+    "enabled": false
   },
   "bigquery_sql": {
     "id": "bigquery_sql",
@@ -1306,7 +1306,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/bigquery_sql",
-    "enabled": true
+    "enabled": false
   },
   "building_data_apps": {
     "id": "building_data_apps",
@@ -1320,7 +1320,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/building_data_apps",
-    "enabled": true
+    "enabled": false
   },
   "dataform_bigquery": {
     "id": "dataform_bigquery",
@@ -1341,7 +1341,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dataform_bigquery",
-    "enabled": true
+    "enabled": false
   },
   "data_autocleaning": {
     "id": "data_autocleaning",
@@ -1362,7 +1362,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/data_autocleaning",
-    "enabled": true
+    "enabled": false
   },
   "dbt_bigquery": {
     "id": "dbt_bigquery",
@@ -1382,7 +1382,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dbt_bigquery",
-    "enabled": true
+    "enabled": false
   },
   "discovering_gcp_data_assets": {
     "id": "discovering_gcp_data_assets",
@@ -1396,7 +1396,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/discovering_gcp_data_assets",
-    "enabled": true
+    "enabled": false
   },
   "enforcing_resource_attribution": {
     "id": "enforcing_resource_attribution",
@@ -1410,7 +1410,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/enforcing_resource_attribution",
-    "enabled": true
+    "enabled": false
   },
   "federate_lakehouse_catalog": {
     "id": "federate_lakehouse_catalog",
@@ -1424,7 +1424,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/federate_lakehouse_catalog",
-    "enabled": true
+    "enabled": false
   },
   "gcloud_auth_verification": {
     "id": "gcloud_auth_verification",
@@ -1445,7 +1445,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcloud_auth_verification",
-    "enabled": true
+    "enabled": false
   },
   "gcp_composer_troubleshooting": {
     "id": "gcp_composer_troubleshooting",
@@ -1466,7 +1466,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_composer_troubleshooting",
-    "enabled": true
+    "enabled": false
   },
   "gcp_dataflow": {
     "id": "gcp_dataflow",
@@ -1480,7 +1480,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_dataflow",
-    "enabled": true
+    "enabled": false
   },
   "gcp_data_pipelines": {
     "id": "gcp_data_pipelines",
@@ -1501,7 +1501,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_data_pipelines",
-    "enabled": true
+    "enabled": false
   },
   "gcp_managed_airflow_migrations": {
     "id": "gcp_managed_airflow_migrations",
@@ -1522,7 +1522,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_managed_airflow_migrations",
-    "enabled": true
+    "enabled": false
   },
   "gcp_pipeline_orchestration": {
     "id": "gcp_pipeline_orchestration",
@@ -1543,7 +1543,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_pipeline_orchestration",
-    "enabled": true
+    "enabled": false
   },
   "gcp_pipeline_resource_provisioning": {
     "id": "gcp_pipeline_resource_provisioning",
@@ -1557,7 +1557,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_pipeline_resource_provisioning",
-    "enabled": true
+    "enabled": false
   },
   "gcp_spark": {
     "id": "gcp_spark",
@@ -1571,7 +1571,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcp_spark",
-    "enabled": true
+    "enabled": false
   },
   "gcs_security_assessment": {
     "id": "gcs_security_assessment",
@@ -1585,7 +1585,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gcs_security_assessment",
-    "enabled": true
+    "enabled": false
   },
   "managing_python_dependencies": {
     "id": "managing_python_dependencies",
@@ -1599,7 +1599,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/managing_python_dependencies",
-    "enabled": true
+    "enabled": false
   },
   "ml_best_practices": {
     "id": "ml_best_practices",
@@ -1613,7 +1613,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/ml_best_practices",
-    "enabled": true
+    "enabled": false
   },
   "notebook_guidance": {
     "id": "notebook_guidance",
@@ -1627,7 +1627,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/notebook_guidance",
-    "enabled": true
+    "enabled": false
   },
   "firebase_ai_logic_basics": {
     "id": "firebase_ai_logic_basics",
@@ -1648,7 +1648,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_ai_logic_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_app_hosting_basics": {
     "id": "firebase_app_hosting_basics",
@@ -1669,7 +1669,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_app_hosting_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_auth_basics": {
     "id": "firebase_auth_basics",
@@ -1690,7 +1690,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_auth_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_basics": {
     "id": "firebase_basics",
@@ -1704,7 +1704,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_crashlytics": {
     "id": "firebase_crashlytics",
@@ -1725,7 +1725,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_crashlytics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_data_connect_basics": {
     "id": "firebase_data_connect_basics",
@@ -1746,7 +1746,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_data_connect_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_firestore": {
     "id": "firebase_firestore",
@@ -1760,7 +1760,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_firestore",
-    "enabled": true
+    "enabled": false
   },
   "firebase_hosting_basics": {
     "id": "firebase_hosting_basics",
@@ -1781,7 +1781,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_hosting_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_remote_config_basics": {
     "id": "firebase_remote_config_basics",
@@ -1802,7 +1802,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_remote_config_basics",
-    "enabled": true
+    "enabled": false
   },
   "firebase_security_rules_auditor": {
     "id": "firebase_security_rules_auditor",
@@ -1823,7 +1823,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/firebase_security_rules_auditor",
-    "enabled": true
+    "enabled": false
   },
   "xcode_project_setup": {
     "id": "xcode_project_setup",
@@ -1844,7 +1844,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/xcode_project_setup",
-    "enabled": true
+    "enabled": false
   },
   "dart-add-unit-test": {
     "id": "dart-add-unit-test",
@@ -1865,7 +1865,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-add-unit-test",
-    "enabled": true
+    "enabled": false
   },
   "dart-build-cli-app": {
     "id": "dart-build-cli-app",
@@ -1886,7 +1886,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-build-cli-app",
-    "enabled": true
+    "enabled": false
   },
   "dart-collect-coverage": {
     "id": "dart-collect-coverage",
@@ -1907,7 +1907,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-collect-coverage",
-    "enabled": true
+    "enabled": false
   },
   "dart-fix-runtime-errors": {
     "id": "dart-fix-runtime-errors",
@@ -1928,7 +1928,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-fix-runtime-errors",
-    "enabled": true
+    "enabled": false
   },
   "dart-generate-test-mocks": {
     "id": "dart-generate-test-mocks",
@@ -1949,7 +1949,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-generate-test-mocks",
-    "enabled": true
+    "enabled": false
   },
   "dart-migrate-to-checks-package": {
     "id": "dart-migrate-to-checks-package",
@@ -1963,7 +1963,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-migrate-to-checks-package",
-    "enabled": true
+    "enabled": false
   },
   "dart-resolve-package-conflicts": {
     "id": "dart-resolve-package-conflicts",
@@ -1984,7 +1984,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-resolve-package-conflicts",
-    "enabled": true
+    "enabled": false
   },
   "dart-run-static-analysis": {
     "id": "dart-run-static-analysis",
@@ -2005,7 +2005,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-run-static-analysis",
-    "enabled": true
+    "enabled": false
   },
   "dart-setup-ffi-assets": {
     "id": "dart-setup-ffi-assets",
@@ -2026,7 +2026,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-setup-ffi-assets",
-    "enabled": true
+    "enabled": false
   },
   "dart-use-ffigen": {
     "id": "dart-use-ffigen",
@@ -2047,7 +2047,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-use-ffigen",
-    "enabled": true
+    "enabled": false
   },
   "dart-use-pattern-matching": {
     "id": "dart-use-pattern-matching",
@@ -2067,7 +2067,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-use-pattern-matching",
-    "enabled": true
+    "enabled": false
   },
   "dart-use-primary-constructors": {
     "id": "dart-use-primary-constructors",
@@ -2081,7 +2081,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dart-use-primary-constructors",
-    "enabled": true
+    "enabled": false
   },
   "flutter-add-integration-test": {
     "id": "flutter-add-integration-test",
@@ -2102,7 +2102,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-add-integration-test",
-    "enabled": true
+    "enabled": false
   },
   "flutter-add-widget-preview": {
     "id": "flutter-add-widget-preview",
@@ -2123,7 +2123,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-add-widget-preview",
-    "enabled": true
+    "enabled": false
   },
   "flutter-add-widget-test": {
     "id": "flutter-add-widget-test",
@@ -2144,7 +2144,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-add-widget-test",
-    "enabled": true
+    "enabled": false
   },
   "flutter-apply-architecture-best-practices": {
     "id": "flutter-apply-architecture-best-practices",
@@ -2165,7 +2165,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-apply-architecture-best-practices",
-    "enabled": true
+    "enabled": false
   },
   "flutter-build-responsive-layout": {
     "id": "flutter-build-responsive-layout",
@@ -2186,7 +2186,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-build-responsive-layout",
-    "enabled": true
+    "enabled": false
   },
   "flutter-fix-layout-issues": {
     "id": "flutter-fix-layout-issues",
@@ -2207,7 +2207,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-fix-layout-issues",
-    "enabled": true
+    "enabled": false
   },
   "flutter-implement-json-serialization": {
     "id": "flutter-implement-json-serialization",
@@ -2228,7 +2228,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-implement-json-serialization",
-    "enabled": true
+    "enabled": false
   },
   "flutter-setup-declarative-routing": {
     "id": "flutter-setup-declarative-routing",
@@ -2249,7 +2249,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-setup-declarative-routing",
-    "enabled": true
+    "enabled": false
   },
   "flutter-setup-localization": {
     "id": "flutter-setup-localization",
@@ -2270,7 +2270,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-setup-localization",
-    "enabled": true
+    "enabled": false
   },
   "flutter-use-http-package": {
     "id": "flutter-use-http-package",
@@ -2291,7 +2291,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/flutter-use-http-package",
-    "enabled": true
+    "enabled": false
   },
   "gemini-interactions-api": {
     "id": "gemini-interactions-api",
@@ -2312,7 +2312,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gemini-interactions-api",
-    "enabled": true
+    "enabled": false
   },
   "gemini-live-api-dev": {
     "id": "gemini-live-api-dev",
@@ -2333,7 +2333,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gemini-live-api-dev",
-    "enabled": true
+    "enabled": false
   },
   "google-antigravity-sdk": {
     "id": "google-antigravity-sdk",
@@ -2354,7 +2354,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/google-antigravity-sdk",
-    "enabled": true
+    "enabled": false
   },
   "chrome-extensions": {
     "id": "chrome-extensions",
@@ -2368,7 +2368,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/chrome-extensions",
-    "enabled": true
+    "enabled": false
   },
   "modern-web-guidance": {
     "id": "modern-web-guidance",
@@ -2382,7 +2382,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/modern-web-guidance",
-    "enabled": true
+    "enabled": false
   },
   "alphafold_database_fetch_and_analyze": {
     "id": "alphafold_database_fetch_and_analyze",
@@ -2396,7 +2396,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/alphafold_database_fetch_and_analyze",
-    "enabled": true
+    "enabled": false
   },
   "alphagenome_single_variant_analysis": {
     "id": "alphagenome_single_variant_analysis",
@@ -2410,7 +2410,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/alphagenome_single_variant_analysis",
-    "enabled": true
+    "enabled": false
   },
   "chembl_database": {
     "id": "chembl_database",
@@ -2424,7 +2424,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/chembl_database",
-    "enabled": true
+    "enabled": false
   },
   "clinical_trials_database": {
     "id": "clinical_trials_database",
@@ -2438,7 +2438,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/clinical_trials_database",
-    "enabled": true
+    "enabled": false
   },
   "clinvar_database": {
     "id": "clinvar_database",
@@ -2452,7 +2452,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/clinvar_database",
-    "enabled": true
+    "enabled": false
   },
   "credentials": {
     "id": "credentials",
@@ -2466,7 +2466,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/credentials",
-    "enabled": true
+    "enabled": false
   },
   "dbsnp_database": {
     "id": "dbsnp_database",
@@ -2480,7 +2480,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/dbsnp_database",
-    "enabled": true
+    "enabled": false
   },
   "embl_ebi_ols": {
     "id": "embl_ebi_ols",
@@ -2494,7 +2494,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/embl_ebi_ols",
-    "enabled": true
+    "enabled": false
   },
   "encode_ccres_database": {
     "id": "encode_ccres_database",
@@ -2508,7 +2508,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/encode_ccres_database",
-    "enabled": true
+    "enabled": false
   },
   "ensembl_database": {
     "id": "ensembl_database",
@@ -2522,7 +2522,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/ensembl_database",
-    "enabled": true
+    "enabled": false
   },
   "foldseek_structural_search": {
     "id": "foldseek_structural_search",
@@ -2536,7 +2536,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/foldseek_structural_search",
-    "enabled": true
+    "enabled": false
   },
   "gnomad_database": {
     "id": "gnomad_database",
@@ -2550,7 +2550,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gnomad_database",
-    "enabled": true
+    "enabled": false
   },
   "gtex_database": {
     "id": "gtex_database",
@@ -2564,7 +2564,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/gtex_database",
-    "enabled": true
+    "enabled": false
   },
   "human_protein_atlas_database": {
     "id": "human_protein_atlas_database",
@@ -2578,7 +2578,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/human_protein_atlas_database",
-    "enabled": true
+    "enabled": false
   },
   "interpro_database": {
     "id": "interpro_database",
@@ -2592,7 +2592,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/interpro_database",
-    "enabled": true
+    "enabled": false
   },
   "jaspar_database": {
     "id": "jaspar_database",
@@ -2606,7 +2606,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/jaspar_database",
-    "enabled": true
+    "enabled": false
   },
   "literature_search_arxiv": {
     "id": "literature_search_arxiv",
@@ -2620,7 +2620,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/literature_search_arxiv",
-    "enabled": true
+    "enabled": false
   },
   "literature_search_biorxiv": {
     "id": "literature_search_biorxiv",
@@ -2634,7 +2634,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/literature_search_biorxiv",
-    "enabled": true
+    "enabled": false
   },
   "literature_search_europepmc": {
     "id": "literature_search_europepmc",
@@ -2648,7 +2648,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/literature_search_europepmc",
-    "enabled": true
+    "enabled": false
   },
   "literature_search_openalex": {
     "id": "literature_search_openalex",
@@ -2662,7 +2662,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/literature_search_openalex",
-    "enabled": true
+    "enabled": false
   },
   "ncbi_sequence_fetch": {
     "id": "ncbi_sequence_fetch",
@@ -2676,7 +2676,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/ncbi_sequence_fetch",
-    "enabled": true
+    "enabled": false
   },
   "openfda_database": {
     "id": "openfda_database",
@@ -2690,7 +2690,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/openfda_database",
-    "enabled": true
+    "enabled": false
   },
   "opentargets_database": {
     "id": "opentargets_database",
@@ -2704,7 +2704,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/opentargets_database",
-    "enabled": true
+    "enabled": false
   },
   "pdb_database": {
     "id": "pdb_database",
@@ -2718,7 +2718,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/pdb_database",
-    "enabled": true
+    "enabled": false
   },
   "predictingthepast": {
     "id": "predictingthepast",
@@ -2732,7 +2732,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/predictingthepast",
-    "enabled": true
+    "enabled": false
   },
   "protein_sequence_msa": {
     "id": "protein_sequence_msa",
@@ -2746,7 +2746,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/protein_sequence_msa",
-    "enabled": true
+    "enabled": false
   },
   "protein_sequence_similarity_search": {
     "id": "protein_sequence_similarity_search",
@@ -2760,7 +2760,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/protein_sequence_similarity_search",
-    "enabled": true
+    "enabled": false
   },
   "pubchem_database": {
     "id": "pubchem_database",
@@ -2774,7 +2774,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/pubchem_database",
-    "enabled": true
+    "enabled": false
   },
   "pubmed_database": {
     "id": "pubmed_database",
@@ -2788,7 +2788,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/pubmed_database",
-    "enabled": true
+    "enabled": false
   },
   "pymol": {
     "id": "pymol",
@@ -2802,7 +2802,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/pymol",
-    "enabled": true
+    "enabled": false
   },
   "quickgo_database": {
     "id": "quickgo_database",
@@ -2816,7 +2816,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/quickgo_database",
-    "enabled": true
+    "enabled": false
   },
   "reactome_database": {
     "id": "reactome_database",
@@ -2830,7 +2830,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/reactome_database",
-    "enabled": true
+    "enabled": false
   },
   "string_database": {
     "id": "string_database",
@@ -2844,7 +2844,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/string_database",
-    "enabled": true
+    "enabled": false
   },
   "ucsc_conservation_and_tfbs": {
     "id": "ucsc_conservation_and_tfbs",
@@ -2858,7 +2858,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/ucsc_conservation_and_tfbs",
-    "enabled": true
+    "enabled": false
   },
   "unibind_database": {
     "id": "unibind_database",
@@ -2872,7 +2872,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/unibind_database",
-    "enabled": true
+    "enabled": false
   },
   "uniprot_database": {
     "id": "uniprot_database",
@@ -2886,7 +2886,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/uniprot_database",
-    "enabled": true
+    "enabled": false
   },
   "uv": {
     "id": "uv",
@@ -2898,7 +2898,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/uv",
-    "enabled": true
+    "enabled": false
   },
   "workflow_skill_creator": {
     "id": "workflow_skill_creator",
@@ -2912,7 +2912,7 @@
       "gemini-plugins"
     ],
     "installedPath": "skills/definitions/workflow_skill_creator",
-    "enabled": true
+    "enabled": false
   },
   "agy-customizations": {
     "id": "agy-customizations",

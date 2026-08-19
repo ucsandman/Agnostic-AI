@@ -4,7 +4,12 @@ from agent.governance.audit import AuditRecord
 from agent.governance.context import ContextManager
 from agent.tools.indexer import SymbolInfo
 from agent.web.server import CompanionHandler, CompanionTelemetry
-from agent.cli import AgnosticCompleter, _handle_alt_v
+from agent.cli import (
+    AgnosticCompleter,
+    _handle_alt_v,
+    _handle_enter,
+    _handle_ctrl_enter,
+)
 from agent.governance.interceptor import CodeInterceptor
 from agent.governance.undo import ThemeManager, UndoManager
 from agent.governance.session_manager import SessionManager
@@ -43,6 +48,8 @@ ToolRegistry
 
 AgnosticCompleter.get_completions
 _handle_alt_v
+_handle_enter
+_handle_ctrl_enter
 Learner.corrections_file
 CodeInterceptor.run_quick_lint
 ThemeManager.format_badge

@@ -4,6 +4,7 @@ setup.py
 agent/__init__.py
 agent/cli.py
 agent/loop.py
+agent/tui.py
 agnostic_agent.egg-info/PKG-INFO
 agnostic_agent.egg-info/SOURCES.txt
 agnostic_agent.egg-info/dependency_links.txt

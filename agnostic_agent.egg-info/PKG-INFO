@@ -7,6 +7,7 @@ Requires-Dist: openai>=1.0.0
 Requires-Dist: rich>=13.0.0
 Requires-Dist: httpx>=0.25.0
 Requires-Dist: prompt_toolkit>=3.0.0
+Requires-Dist: textual>=0.40.0
 Dynamic: requires-dist
 Dynamic: requires-python
 Dynamic: summary

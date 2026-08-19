@@ -94,6 +94,19 @@ def get_ui_width() -> int:
     return min(max(console.width - 4, 60), 94)
 
 
+def format_user_display(raw_input: str) -> str:
+    """Formats user input for clean display in the user panel.
+
+    Puts @image: references on their own lines and ensures text body
+    is cleanly separated, matching Claude Code's prompt layout.
+    """
+    # Put each @image: reference on its own line
+    formatted = re.sub(r"[ \t]*(@image:\S+)[ \t]*", r"\n\1\n", raw_input)
+    # Collapse runs of blank lines into single newlines
+    formatted = re.sub(r"\n{3,}", "\n\n", formatted).strip()
+    return formatted
+
+
 class AgnosticCompleter(Completer):
     """Dynamic Completer for Slash commands, @file paths, and #symbol names."""
 
@@ -130,8 +143,20 @@ class AgnosticCompleter(Completer):
                     )
 
 
-# KeyBindings for interactive features (Alt+V clipboard image paste)
+# KeyBindings for interactive features (Alt+V clipboard image paste, multiline Enter-to-submit)
 kb = KeyBindings()
+
+
+@kb.add("enter")
+def _handle_enter(event):  # noqa: vulture
+    """Enter submits the prompt (even in multiline mode). Use Escape+Enter to insert a literal newline."""
+    event.current_buffer.validate_and_handle()
+
+
+@kb.add("c-j")
+def _handle_ctrl_enter(event):  # noqa: vulture
+    """Ctrl+Enter inserts a literal newline for multi-line input."""
+    event.current_buffer.insert_text("\n")
 
 
 @kb.add("escape", "v")
@@ -160,7 +185,7 @@ def _handle_alt_v(event):  # noqa: vulture
                 return
 
             rel_path = img_path.relative_to(Path(os.getcwd()))
-            insertion = f" @image:{rel_path} "
+            insertion = f"\n@image:{rel_path}\n"
             event.current_buffer.insert_text(insertion)
             console.print(
                 f"\n[bold green]📷 Attached image from clipboard:[/bold green] [cyan]{rel_path}[/cyan]"
@@ -567,7 +592,7 @@ def main():
             gauge_str = context_manager.render_gauge(agent.history)
             console.print(f"\n{gauge_str}")
 
-            user_input = session.prompt("agnostic > ").strip()
+            user_input = session.prompt("agnostic > ", multiline=True).strip()
             if not user_input:
                 continue
 
@@ -577,8 +602,9 @@ def main():
 
             # Display distinct shaded User Panel in conversation flow for non-slash commands
             if not user_input.startswith("/"):
+                display_text = format_user_display(user_input)
                 user_panel = Panel(
-                    Text(user_input, style="bold bright_white"),
+                    Text(display_text, style="bold bright_white"),
                     title="[bold #58a6ff]🧑 You[/bold #58a6ff]",
                     title_align="left",
                     border_style="#1f6feb",

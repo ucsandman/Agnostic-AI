@@ -11,11 +11,13 @@ setup(
         "rich>=13.0.0",
         "httpx>=0.25.0",
         "prompt_toolkit>=3.0.0",
+        "textual>=0.40.0",
     ],
     entry_points={
         "console_scripts": [
-            "agnostic=agent.cli:main",
-            "agnostic-agent=agent.cli:main",
+            "agnostic=agent.tui:main",
+            "agnostic-agent=agent.tui:main",
+            "agnostic-legacy=agent.cli:main",
         ],
     },
     python_requires=">=3.9",

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-19T01:31:37.934Z",
+  "timestamp": "2026-08-19T02:35:30.979Z",
   "activeCount": 4,
   "ceiling": 5,
   "status": "HEALTHY",
@@ -35,60 +35,60 @@
   ],
   "candidateAnalyses": [
     {
-      "id": "522e1bc0f80b7390",
-      "text": "The portfolio is one idea expressed four ways — when may a machine act without a human, and can the human read the reason.",
+      "id": "654b59c95087bcc3",
+      "text": "The portfolio is one idea expressed four ways — when may a machine",
       "sightings": 3,
       "conflicts": [],
       "recommendation": "promote_rule",
       "rationale": "Healthy candidate under ceiling."
     },
     {
-      "id": "23f633b64c0038c0",
-      "text": "The axis is not boldness against restraint, it is whose account the cost lands in. A guard I choose freely is not free if the human pays its friction; the fix is to move the cost onto something other than him, not to drop the guard.",
-      "sightings": 3,
-      "conflicts": [],
-      "recommendation": "push_to_examples",
-      "rationale": "Rule contains high specific situational detail; better served as a few-shot example than a global rule."
-    },
-    {
-      "id": "15434078e0bd8613",
-      "text": "A health signal that proves a mechanism CAN work gets read as proof it IS working. The canary is green, the pipe is empty, and nobody asks about volume because something answered.",
+      "id": "0198dbe80a441cae",
+      "text": "The axis is not boldness against restraint, it",
       "sightings": 3,
       "conflicts": [],
       "recommendation": "promote_rule",
       "rationale": "Healthy candidate under ceiling."
     },
     {
-      "id": "b50074644b65d1f4",
-      "text": "A self-promoted rule becomes load-bearing in project repos within a day, carried by nothing but its presence in CLAUDE.md. So a wrong rule costs more than a missing one, and the refusal rate is the only safety margin.",
-      "sightings": 3,
-      "conflicts": [],
-      "recommendation": "push_to_examples",
-      "rationale": "Rule contains high specific situational detail; better served as a few-shot example than a global rule."
-    },
-    {
-      "id": "ef48df4d3d1e42b1",
-      "text": "The layers added between me and a real binary — compression proxies, governance hooks, path shims, search wrappers — are now a leading source of confident false negatives, and they are invisible to the negative-control test in L1 because a deliberate break runs through the same broken layer.",
-      "sightings": 3,
-      "conflicts": [],
-      "recommendation": "push_to_examples",
-      "rationale": "Rule contains high specific situational detail; better served as a few-shot example than a global rule."
-    },
-    {
-      "id": "7260fba1046c8a6a",
-      "text": "When the next real step is uncomfortable (outreach), the day fills with defensible refinement commits on an already-sellable product.",
+      "id": "df5ab88e64ea8127",
+      "text": "A health signal that proves a mechanism CAN work gets read as proof",
       "sightings": 3,
       "conflicts": [],
       "recommendation": "promote_rule",
       "rationale": "Healthy candidate under ceiling."
     },
     {
-      "id": "9bbcf7bf36833379",
-      "text": "What separates a job that ships from a job that gets killed is not planning quality but whether the plan was amended in flight. A plan approved once and never rewritten is a stale plan, whatever its quality at signing.",
+      "id": "66fc1f7ecbda68a7",
+      "text": "A self-promoted rule becomes load-bearing in project repos within a",
       "sightings": 3,
       "conflicts": [],
-      "recommendation": "push_to_examples",
-      "rationale": "Rule contains high specific situational detail; better served as a few-shot example than a global rule."
+      "recommendation": "promote_rule",
+      "rationale": "Healthy candidate under ceiling."
+    },
+    {
+      "id": "3498bdbdab37d1a8",
+      "text": "The layers added between me and a real binary — compression proxies,",
+      "sightings": 3,
+      "conflicts": [],
+      "recommendation": "promote_rule",
+      "rationale": "Healthy candidate under ceiling."
+    },
+    {
+      "id": "faff320a373d18a1",
+      "text": "When the next real step is uncomfortable (outreach), the day fills",
+      "sightings": 3,
+      "conflicts": [],
+      "recommendation": "promote_rule",
+      "rationale": "Healthy candidate under ceiling."
+    },
+    {
+      "id": "cd63e3d33ef55a36",
+      "text": "What separates a job that ships from a job that gets killed is not",
+      "sightings": 3,
+      "conflicts": [],
+      "recommendation": "promote_rule",
+      "rationale": "Healthy candidate under ceiling."
     }
   ]
 }
