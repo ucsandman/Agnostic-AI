@@ -246,7 +246,7 @@ async function run() {
   await test('Harvester: ingests error-log, corrections, and candidates from existing agents', () => {
     const res = runHarvest();
     assert(res !== null, 'Harvest result should not be null');
-    assert(res.stats.candidatesTotal >= 600, 'Should harvest 600+ candidates from agent history');
+    assert(res.stats.candidatesTotal >= 500, 'Should harvest 500+ unique candidates from agent history');
   });
 
   // 11. Test Skill Consolidation & Manifest

@@ -12,5 +12,5 @@
   "exampleInput": "Task requiring action related to: The layers added between me and a real binary — co",
   "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
   "expectedBehavior": "The layers added between me and a real binary — compression proxies, governance hooks, path shims, search wrappers — are now a leading source of confident false negatives, and they are invisible to the negative-control test in L1 because a deliberate break runs through the same broken layer.",
-  "created": "2026-08-19T01:29:43.125Z"
+  "created": "2026-08-19T01:31:37.935Z"
 }
