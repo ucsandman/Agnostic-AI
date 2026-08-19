@@ -28,7 +28,7 @@ from prompt_toolkit.document import Document
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
 from agent.llm.detector import ModelDoctor
-from agent.governance.undo import undo_manager
+from agent.governance.undo import undo_manager, theme_manager
 from agent.governance.context import context_manager
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
@@ -39,6 +39,7 @@ from agent.workflows.tester import AutoTestRunner
 console = Console()
 
 SLASH_COMMANDS = [
+    "/theme",
     "/plan",
     "/fix",
     "/compact",
@@ -437,6 +438,28 @@ def main():
                 console.print(f"[dim]Exported to {path}[/dim]")
                 continue
 
+            elif user_input.startswith("/theme"):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    msg = theme_manager.set_theme(parts[1])
+                    console.print(f"[bold green]🎨 {msg}[/bold green]")
+                else:
+                    import questionary
+
+                    theme_choices = [
+                        questionary.Choice(title=f"{v['name']} ({k})", value=k)
+                        for k, v in theme_manager.PALETTES.items()
+                    ]
+                    chosen_theme = questionary.select(
+                        "🎨 Select Terminal Aesthetic Theme:",
+                        choices=theme_choices,
+                        default=theme_manager.active_theme_key,
+                    ).ask()
+                    if chosen_theme:
+                        msg = theme_manager.set_theme(chosen_theme)
+                        console.print(f"[bold green]🎨 {msg}[/bold green]")
+                continue
+
             elif user_input == "/web":
                 from agent.web.server import start_companion_server
 
@@ -554,10 +577,7 @@ def main():
                     selected_effort = questionary.select(
                         "⚙️  Select Reasoning / Thinking Effort Level (Arrow Keys):",
                         choices=effort_choices,
-                        default=questionary.Choice(
-                            title="default",
-                            value=preset_info.get("default_effort", "medium"),
-                        ),
+                        default=preset_info.get("default_effort", "medium"),
                     ).ask()
 
                     if not selected_effort:

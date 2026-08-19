@@ -10,3 +10,4 @@ agnostic_agent.egg-info/dependency_links.txt
 agnostic_agent.egg-info/entry_points.txt
 agnostic_agent.egg-info/requires.txt
 agnostic_agent.egg-info/top_level.txt
+tests/test_agent_qol.py

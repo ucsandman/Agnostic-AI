@@ -257,6 +257,14 @@ function recommendSkillsForProject(projectPath) {
       reasons.push('Auth & payment transaction flows require strict security');
     }
 
+    // Mobile, iOS, Android, Device & Phone Matching
+    if (tech.name.toLowerCase().includes('phone') || tech.name.toLowerCase().includes('ios') || tech.name.toLowerCase().includes('mobile') || tech.name.toLowerCase().includes('android') || tech.traits.includes('mobile-device')) {
+      if (id.includes('phone') || id.includes('android') || id.includes('xcode') || id.includes('flutter') || id.includes('device') || id.includes('wda') || id.includes('mobile')) {
+        score += 50;
+        reasons.push('Mobile/iOS/Phone automation device harness detected');
+      }
+    }
+
     // Media & Video Matching
     if (tech.name.toLowerCase().includes('video') || tech.name.toLowerCase().includes('medeo') || tech.name.toLowerCase().includes('media')) {
       if (id.includes('video') || id.includes('audio') || id.includes('animate')) {

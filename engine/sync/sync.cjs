@@ -134,8 +134,23 @@ function run() {
         if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
         }
+        
+        // Automatic Safety Backup before overwriting
+        if (fs.existsSync(targetPath)) {
+          const backupsDir = path.join(ROOT, 'storage', 'backups', target.id || 'general');
+          if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const backupFileName = `${path.basename(targetPath)}.${timestamp}.bak`;
+          const backupFilePath = path.join(backupsDir, backupFileName);
+          fs.copyFileSync(targetPath, backupFilePath);
+          
+          // Also record latest backup pointer
+          const latestPointer = path.join(backupsDir, `${path.basename(targetPath)}.latest.bak`);
+          fs.copyFileSync(targetPath, latestPointer);
+        }
+
         fs.writeFileSync(targetPath, compiled, 'utf8');
-        console.log(`  ✓ Synced: ${target.name} -> ${targetPath}`);
+        console.log(`  ✓ Synced: ${target.name} -> ${targetPath} (backup saved)`);
       } else {
         console.log(`  ✗ Out of sync: ${target.name} (${targetPath})`);
       }

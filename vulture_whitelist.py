@@ -4,6 +4,27 @@ from agent.governance.audit import AuditRecord
 from agent.governance.context import ContextManager
 from agent.tools.indexer import SymbolInfo
 from agent.web.server import CompanionHandler
+from agent.cli import AgnosticCompleter
+from agent.governance.interceptor import CodeInterceptor
+from agent.governance.undo import ThemeManager, UndoManager
+from agent.governance.session_manager import SessionManager
+from agent.governance.state import SessionState
+from agent.governance.watchdog import SandboxWatchdog
+from agent.tools.mcp_discovery import MCPDiscovery
+from agent.tools.subagent import SubagentManager
+from agent.workflows.planner import ExecutionPlanner
+from agent.workflows.pr_pilot import PRPilot
+from agent.workflows.scheduler import TaskScheduler
+from skills.definitions.alphagenome_single_variant_analysis.scripts.visualize_variant_effects import (
+    VariantEffectPlotter,
+    deduplicate_tracks,
+)
+from skills.definitions.embl_ebi_ols.scripts import ols_utils
+from skills.definitions.gcs_security_assessment.scripts import (
+    evaluate_project_security_posture,
+)
+from skills.definitions.literature_search_openalex.scripts import openalex_cli
+from skills.definitions.ncbi_sequence_fetch.scripts import ncbi_fetch
 
 # Whitelist methods
 AuditRecord.to_dict
@@ -16,3 +37,32 @@ ToolRegistry.execute
 CompanionHandler.do_GET
 CompanionHandler.log_message
 ToolRegistry
+
+AgnosticCompleter.get_completions
+CodeInterceptor.run_quick_lint
+ThemeManager.format_badge
+UndoManager.get_history_summary
+SessionManager.delete_session
+SessionState.update_whiteboard
+SandboxWatchdog.get_clean_snapshot_hash
+SandboxWatchdog.rollback_to_clean
+MCPDiscovery.discover_mcp_servers
+SubagentManager.spawn_parallel
+ExecutionPlanner.add_step
+ExecutionPlanner.update_status
+ExecutionPlanner.record_deviation
+ExecutionPlanner.render_markdown
+PRPilot.create_feature_branch
+TaskScheduler.cancel_all
+
+VariantEffectPlotter.plot_ax
+deduplicate_tracks
+ols_utils.RATE_LIMIT_DELAY
+evaluate_project_security_posture.allowedValues
+evaluate_project_security_posture.deniedValues
+evaluate_project_security_posture.allowAll
+evaluate_project_security_posture.denyAll
+evaluate_project_security_posture.enforce
+openalex_cli.DEFAULT_TIMEOUT_SECS
+ncbi_fetch.esummary
+ncbi_fetch.esummary

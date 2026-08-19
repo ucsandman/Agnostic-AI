@@ -107,10 +107,110 @@ class UndoManager:
         except Exception as e:
             return False, f"Failed to revert {target.name}: {str(e)}"
 
-    def get_history_summary(self) -> List[str]:  # noqa: vulture
+    def get_history_summary(self) -> List[str]:
         return [
             f"{s.action.upper()}: {s.file_path.name}" for s in reversed(self.history)
         ]
 
 
 undo_manager = UndoManager()
+
+
+class ThemeManager:
+    """Manages CLI aesthetic themes, palette mappings, and Rich Console themes."""
+
+    PALETTES = {
+        "tokyo-night": {
+            "name": "Tokyo Night (Cybernetic)",
+            "primary": "#7aa2f7",
+            "secondary": "#bb9af7",
+            "accent": "#7dcfff",
+            "success": "#9ece6a",
+            "warning": "#e0af68",
+            "error": "#f7768e",
+            "dim": "#565f89",
+            "border": "bright_blue",
+            "prompt_badge": "[bold #7aa2f7]agnostic[/bold #7aa2f7]",
+            "glow": "cyan",
+        },
+        "catppuccin-mocha": {
+            "name": "Catppuccin Mocha (Smooth Pastel)",
+            "primary": "#89b4fa",
+            "secondary": "#cba6f7",
+            "accent": "#89dceb",
+            "success": "#a6e3a1",
+            "warning": "#f9e2af",
+            "error": "#f38ba8",
+            "dim": "#6c7086",
+            "border": "bright_magenta",
+            "prompt_badge": "[bold #cba6f7]agnostic[/bold #cba6f7]",
+            "glow": "magenta",
+        },
+        "cyberpunk-neon": {
+            "name": "Cyberpunk Neon (High-Contrast 2077)",
+            "primary": "#00f0ff",
+            "secondary": "#ff007f",
+            "accent": "#ffe600",
+            "success": "#00ff66",
+            "warning": "#ffaa00",
+            "error": "#ff0033",
+            "dim": "#445566",
+            "border": "cyan",
+            "prompt_badge": "[bold #00f0ff]agnostic[/bold #00f0ff]",
+            "glow": "yellow",
+        },
+        "monokai-pro": {
+            "name": "Monokai Pro (Classic Developer)",
+            "primary": "#ffd866",
+            "secondary": "#ab9df2",
+            "accent": "#78dce8",
+            "success": "#a9dc76",
+            "warning": "#fc9867",
+            "error": "#ff6188",
+            "dim": "#727072",
+            "border": "yellow",
+            "prompt_badge": "[bold #ffd866]agnostic[/bold #ffd866]",
+            "glow": "green",
+        },
+        "github-dark": {
+            "name": "GitHub Dark (Professional Enterprise)",
+            "primary": "#58a6ff",
+            "secondary": "#bc8cff",
+            "accent": "#39c5cf",
+            "success": "#3fb950",
+            "warning": "#d29922",
+            "error": "#f85149",
+            "dim": "#8b949e",
+            "border": "blue",
+            "prompt_badge": "[bold #58a6ff]agnostic[/bold #58a6ff]",
+            "glow": "blue",
+        },
+    }
+
+    def __init__(self, default_theme: str = "tokyo-night"):
+        self.active_theme_key = (
+            default_theme if default_theme in self.PALETTES else "tokyo-night"
+        )
+
+    def get_active_theme(self):
+        return self.PALETTES.get(self.active_theme_key, self.PALETTES["tokyo-night"])
+
+    def set_theme(self, theme_key: str) -> str:
+        clean = theme_key.lower().strip()
+        if clean in self.PALETTES:
+            self.active_theme_key = clean
+            return f"Theme switched to: {self.PALETTES[clean]['name']}"
+        for k, v in self.PALETTES.items():
+            if clean in k or clean in v["name"].lower():
+                self.active_theme_key = k
+                return f"Theme switched to: {v['name']}"
+        valid = ", ".join(self.PALETTES.keys())
+        return f"Unknown theme '{theme_key}'. Available themes: {valid}"
+
+    def format_badge(self, text: str, style_type: str = "primary") -> str:
+        t = self.get_active_theme()
+        color = t.get(style_type, t["primary"])
+        return f"[{color}]◆ {text}[/{color}]"
+
+
+theme_manager = ThemeManager()

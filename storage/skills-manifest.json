@@ -118,23 +118,6 @@
     "installedPath": "skills/definitions/de-vibe",
     "enabled": false
   },
-  "de-vibe-workspace": {
-    "id": "de-vibe-workspace",
-    "name": "de-vibe-workspace",
-    "description": "Custom AI agent skill",
-    "category": "General & Workflow",
-    "tags": [
-      "de-vibe-workspace",
-      "custom",
-      "agent",
-      "skill"
-    ],
-    "sources": [
-      "claude"
-    ],
-    "installedPath": "skills/definitions/de-vibe-workspace",
-    "enabled": false
-  },
   "deskclaw": {
     "id": "deskclaw",
     "name": "deskclaw",
@@ -296,22 +279,26 @@
     "installedPath": "skills/definitions/launch-video",
     "enabled": false
   },
-  "launch-workspace": {
-    "id": "launch-workspace",
-    "name": "launch-workspace",
-    "description": "Custom AI agent skill",
+  "skill-snapshot": {
+    "id": "skill-snapshot",
+    "name": "launch",
+    "description": "Use when a product or feature is ready to go public — after shipping, when the user says \"launch it\", \"announce it\", \"go live\", or wants a release marketed end to end.",
     "category": "General & Workflow",
     "tags": [
-      "launch-workspace",
-      "custom",
-      "agent",
-      "skill"
+      "launch",
+      "when",
+      "product",
+      "feature",
+      "ready",
+      "public",
+      "after",
+      "shipping"
     ],
     "sources": [
       "claude"
     ],
-    "installedPath": "skills/definitions/launch-workspace",
-    "enabled": false
+    "installedPath": "skills/definitions/skill-snapshot",
+    "enabled": true
   },
   "logo-reveal": {
     "id": "logo-reveal",
@@ -434,7 +421,8 @@
       "from"
     ],
     "sources": [
-      "claude"
+      "claude",
+      "project-phone"
     ],
     "installedPath": "skills/definitions/phone",
     "enabled": false
@@ -455,7 +443,8 @@
       "phone-claude"
     ],
     "sources": [
-      "claude"
+      "claude",
+      "project-phone"
     ],
     "installedPath": "skills/definitions/phone-gotchas",
     "enabled": false
@@ -1101,6 +1090,1829 @@
     ],
     "installedPath": "skills/definitions/web-design-guidelines",
     "enabled": false
+  },
+  "skills": {
+    "id": "skills",
+    "name": "android-cli",
+    "description": "Provides instructions for installing and using the `android` CLI. The `android` command-line tool is a critical tool for Android development and helps you create new Android projects, run Android apps on devices, manage and interact with Android virtual devices (including screenshots and UI inspection), manage Android SDK components, look up official Android documentation, and discover and install official Android skills.",
+    "category": "UI & Design",
+    "tags": [
+      "android-cli",
+      "provides",
+      "instructions",
+      "installing",
+      "using",
+      "android",
+      "command-line",
+      "tool"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/skills",
+    "enabled": true
+  },
+  "a11y-debugging": {
+    "id": "a11y-debugging",
+    "name": "a11y-debugging",
+    "description": "Uses Chrome DevTools MCP for accessibility (a11y) debugging and auditing based on web.dev guidelines. Use when testing semantic HTML, ARIA labels, focus states, keyboard navigation, tap targets, and color contrast.",
+    "category": "UI & Design",
+    "tags": [
+      "a11y-debugging",
+      "uses",
+      "chrome",
+      "devtools",
+      "accessibility",
+      "a11y",
+      "debugging",
+      "auditing"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/a11y-debugging",
+    "enabled": true
+  },
+  "chrome-devtools": {
+    "id": "chrome-devtools",
+    "name": "chrome-devtools",
+    "description": "Uses Chrome DevTools via MCP for efficient debugging, troubleshooting and browser automation. Use when debugging web pages, automating browser interactions, analyzing performance, or inspecting network requests. This skill does not apply to `--slim` mode (MCP configuration).",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "chrome-devtools",
+      "uses",
+      "chrome",
+      "devtools",
+      "efficient",
+      "debugging",
+      "troubleshooting",
+      "browser"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/chrome-devtools",
+    "enabled": true
+  },
+  "debug-optimize-lcp": {
+    "id": "debug-optimize-lcp",
+    "name": "debug-optimize-lcp",
+    "description": "Guides debugging and optimizing Largest Contentful Paint (LCP) using Chrome DevTools MCP tools. Use this skill whenever the user asks about LCP performance, slow page loads, Core Web Vitals optimization, or wants to understand why their page's main content takes too long to appear. Also use when the user mentions \"largest contentful paint\", \"page load speed\", \"CWV\", or wants to improve how fast their hero image or main content renders.",
+    "category": "UI & Design",
+    "tags": [
+      "debug-optimize-lcp",
+      "guides",
+      "debugging",
+      "optimizing",
+      "largest",
+      "contentful",
+      "paint",
+      "using"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/debug-optimize-lcp",
+    "enabled": true
+  },
+  "memory-leak-debugging": {
+    "id": "memory-leak-debugging",
+    "name": "memory-leak-debugging",
+    "description": "Diagnoses and resolves memory leaks in JavaScript/Node.js applications. Use when a user reports high memory usage, OOM errors, or wants to analyze heapsnapshots or run memory leak detection tools like memlab.",
+    "category": "General & Workflow",
+    "tags": [
+      "memory-leak-debugging",
+      "diagnoses",
+      "resolves",
+      "memory",
+      "leaks",
+      "javascript",
+      "node",
+      "applications"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/memory-leak-debugging",
+    "enabled": true
+  },
+  "troubleshooting": {
+    "id": "troubleshooting",
+    "name": "troubleshooting",
+    "description": "Uses Chrome DevTools MCP and documentation to troubleshoot connection and target issues. Trigger this skill when list_pages, new_page, or navigate_page fail, or when the server initialization fails.",
+    "category": "General & Workflow",
+    "tags": [
+      "troubleshooting",
+      "uses",
+      "chrome",
+      "devtools",
+      "documentation",
+      "troubleshoot",
+      "connection",
+      "target"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/troubleshooting",
+    "enabled": true
+  },
+  "accidental_data_loss_prevention": {
+    "id": "accidental_data_loss_prevention",
+    "name": "accidental-data-loss-prevention",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "accidental-data-loss-prevention"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/accidental_data_loss_prevention",
+    "enabled": true
+  },
+  "bigquery_ai_ml": {
+    "id": "bigquery_ai_ml",
+    "name": "bigquery-ai-ml",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "bigquery-ai-ml"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/bigquery_ai_ml",
+    "enabled": true
+  },
+  "bigquery_bigframes": {
+    "id": "bigquery_bigframes",
+    "name": "bigquery-bigframes",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "bigquery-bigframes"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/bigquery_bigframes",
+    "enabled": true
+  },
+  "bigquery_data_transfer_service": {
+    "id": "bigquery_data_transfer_service",
+    "name": "bigquery-data-transfer-service",
+    "description": "Discovers and inspects BigQuery Data Transfer Service (DTS) configurations.",
+    "category": "General & Workflow",
+    "tags": [
+      "bigquery-data-transfer-service",
+      "discovers",
+      "inspects",
+      "bigquery",
+      "data",
+      "transfer",
+      "service",
+      "configurations"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/bigquery_data_transfer_service",
+    "enabled": true
+  },
+  "bigquery_graph": {
+    "id": "bigquery_graph",
+    "name": "bigquery-graph",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "bigquery-graph"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/bigquery_graph",
+    "enabled": true
+  },
+  "bigquery_sql": {
+    "id": "bigquery_sql",
+    "name": "bigquery-sql",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "bigquery-sql"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/bigquery_sql",
+    "enabled": true
+  },
+  "building_data_apps": {
+    "id": "building_data_apps",
+    "name": "building-data-apps",
+    "description": "|",
+    "category": "UI & Design",
+    "tags": [
+      "building-data-apps"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/building_data_apps",
+    "enabled": true
+  },
+  "dataform_bigquery": {
+    "id": "dataform_bigquery",
+    "name": "dataform-bigquery",
+    "description": "Expertise in generating clean, correct, and efficient Dataform pipeline",
+    "category": "General & Workflow",
+    "tags": [
+      "dataform-bigquery",
+      "expertise",
+      "generating",
+      "clean",
+      "correct",
+      "efficient",
+      "dataform",
+      "pipeline"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dataform_bigquery",
+    "enabled": true
+  },
+  "data_autocleaning": {
+    "id": "data_autocleaning",
+    "name": "data-autocleaning",
+    "description": "Automated data quality and transformation capabilities for Dataform/dbt/BigQuery",
+    "category": "General & Workflow",
+    "tags": [
+      "data-autocleaning",
+      "automated",
+      "data",
+      "quality",
+      "transformation",
+      "capabilities",
+      "dataform",
+      "bigquery"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/data_autocleaning",
+    "enabled": true
+  },
+  "dbt_bigquery": {
+    "id": "dbt_bigquery",
+    "name": "dbt-bigquery",
+    "description": "Expert guidance for creating, modifying, and optimizing dbt pipelines",
+    "category": "UI & Design",
+    "tags": [
+      "dbt-bigquery",
+      "expert",
+      "guidance",
+      "creating",
+      "modifying",
+      "optimizing",
+      "pipelines"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dbt_bigquery",
+    "enabled": true
+  },
+  "discovering_gcp_data_assets": {
+    "id": "discovering_gcp_data_assets",
+    "name": "discovering-gcp-data-assets",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "discovering-gcp-data-assets"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/discovering_gcp_data_assets",
+    "enabled": true
+  },
+  "enforcing_resource_attribution": {
+    "id": "enforcing_resource_attribution",
+    "name": "enforcing-resource-attribution",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "enforcing-resource-attribution"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/enforcing_resource_attribution",
+    "enabled": true
+  },
+  "federate_lakehouse_catalog": {
+    "id": "federate_lakehouse_catalog",
+    "name": "federate-lakehouse-catalog",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "federate-lakehouse-catalog"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/federate_lakehouse_catalog",
+    "enabled": true
+  },
+  "gcloud_auth_verification": {
+    "id": "gcloud_auth_verification",
+    "name": "gcloud-auth-verification",
+    "description": "Guidelines for identifying and resolving missing Google Cloud authentication",
+    "category": "UI & Design",
+    "tags": [
+      "gcloud-auth-verification",
+      "guidelines",
+      "identifying",
+      "resolving",
+      "missing",
+      "google",
+      "cloud",
+      "authentication"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcloud_auth_verification",
+    "enabled": true
+  },
+  "gcp_composer_troubleshooting": {
+    "id": "gcp_composer_troubleshooting",
+    "name": "gcp-composer-troubleshooting",
+    "description": "Provides expert guidance for troubleshooting Cloud Composer (Apache",
+    "category": "UI & Design",
+    "tags": [
+      "gcp-composer-troubleshooting",
+      "provides",
+      "expert",
+      "guidance",
+      "troubleshooting",
+      "cloud",
+      "composer",
+      "apache"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_composer_troubleshooting",
+    "enabled": true
+  },
+  "gcp_dataflow": {
+    "id": "gcp_dataflow",
+    "name": "gcp-dataflow",
+    "description": ">",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "gcp-dataflow"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_dataflow",
+    "enabled": true
+  },
+  "gcp_data_pipelines": {
+    "id": "gcp_data_pipelines",
+    "name": "gcp-data-pipelines",
+    "description": "Primary entry point for building, managing, and orchestrating data pipelines",
+    "category": "UI & Design",
+    "tags": [
+      "gcp-data-pipelines",
+      "primary",
+      "entry",
+      "point",
+      "building",
+      "managing",
+      "orchestrating",
+      "data"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_data_pipelines",
+    "enabled": true
+  },
+  "gcp_managed_airflow_migrations": {
+    "id": "gcp_managed_airflow_migrations",
+    "name": "gcp-managed-airflow-migrations",
+    "description": "Provides guidance for migrating Apache Airflow DAGs in Managed Service for Apache Airflow (MSAA; formerly Cloud Composer). Covers migration to Airflow 2.11.1 (MSAA Gen 2 and 3) and Airflow 3 (MSAA Gen 3), including environment inspection, GCS download/upload and scanning patterns for breaking changes.",
+    "category": "UI & Design",
+    "tags": [
+      "gcp-managed-airflow-migrations",
+      "provides",
+      "guidance",
+      "migrating",
+      "apache",
+      "airflow",
+      "dags",
+      "managed"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_managed_airflow_migrations",
+    "enabled": true
+  },
+  "gcp_pipeline_orchestration": {
+    "id": "gcp_pipeline_orchestration",
+    "name": "gcp-pipeline-orchestration",
+    "description": "This skill helps the agent generate or update orchestration pipeline",
+    "category": "General & Workflow",
+    "tags": [
+      "gcp-pipeline-orchestration",
+      "this",
+      "skill",
+      "helps",
+      "agent",
+      "generate",
+      "update",
+      "orchestration"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_pipeline_orchestration",
+    "enabled": true
+  },
+  "gcp_pipeline_resource_provisioning": {
+    "id": "gcp_pipeline_resource_provisioning",
+    "name": "gcp-pipeline-resource-provisioning",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "gcp-pipeline-resource-provisioning"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_pipeline_resource_provisioning",
+    "enabled": true
+  },
+  "gcp_spark": {
+    "id": "gcp_spark",
+    "name": "gcp-spark",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "gcp-spark"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcp_spark",
+    "enabled": true
+  },
+  "gcs_security_assessment": {
+    "id": "gcs_security_assessment",
+    "name": "gcs-security-assessment",
+    "description": ">-",
+    "category": "Safety & Governance",
+    "tags": [
+      "gcs-security-assessment"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gcs_security_assessment",
+    "enabled": true
+  },
+  "managing_python_dependencies": {
+    "id": "managing_python_dependencies",
+    "name": "managing-python-dependencies",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "managing-python-dependencies"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/managing_python_dependencies",
+    "enabled": true
+  },
+  "ml_best_practices": {
+    "id": "ml_best_practices",
+    "name": "ml-best-practices",
+    "description": "|",
+    "category": "General & Workflow",
+    "tags": [
+      "ml-best-practices"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/ml_best_practices",
+    "enabled": true
+  },
+  "notebook_guidance": {
+    "id": "notebook_guidance",
+    "name": "notebook-guidance",
+    "description": "|-",
+    "category": "UI & Design",
+    "tags": [
+      "notebook-guidance"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/notebook_guidance",
+    "enabled": true
+  },
+  "firebase_ai_logic_basics": {
+    "id": "firebase_ai_logic_basics",
+    "name": "firebase-ai-logic-basics",
+    "description": "Official skill for integrating Firebase AI Logic (Gemini API) into web applications. Covers setup, multimodal inference, structured output, and security.",
+    "category": "Safety & Governance",
+    "tags": [
+      "firebase-ai-logic-basics",
+      "official",
+      "skill",
+      "integrating",
+      "firebase",
+      "logic",
+      "gemini",
+      "into"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_ai_logic_basics",
+    "enabled": true
+  },
+  "firebase_app_hosting_basics": {
+    "id": "firebase_app_hosting_basics",
+    "name": "firebase-app-hosting-basics",
+    "description": "Deploy and manage web apps with Firebase App Hosting. Use this skill when deploying Next.js/Angular apps with backends.",
+    "category": "General & Workflow",
+    "tags": [
+      "firebase-app-hosting-basics",
+      "deploy",
+      "manage",
+      "apps",
+      "with",
+      "firebase",
+      "hosting",
+      "this"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_app_hosting_basics",
+    "enabled": true
+  },
+  "firebase_auth_basics": {
+    "id": "firebase_auth_basics",
+    "name": "firebase-auth-basics",
+    "description": "Guide for setting up and using Firebase Authentication. Use this skill when the user's app requires user sign-in, user management, or secure data access using auth rules.",
+    "category": "UI & Design",
+    "tags": [
+      "firebase-auth-basics",
+      "guide",
+      "setting",
+      "using",
+      "firebase",
+      "authentication",
+      "this",
+      "skill"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_auth_basics",
+    "enabled": true
+  },
+  "firebase_basics": {
+    "id": "firebase_basics",
+    "name": "firebase-basics",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "firebase-basics"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_basics",
+    "enabled": true
+  },
+  "firebase_crashlytics": {
+    "id": "firebase_crashlytics",
+    "name": "firebase-crashlytics",
+    "description": "Comprehensive guide for Firebase Crashlytics, including provisioning and SDK usage. Use this skill when the user needs help setting up Crashlytics, adding crash reporting, or using the Crashlytics SDK in their application.",
+    "category": "UI & Design",
+    "tags": [
+      "firebase-crashlytics",
+      "comprehensive",
+      "guide",
+      "firebase",
+      "crashlytics",
+      "including",
+      "provisioning",
+      "usage"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_crashlytics",
+    "enabled": true
+  },
+  "firebase_data_connect_basics": {
+    "id": "firebase_data_connect_basics",
+    "name": "firebase-data-connect",
+    "description": "Builds and deploys Firebase SQL Connect (aka Firebase Data Connect) backends with PostgreSQL securely. Use when designing schemas with tables and relations, writing authorized queries and mutations, configuring real-time data updates, or generating type-safe SDKs. Use when you need a relational database with Firebase, or when the user mentions SQL Connect or Data Connect.",
+    "category": "UI & Design",
+    "tags": [
+      "firebase-data-connect",
+      "builds",
+      "deploys",
+      "firebase",
+      "connect",
+      "data",
+      "backends",
+      "with"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_data_connect_basics",
+    "enabled": true
+  },
+  "firebase_firestore": {
+    "id": "firebase_firestore",
+    "name": "firebase-firestore",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "firebase-firestore"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_firestore",
+    "enabled": true
+  },
+  "firebase_hosting_basics": {
+    "id": "firebase_hosting_basics",
+    "name": "firebase-hosting-basics",
+    "description": "Skill for working with Firebase Hosting (Classic). Use this when you want to deploy static web apps, Single Page Apps (SPAs), or simple microservices. Do NOT use for Firebase App Hosting.",
+    "category": "General & Workflow",
+    "tags": [
+      "firebase-hosting-basics",
+      "skill",
+      "working",
+      "with",
+      "firebase",
+      "hosting",
+      "classic",
+      "this"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_hosting_basics",
+    "enabled": true
+  },
+  "firebase_remote_config_basics": {
+    "id": "firebase_remote_config_basics",
+    "name": "firebase-remote-config-basics",
+    "description": "Comprehensive guide for Firebase Remote Config, including template management and SDK usage. Use this skill when the user needs help setting up Remote Config, managing feature flags, or updating app behavior dynamically.",
+    "category": "UI & Design",
+    "tags": [
+      "firebase-remote-config-basics",
+      "comprehensive",
+      "guide",
+      "firebase",
+      "remote",
+      "config",
+      "including",
+      "template"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_remote_config_basics",
+    "enabled": true
+  },
+  "firebase_security_rules_auditor": {
+    "id": "firebase_security_rules_auditor",
+    "name": "firebase-security-rules-auditor",
+    "description": "A skill to evaluate how secure Firestore security rules are. Use this when Firestore security rules are updated to ensure that the generated rules are extremely secure and robust.",
+    "category": "Quality & Review",
+    "tags": [
+      "firebase-security-rules-auditor",
+      "skill",
+      "evaluate",
+      "secure",
+      "firestore",
+      "security",
+      "rules",
+      "this"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/firebase_security_rules_auditor",
+    "enabled": true
+  },
+  "xcode_project_setup": {
+    "id": "xcode_project_setup",
+    "name": "xcode-project-setup",
+    "description": "Safely modifies Xcode projects (.pbxproj) to add Swift Packages and link files. Use this skill whenever an iOS project needs dependencies installed (e.g. Firebase, Alamofire).",
+    "category": "General & Workflow",
+    "tags": [
+      "xcode-project-setup",
+      "safely",
+      "modifies",
+      "xcode",
+      "projects",
+      "pbxproj",
+      "swift",
+      "packages"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/xcode_project_setup",
+    "enabled": true
+  },
+  "dart-add-unit-test": {
+    "id": "dart-add-unit-test",
+    "name": "dart-add-unit-test",
+    "description": "Write and organize unit tests for functions, methods, and classes using `package:test`. Use when creating new logic or fixing bugs to ensure code remains correct and regression-free.",
+    "category": "Quality & Review",
+    "tags": [
+      "dart-add-unit-test",
+      "write",
+      "organize",
+      "unit",
+      "tests",
+      "functions",
+      "methods",
+      "classes"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-add-unit-test",
+    "enabled": true
+  },
+  "dart-build-cli-app": {
+    "id": "dart-build-cli-app",
+    "name": "dart-build-cli-app",
+    "description": "Entrypoint structure, exit codes, cross-platform scripts. Use when building command line utilities, scripts, or applications.",
+    "category": "UI & Design",
+    "tags": [
+      "dart-build-cli-app",
+      "entrypoint",
+      "structure",
+      "exit",
+      "codes",
+      "cross-platform",
+      "scripts",
+      "when"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-build-cli-app",
+    "enabled": true
+  },
+  "dart-collect-coverage": {
+    "id": "dart-collect-coverage",
+    "name": "dart-collect-coverage",
+    "description": "Collect coverage using the coverage packge and create an LCOV report",
+    "category": "General & Workflow",
+    "tags": [
+      "dart-collect-coverage",
+      "collect",
+      "coverage",
+      "using",
+      "packge",
+      "create",
+      "lcov",
+      "report"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-collect-coverage",
+    "enabled": true
+  },
+  "dart-fix-runtime-errors": {
+    "id": "dart-fix-runtime-errors",
+    "name": "dart-fix-runtime-errors",
+    "description": "Uses get_runtime_errors and lsp to fetch an active stack trace, locate the failing line, apply a fix, and verify resolution via hot_reload.",
+    "category": "Quality & Review",
+    "tags": [
+      "dart-fix-runtime-errors",
+      "uses",
+      "get_runtime_errors",
+      "fetch",
+      "active",
+      "stack",
+      "trace",
+      "locate"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-fix-runtime-errors",
+    "enabled": true
+  },
+  "dart-generate-test-mocks": {
+    "id": "dart-generate-test-mocks",
+    "name": "dart-generate-test-mocks",
+    "description": "Define and generate mock objects for external dependencies using `package:mockito` and `build_runner`. Use when unit testing classes that depend on complex external services like APIs or databases.",
+    "category": "UI & Design",
+    "tags": [
+      "dart-generate-test-mocks",
+      "define",
+      "generate",
+      "mock",
+      "objects",
+      "external",
+      "dependencies",
+      "using"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-generate-test-mocks",
+    "enabled": true
+  },
+  "dart-migrate-to-checks-package": {
+    "id": "dart-migrate-to-checks-package",
+    "name": "dart-migrate-to-checks-package",
+    "description": "|-",
+    "category": "General & Workflow",
+    "tags": [
+      "dart-migrate-to-checks-package"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-migrate-to-checks-package",
+    "enabled": true
+  },
+  "dart-resolve-package-conflicts": {
+    "id": "dart-resolve-package-conflicts",
+    "name": "dart-resolve-package-conflicts",
+    "description": "Workflow for fixing package version conflicts. Use this when `pub get` fails due to incompatible package versions.",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "dart-resolve-package-conflicts",
+      "workflow",
+      "fixing",
+      "package",
+      "version",
+      "conflicts",
+      "this",
+      "when"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-resolve-package-conflicts",
+    "enabled": true
+  },
+  "dart-run-static-analysis": {
+    "id": "dart-run-static-analysis",
+    "name": "dart-run-static-analysis",
+    "description": "Execute `dart analyze` to identify warnings and errors, and use `dart fix --apply` to automatically resolve mechanical lint issues. Use during development to ensure code quality and before committing changes.",
+    "category": "General & Workflow",
+    "tags": [
+      "dart-run-static-analysis",
+      "execute",
+      "dart",
+      "analyze",
+      "identify",
+      "warnings",
+      "errors",
+      "--apply"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-run-static-analysis",
+    "enabled": true
+  },
+  "dart-setup-ffi-assets": {
+    "id": "dart-setup-ffi-assets",
+    "name": "dart-setup-ffi-assets",
+    "description": "Guides agents in compiling and packaging C/C++ source code into dynamic or static libraries (Code Assets) using Dart's Native Assets hook system (via hook/build.dart and hook/link.dart utilizing package:hooks and package:native_toolchain_c). Use when a user asks to: 'setup native assets', 'compile C/C++ source code', 'bundle dynamic libraries', 'build native C code', 'link native assets', 'implement build.dart or link.dart hooks', or 'integrate C/C++ interop in Dart/Flutter'. Helps agents avoid manual toolchain orchestration and configures secure hash-validated binary downloads or advanced linker tree-shaking with package:record_use mapping.",
+    "category": "UI & Design",
+    "tags": [
+      "dart-setup-ffi-assets",
+      "guides",
+      "agents",
+      "compiling",
+      "packaging",
+      "source",
+      "code",
+      "into"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-setup-ffi-assets",
+    "enabled": true
+  },
+  "dart-use-ffigen": {
+    "id": "dart-use-ffigen",
+    "name": "dart-use-ffigen",
+    "description": "Guide agents to use `package:ffigen` to automatically generate FFI bindings instead of writing them manually. Use this skill when a task involves writing new FFI bindings, extending C/Objective-C/Swift integrations, or replacing hand-crafted `dart:ffi` setups.",
+    "category": "UI & Design",
+    "tags": [
+      "dart-use-ffigen",
+      "guide",
+      "agents",
+      "package",
+      "ffigen",
+      "automatically",
+      "generate",
+      "bindings"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-use-ffigen",
+    "enabled": true
+  },
+  "dart-use-pattern-matching": {
+    "id": "dart-use-pattern-matching",
+    "name": "dart-use-pattern-matching",
+    "description": "Use switch expressions and pattern matching where appropriate",
+    "category": "General & Workflow",
+    "tags": [
+      "dart-use-pattern-matching",
+      "switch",
+      "expressions",
+      "pattern",
+      "matching",
+      "where",
+      "appropriate"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-use-pattern-matching",
+    "enabled": true
+  },
+  "dart-use-primary-constructors": {
+    "id": "dart-use-primary-constructors",
+    "name": "dart-use-primary-constructors",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "dart-use-primary-constructors"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dart-use-primary-constructors",
+    "enabled": true
+  },
+  "flutter-add-integration-test": {
+    "id": "flutter-add-integration-test",
+    "name": "flutter-add-integration-test",
+    "description": "Configures Flutter Driver for app interaction and converts MCP actions into permanent integration tests. Use when adding integration testing to a project, exploring UI components via MCP, or automating user flows with the integration_test package.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-add-integration-test",
+      "configures",
+      "flutter",
+      "driver",
+      "interaction",
+      "converts",
+      "actions",
+      "into"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-add-integration-test",
+    "enabled": true
+  },
+  "flutter-add-widget-preview": {
+    "id": "flutter-add-widget-preview",
+    "name": "flutter-add-widget-preview",
+    "description": "Adds interactive widget previews to the project using the previews.dart system. Use when creating new UI components or updating existing screens to ensure consistent design and interactive testing.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-add-widget-preview",
+      "adds",
+      "interactive",
+      "widget",
+      "previews",
+      "project",
+      "using",
+      "dart"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-add-widget-preview",
+    "enabled": true
+  },
+  "flutter-add-widget-test": {
+    "id": "flutter-add-widget-test",
+    "name": "flutter-add-widget-test",
+    "description": "Implement a component-level test using `WidgetTester` to verify UI rendering and user interactions (tapping, scrolling, entering text). Use when validating that a specific widget displays correct data and responds to events as expected.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-add-widget-test",
+      "implement",
+      "component-level",
+      "test",
+      "using",
+      "widgettester",
+      "verify",
+      "rendering"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-add-widget-test",
+    "enabled": true
+  },
+  "flutter-apply-architecture-best-practices": {
+    "id": "flutter-apply-architecture-best-practices",
+    "name": "flutter-apply-architecture-best-practices",
+    "description": "Architects a Flutter application using the recommended layered approach (UI, Logic, Data). Use when structuring a new project or refactoring for scalability.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-apply-architecture-best-practices",
+      "architects",
+      "flutter",
+      "application",
+      "using",
+      "recommended",
+      "layered",
+      "approach"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-apply-architecture-best-practices",
+    "enabled": true
+  },
+  "flutter-build-responsive-layout": {
+    "id": "flutter-build-responsive-layout",
+    "name": "flutter-build-responsive-layout",
+    "description": "Use `LayoutBuilder`, `MediaQuery`, or `Expanded/Flexible` to create a layout that adapts to different screen sizes. Use when you need the UI to look good on both mobile and tablet/desktop form factors.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-build-responsive-layout",
+      "layoutbuilder",
+      "mediaquery",
+      "expanded",
+      "flexible",
+      "create",
+      "layout",
+      "that"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-build-responsive-layout",
+    "enabled": true
+  },
+  "flutter-fix-layout-issues": {
+    "id": "flutter-fix-layout-issues",
+    "name": "flutter-fix-layout-issues",
+    "description": "Fixes Flutter layout errors (overflows, unbounded constraints) using Dart and Flutter MCP tools. Use when addressing \"RenderFlex overflowed\", \"Vertical viewport was given unbounded height\", or similar layout issues.",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "flutter-fix-layout-issues",
+      "fixes",
+      "flutter",
+      "layout",
+      "errors",
+      "overflows",
+      "unbounded",
+      "constraints"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-fix-layout-issues",
+    "enabled": true
+  },
+  "flutter-implement-json-serialization": {
+    "id": "flutter-implement-json-serialization",
+    "name": "flutter-implement-json-serialization",
+    "description": "Create model classes with `fromJson` and `toJson` methods using `dart:convert`. Use when manually mapping JSON keys to class properties for simple data structures.",
+    "category": "General & Workflow",
+    "tags": [
+      "flutter-implement-json-serialization",
+      "create",
+      "model",
+      "classes",
+      "with",
+      "fromjson",
+      "tojson",
+      "methods"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-implement-json-serialization",
+    "enabled": true
+  },
+  "flutter-setup-declarative-routing": {
+    "id": "flutter-setup-declarative-routing",
+    "name": "flutter-setup-declarative-routing",
+    "description": "Configure `MaterialApp.router` using a package like `go_router` for advanced URL-based navigation. Use when developing web applications or mobile apps that require specific deep linking and browser history support.",
+    "category": "UI & Design",
+    "tags": [
+      "flutter-setup-declarative-routing",
+      "configure",
+      "materialapp",
+      "router",
+      "using",
+      "package",
+      "like",
+      "go_router"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-setup-declarative-routing",
+    "enabled": true
+  },
+  "flutter-setup-localization": {
+    "id": "flutter-setup-localization",
+    "name": "flutter-setup-localization",
+    "description": "Add `flutter_localizations` and `intl` dependencies, enable \"generate true\" in `pubspec.yaml`, and create an `l10n.yaml` configuration file. Use when initializing localization support for a new Flutter project.",
+    "category": "General & Workflow",
+    "tags": [
+      "flutter-setup-localization",
+      "flutter_localizations",
+      "intl",
+      "dependencies",
+      "enable",
+      "generate",
+      "true",
+      "pubspec"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-setup-localization",
+    "enabled": true
+  },
+  "flutter-use-http-package": {
+    "id": "flutter-use-http-package",
+    "name": "flutter-use-http-package",
+    "description": "Use the `http` package to execute GET, POST, PUT, or DELETE requests. Use when you need to fetch from or send data to a REST API.",
+    "category": "General & Workflow",
+    "tags": [
+      "flutter-use-http-package",
+      "http",
+      "package",
+      "execute",
+      "post",
+      "delete",
+      "requests",
+      "when"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/flutter-use-http-package",
+    "enabled": true
+  },
+  "gemini-interactions-api": {
+    "id": "gemini-interactions-api",
+    "name": "gemini-interactions-api",
+    "description": "Use this skill when writing code that calls the Gemini API for text generation, multi-turn chat, multimodal understanding, image generation, video generation, streaming responses, background research tasks, function calling, structured output, or migrating from the old generateContent API. This skill covers the Interactions API, the recommended way to use Gemini models and agents in Python and TypeScript.",
+    "category": "Media & Animation",
+    "tags": [
+      "gemini-interactions-api",
+      "this",
+      "skill",
+      "when",
+      "writing",
+      "code",
+      "that",
+      "calls"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gemini-interactions-api",
+    "enabled": true
+  },
+  "gemini-live-api-dev": {
+    "id": "gemini-live-api-dev",
+    "name": "gemini-live-api-dev",
+    "description": "Use this skill when building real-time, bidirectional streaming applications with the Gemini Live API. Covers WebSocket-based audio/video/text streaming, voice activity detection (VAD), native audio features, function calling, session management, ephemeral tokens for client-side auth, live translation, and all Live API configuration options. SDKs covered - google-genai (Python), @google/genai (JavaScript/TypeScript).",
+    "category": "UI & Design",
+    "tags": [
+      "gemini-live-api-dev",
+      "this",
+      "skill",
+      "when",
+      "building",
+      "real-time",
+      "bidirectional",
+      "streaming"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gemini-live-api-dev",
+    "enabled": true
+  },
+  "google-antigravity-sdk": {
+    "id": "google-antigravity-sdk",
+    "name": "google-antigravity-sdk",
+    "description": "Design, implement, and debug autonomous AI agents and multi-agent systems using the Google Antigravity (AGY) SDK. ACTIVATE this skill when the user wants to create, configure, or orchestrate Google Antigravity agents.",
+    "category": "UI & Design",
+    "tags": [
+      "google-antigravity-sdk",
+      "design",
+      "implement",
+      "debug",
+      "autonomous",
+      "agents",
+      "multi-agent",
+      "systems"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/google-antigravity-sdk",
+    "enabled": true
+  },
+  "chrome-extensions": {
+    "id": "chrome-extensions",
+    "name": "chrome-extensions",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "chrome-extensions"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/chrome-extensions",
+    "enabled": true
+  },
+  "modern-web-guidance": {
+    "id": "modern-web-guidance",
+    "name": "modern-web-guidance",
+    "description": "|",
+    "category": "UI & Design",
+    "tags": [
+      "modern-web-guidance"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/modern-web-guidance",
+    "enabled": true
+  },
+  "alphafold_database_fetch_and_analyze": {
+    "id": "alphafold_database_fetch_and_analyze",
+    "name": "alphafold-database-fetch-and-analyze",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "alphafold-database-fetch-and-analyze"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/alphafold_database_fetch_and_analyze",
+    "enabled": true
+  },
+  "alphagenome_single_variant_analysis": {
+    "id": "alphagenome_single_variant_analysis",
+    "name": "alphagenome-single-variant-analysis",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "alphagenome-single-variant-analysis"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/alphagenome_single_variant_analysis",
+    "enabled": true
+  },
+  "chembl_database": {
+    "id": "chembl_database",
+    "name": "chembl-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "chembl-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/chembl_database",
+    "enabled": true
+  },
+  "clinical_trials_database": {
+    "id": "clinical_trials_database",
+    "name": "clinical-trials-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "clinical-trials-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/clinical_trials_database",
+    "enabled": true
+  },
+  "clinvar_database": {
+    "id": "clinvar_database",
+    "name": "clinvar-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "clinvar-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/clinvar_database",
+    "enabled": true
+  },
+  "credentials": {
+    "id": "credentials",
+    "name": "credentials",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "credentials"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/credentials",
+    "enabled": true
+  },
+  "dbsnp_database": {
+    "id": "dbsnp_database",
+    "name": "dbsnp-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "dbsnp-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/dbsnp_database",
+    "enabled": true
+  },
+  "embl_ebi_ols": {
+    "id": "embl_ebi_ols",
+    "name": "embl-ebi-ols",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "embl-ebi-ols"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/embl_ebi_ols",
+    "enabled": true
+  },
+  "encode_ccres_database": {
+    "id": "encode_ccres_database",
+    "name": "encode-ccres-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "encode-ccres-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/encode_ccres_database",
+    "enabled": true
+  },
+  "ensembl_database": {
+    "id": "ensembl_database",
+    "name": "ensembl-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "ensembl-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/ensembl_database",
+    "enabled": true
+  },
+  "foldseek_structural_search": {
+    "id": "foldseek_structural_search",
+    "name": "foldseek-structural-search",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "foldseek-structural-search"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/foldseek_structural_search",
+    "enabled": true
+  },
+  "gnomad_database": {
+    "id": "gnomad_database",
+    "name": "gnomad-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "gnomad-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gnomad_database",
+    "enabled": true
+  },
+  "gtex_database": {
+    "id": "gtex_database",
+    "name": "gtex-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "gtex-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/gtex_database",
+    "enabled": true
+  },
+  "human_protein_atlas_database": {
+    "id": "human_protein_atlas_database",
+    "name": "human-protein-atlas-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "human-protein-atlas-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/human_protein_atlas_database",
+    "enabled": true
+  },
+  "interpro_database": {
+    "id": "interpro_database",
+    "name": "interpro-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "interpro-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/interpro_database",
+    "enabled": true
+  },
+  "jaspar_database": {
+    "id": "jaspar_database",
+    "name": "jaspar-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "jaspar-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/jaspar_database",
+    "enabled": true
+  },
+  "literature_search_arxiv": {
+    "id": "literature_search_arxiv",
+    "name": "literature-search-arxiv",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "literature-search-arxiv"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/literature_search_arxiv",
+    "enabled": true
+  },
+  "literature_search_biorxiv": {
+    "id": "literature_search_biorxiv",
+    "name": "literature-search-biorxiv",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "literature-search-biorxiv"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/literature_search_biorxiv",
+    "enabled": true
+  },
+  "literature_search_europepmc": {
+    "id": "literature_search_europepmc",
+    "name": "literature-search-europepmc",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "literature-search-europepmc"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/literature_search_europepmc",
+    "enabled": true
+  },
+  "literature_search_openalex": {
+    "id": "literature_search_openalex",
+    "name": "literature-search-openalex",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "literature-search-openalex"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/literature_search_openalex",
+    "enabled": true
+  },
+  "ncbi_sequence_fetch": {
+    "id": "ncbi_sequence_fetch",
+    "name": "ncbi-sequence-fetch",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "ncbi-sequence-fetch"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/ncbi_sequence_fetch",
+    "enabled": true
+  },
+  "openfda_database": {
+    "id": "openfda_database",
+    "name": "openfda-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "openfda-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/openfda_database",
+    "enabled": true
+  },
+  "opentargets_database": {
+    "id": "opentargets_database",
+    "name": "opentargets-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "opentargets-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/opentargets_database",
+    "enabled": true
+  },
+  "pdb_database": {
+    "id": "pdb_database",
+    "name": "pdb-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "pdb-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/pdb_database",
+    "enabled": true
+  },
+  "predictingthepast": {
+    "id": "predictingthepast",
+    "name": "predictingthepast",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "predictingthepast"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/predictingthepast",
+    "enabled": true
+  },
+  "protein_sequence_msa": {
+    "id": "protein_sequence_msa",
+    "name": "protein-sequence-msa",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "protein-sequence-msa"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/protein_sequence_msa",
+    "enabled": true
+  },
+  "protein_sequence_similarity_search": {
+    "id": "protein_sequence_similarity_search",
+    "name": "protein-sequence-similarity-search",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "protein-sequence-similarity-search"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/protein_sequence_similarity_search",
+    "enabled": true
+  },
+  "pubchem_database": {
+    "id": "pubchem_database",
+    "name": "pubchem-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "pubchem-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/pubchem_database",
+    "enabled": true
+  },
+  "pubmed_database": {
+    "id": "pubmed_database",
+    "name": "pubmed-database",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "pubmed-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/pubmed_database",
+    "enabled": true
+  },
+  "pymol": {
+    "id": "pymol",
+    "name": "pymol",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "pymol"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/pymol",
+    "enabled": true
+  },
+  "quickgo_database": {
+    "id": "quickgo_database",
+    "name": "quickgo-database",
+    "description": ">",
+    "category": "UI & Design",
+    "tags": [
+      "quickgo-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/quickgo_database",
+    "enabled": true
+  },
+  "reactome_database": {
+    "id": "reactome_database",
+    "name": "reactome-database",
+    "description": ">",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "reactome-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/reactome_database",
+    "enabled": true
+  },
+  "string_database": {
+    "id": "string_database",
+    "name": "string-database",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "string-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/string_database",
+    "enabled": true
+  },
+  "ucsc_conservation_and_tfbs": {
+    "id": "ucsc_conservation_and_tfbs",
+    "name": "ucsc-conservation-and-tfbs",
+    "description": ">",
+    "category": "General & Workflow",
+    "tags": [
+      "ucsc-conservation-and-tfbs"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/ucsc_conservation_and_tfbs",
+    "enabled": true
+  },
+  "unibind_database": {
+    "id": "unibind_database",
+    "name": "unibind-database",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "unibind-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/unibind_database",
+    "enabled": true
+  },
+  "uniprot_database": {
+    "id": "uniprot_database",
+    "name": "uniprot-database",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [
+      "uniprot-database"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/uniprot_database",
+    "enabled": true
+  },
+  "uv": {
+    "id": "uv",
+    "name": "uv",
+    "description": ">-",
+    "category": "General & Workflow",
+    "tags": [],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/uv",
+    "enabled": true
+  },
+  "workflow_skill_creator": {
+    "id": "workflow_skill_creator",
+    "name": "workflow-skill-creator",
+    "description": ">",
+    "category": "Engineering & Stacks",
+    "tags": [
+      "workflow-skill-creator"
+    ],
+    "sources": [
+      "gemini-plugins"
+    ],
+    "installedPath": "skills/definitions/workflow_skill_creator",
+    "enabled": true
   },
   "agy-customizations": {
     "id": "agy-customizations",

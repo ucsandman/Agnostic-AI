@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
+from agent.governance.interceptor import interceptor
 
 
 class ToolResult:
@@ -58,16 +59,35 @@ class ToolRegistry:
         args: Dict[str, Any],
         confirm_callback: Optional[Callable[[str], bool]] = None,
     ) -> ToolResult:
-        """Execute a registered tool with guardrail checks and audit recording."""
+        """Execute a registered tool with guardrail checks, lifecycle hooks, and audit recording."""
         if name not in self._tools:
             return ToolResult(
                 f"Error: Unknown tool '{name}'. Available: {list(self._tools.keys())}",
                 is_error=True,
             )
 
+        # 1. Pre-tool lifecycle hook (DashClaw & Secret Guard)
+        allowed, hook_err = interceptor.execute_lifecycle_hook(
+            event="pre_tool", tool_name=name, args=args
+        )
+        if not allowed:
+            audit_manager.record(
+                event_type="governance_hardstop",
+                description=f"Hook BLOCKED {name}",
+                details={"hook_error": hook_err, "args": args},
+                approved=False,
+            )
+            return ToolResult(f"BLOCKED by Lifecycle Hook: {hook_err}", is_error=True)
+
         tool = self._tools[name]
         try:
             res = tool["func"](args, confirm_callback=confirm_callback)
+
+            # 2. Post-tool lifecycle hook (Correction Tracker & Audit)
+            interceptor.execute_lifecycle_hook(
+                event="post_tool", tool_name=name, args=args, result=res.output
+            )
+
             audit_manager.record(
                 event_type="tool_exec",
                 description=f"Executed tool: {name}",

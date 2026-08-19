@@ -34,9 +34,11 @@ const SOURCE_DIRS = [
   { name: 'claude', path: path.join(HOME, '.claude', 'skills') },
   { name: 'codex', path: path.join(HOME, '.codex', 'skills') },
   { name: 'gemini', path: path.join(HOME, '.gemini', 'config', 'skills') },
+  { name: 'gemini-plugins', path: path.join(HOME, '.gemini', 'config', 'plugins') },
   { name: 'antigravity-builtin', path: path.join(HOME, '.gemini', 'antigravity-cli', 'builtin', 'skills') },
   { name: 'agents', path: path.join(HOME, '.agents', 'skills') },
-  { name: 'openhands', path: path.join(HOME, '.openhands', 'skills') }
+  { name: 'openhands', path: path.join(HOME, '.openhands', 'skills') },
+  { name: 'project-phone', path: 'C:\\Projects\\phone-claude\\skills' }
 ];
 
 const IGNORED_NAMES = new Set([
@@ -137,35 +139,60 @@ function consolidateSkills() {
   // Track discovered skills
   const discovered = new Map(); // id -> { name, sourcePaths: [], primarySource }
 
-  for (const src of SOURCE_DIRS) {
-    if (!fs.existsSync(src.path)) continue;
+  function scanDirForSkills(dirPath, sourceName, depth = 0) {
+    if (!fs.existsSync(dirPath) || depth > 3) return;
     try {
-      const items = fs.readdirSync(src.path, { withFileTypes: true });
+      // Check if current directory is itself a skill
+      if (fs.existsSync(path.join(dirPath, 'SKILL.md')) && depth > 0) {
+        const skillName = path.basename(dirPath);
+        const skillId = skillName.toLowerCase();
+        if (!discovered.has(skillId)) {
+          discovered.set(skillId, {
+            id: skillId,
+            rawName: skillName,
+            sourcePaths: [dirPath],
+            sourceClients: [sourceName]
+          });
+        } else {
+          const entry = discovered.get(skillId);
+          entry.sourcePaths.push(dirPath);
+          if (!entry.sourceClients.includes(sourceName)) entry.sourceClients.push(sourceName);
+        }
+        return;
+      }
+
+      const items = fs.readdirSync(dirPath, { withFileTypes: true });
       for (const item of items) {
         if (!item.isDirectory()) continue;
         if (IGNORED_NAMES.has(item.name)) continue;
 
-        const skillId = item.name.toLowerCase();
-        const fullPath = path.join(src.path, item.name);
-
-        if (!discovered.has(skillId)) {
-          discovered.set(skillId, {
-            id: skillId,
-            rawName: item.name,
-            sourcePaths: [fullPath],
-            sourceClients: [src.name]
-          });
-        } else {
-          const entry = discovered.get(skillId);
-          entry.sourcePaths.push(fullPath);
-          if (!entry.sourceClients.includes(src.name)) {
-            entry.sourceClients.push(src.name);
+        const fullPath = path.join(dirPath, item.name);
+        // If it directly has SKILL.md or is a skill container
+        if (fs.existsSync(path.join(fullPath, 'SKILL.md'))) {
+          const skillId = item.name.toLowerCase();
+          if (!discovered.has(skillId)) {
+            discovered.set(skillId, {
+              id: skillId,
+              rawName: item.name,
+              sourcePaths: [fullPath],
+              sourceClients: [sourceName]
+            });
+          } else {
+            const entry = discovered.get(skillId);
+            entry.sourcePaths.push(fullPath);
+            if (!entry.sourceClients.includes(sourceName)) entry.sourceClients.push(sourceName);
           }
+        } else if (item.name === 'skills' || sourceName === 'gemini-plugins' || depth === 0) {
+          scanDirForSkills(fullPath, sourceName, depth + 1);
         }
       }
     } catch (err) {
-      console.warn(`  [Warning] Could not scan ${src.path}: ${err.message}`);
+      console.warn(`  [Warning] Could not scan ${dirPath}: ${err.message}`);
     }
+  }
+
+  for (const src of SOURCE_DIRS) {
+    scanDirForSkills(src.path, src.name, 0);
   }
 
   console.log(`[Skills] Discovered ${discovered.size} unique skills across all agent locations.`);
