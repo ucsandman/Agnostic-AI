@@ -55,7 +55,7 @@ agnostic > /fix
 | Command / Trigger | Capability | What It Does |
 |---|---|---|
 | `@<filename>` / `#<symbol>` | **AST Context Injection** | Dynamic fuzzy auto-completion in terminal; injects exact file content or AST class/function slice directly into prompt. |
-| `/model` | **Interactive Model & Effort Picker** | Arrow-key navigation across **Google Antigravity** (Gemini 3.7), **Claude Code** (Claude 5), **OpenAI Codex** (GPT-5.6 Sol, o3-pro), **DeepSeek** (V4-Pro), and **Local** with reasoning effort control (`low`, `medium`, `high`). |
+| `/model` | **Interactive Model & Effort Picker** | Arrow-key navigation across **Native Monthly Subscriptions** (Google Antigravity `agy`, Claude Code `claude`, OpenAI `codex` with zero API keys required), **Developer API Presets** (Gemini 3.7, Claude 5, GPT-5.6 Sol, DeepSeek V4-Pro), and **Local Offline** with reasoning effort control (`low`, `medium`, `high`). |
 | `/fix [cmd]` | **One-Click Quick Fix** | Runs tests or inspects stack traces, diagnoses root cause, and executes a surgical fix in a single turn. |
 | `/compact` | **Smart Context Compaction** | Manually condenses older turns into structured distillation preserving touched files, test results, and symbol anchors. |
 | `/checkpoint save\|restore\|list` | **Atomic Multi-File Checkpoints** | Creates named checkpoints to atomically roll back multi-file transactions across refactors. |

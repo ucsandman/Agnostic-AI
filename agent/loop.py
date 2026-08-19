@@ -284,7 +284,22 @@ class AgentLoop:
                         )
 
             except Exception as e:
-                err_msg = f"Turn execution error: {str(e)}"
+                err_str = str(e)
+                if "400" in err_str and (
+                    "API key" in err_str or "INVALID_ARGUMENT" in err_str
+                ):
+                    err_msg = (
+                        f"Turn execution error: {err_str}\n"
+                        f"💡 [Tip]: Ensure GEMINI_API_KEY (or GOOGLE_API_KEY) is set in your environment, "
+                        f"or switch provider/model using /model."
+                    )
+                elif "401" in err_str or "authentication" in err_str.lower():
+                    err_msg = (
+                        f"Turn execution error: {err_str}\n"
+                        f"💡 [Tip]: Authentication failed. Check your API key for the active provider."
+                    )
+                else:
+                    err_msg = f"Turn execution error: {err_str}"
                 self.output_callback("error", err_msg)
                 return err_msg
 

@@ -412,3 +412,59 @@ def test_model_switching_and_presets():
     msg = client.switch_model(preset_key="deepseek-v4-pro")
     assert "DeepSeek V4-Pro" in msg
     assert client.config.model == "deepseek-v4-pro"
+
+    # Test alt_api_key_envs resolution for Google Antigravity
+    import os
+
+    os.environ["GOOGLE_API_KEY"] = "mock-google-key"
+    if "GEMINI_API_KEY" in os.environ:
+        del os.environ["GEMINI_API_KEY"]
+    client.switch_model(preset_key="agy-flash-3.7")
+    assert client.config.api_key == "mock-google-key"
+    del os.environ["GOOGLE_API_KEY"]
+
+    # Test Native Subscription Presets (Zero API Key)
+    msg = client.switch_model(
+        preset_key="sub-google-antigravity", reasoning_effort="high"
+    )
+    assert "Google Antigravity (Logged-In Monthly Subscription)" in msg
+    assert client.config.provider == "google-sub"
+    assert client.config.reasoning_effort == "high"
+
+    msg = client.switch_model(preset_key="sub-claude-code")
+    assert "Claude Code (Logged-In Monthly Subscription)" in msg
+    assert client.config.provider == "anthropic-sub"
+
+    msg = client.switch_model(preset_key="sub-openai-codex")
+    assert "OpenAI Codex (Logged-In Monthly Subscription)" in msg
+    assert client.config.provider == "openai-sub"
+
+
+def test_subscription_bridge_prompt_formatting():
+    from agent.llm.client import SubprocessSubscriptionBridge
+
+    messages = [
+        {"role": "user", "content": "What is 2+2?"},
+        {
+            "role": "assistant",
+            "content": "4",
+            "tool_calls": [{"function": {"name": "calc", "arguments": "{}"}}],
+        },
+        {"role": "user", "content": "Great!"},
+    ]
+    tools = [
+        {
+            "function": {
+                "name": "calc",
+                "description": "Calculator",
+                "parameters": {"type": "object"},
+            }
+        }
+    ]
+    formatted = SubprocessSubscriptionBridge._format_conversation_prompt(
+        messages, tools
+    )
+    assert "Calculator" in formatted
+    assert "What is 2+2?" in formatted
+    assert "Tool Call [calc]" in formatted
+    assert "[ASSISTANT]:" in formatted

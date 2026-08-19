@@ -499,18 +499,21 @@ def main():
                     # 1. Select Provider / Ecosystem
                     providers = [
                         {
-                            "name": "🌟 Google Antigravity (Gemini 3.7 Flash & Pro)",
+                            "name": "🌟 Google Antigravity (Subscription & Gemini API)",
                             "value": "google",
                         },
                         {
-                            "name": "⚡ Anthropic Claude Code (Claude 3.7 Sonnet & Haiku)",
+                            "name": "⚡ Anthropic Claude Code (Subscription & Claude API)",
                             "value": "anthropic",
                         },
                         {
-                            "name": "🧠 OpenAI Codex (o3-mini, o1, GPT-4o)",
+                            "name": "🧠 OpenAI Codex (Subscription & OpenAI API)",
                             "value": "openai",
                         },
-                        {"name": "🔬 DeepSeek (R1 Reasoning)", "value": "deepseek"},
+                        {
+                            "name": "🔬 DeepSeek (R1 Reasoning & V4 API)",
+                            "value": "deepseek",
+                        },
                         {
                             "name": "💻 Local Offline (LM Studio / Ollama)",
                             "value": "local",
@@ -518,7 +521,7 @@ def main():
                     ]
 
                     selected_provider = questionary.select(
-                        "🏢 Select Subscription Provider / Company:",
+                        "🏢 Select Provider / Platform:",
                         choices=[
                             questionary.Choice(title=p["name"], value=p["value"])
                             for p in providers
@@ -528,11 +531,12 @@ def main():
                     if not selected_provider:
                         continue
 
-                    # 2. Select Specific Model Preset within Provider
+                    # 2. Select Specific Model Preset within Provider (matches primary or subscription provider)
                     matching_presets = [
                         (k, p)
                         for k, p in LLMConfig.PRESETS.items()
                         if p["provider"] == selected_provider
+                        or p["provider"] == f"{selected_provider}-sub"
                     ]
 
                     model_choices = []
@@ -587,6 +591,35 @@ def main():
                         preset_key=selected_preset_key, reasoning_effort=selected_effort
                     )
                     console.print(f"\n[bold green]✅ {msg}[/bold green]")
+
+                    # Verify if API key is present for non-local/non-subscription providers
+                    provider = preset_info.get("provider", "local")
+                    env_var = preset_info.get("api_key_env")
+                    if (
+                        provider != "local"
+                        and not provider.endswith("-sub")
+                        and env_var
+                        and (
+                            not agent.llm_client.config.api_key
+                            or agent.llm_client.config.api_key == "lm-studio"
+                        )
+                    ):
+                        console.print(
+                            f"[bold yellow]⚠️  Notice: No API key detected for {env_var}.[/bold yellow]"
+                        )
+                        key_input = questionary.password(
+                            f"🔑 Enter your {env_var} (or press Enter to skip if set in environment):"
+                        ).ask()
+                        if key_input and key_input.strip():
+                            agent.llm_client.config.api_key = key_input.strip()
+                            agent.llm_client._init_client()
+                            console.print(
+                                f"[bold green]🔑 {env_var} set for this session![/bold green]"
+                            )
+                        else:
+                            console.print(
+                                f"[dim]Remember to set '{env_var}' in your environment before sending queries.[/dim]"
+                            )
                 continue
 
             elif user_input == "/undo":
@@ -842,7 +875,8 @@ def main():
 
             start_time = time.time()
             with console.status(
-                f"[bold cyan]Thinking ({detected_model})...[/bold cyan]", spinner="dots"
+                f"[bold cyan]Thinking ({agent.llm_client.config.model})...[/bold cyan]",
+                spinner="dots",
             ):
                 agent.run_turn(expanded_input)
             duration = time.time() - start_time

@@ -4,41 +4,196 @@ Supports LM Studio (localhost:1234), Ollama (localhost:11434), OpenAI, vLLM, Dee
 """
 
 import os
+import json
+import subprocess
+from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
+
+
+class SubprocessSubscriptionBridge:
+    """Dispatches chat completions to locally installed, authenticated CLI tools
+
+    (Google Antigravity 'agy', Anthropic 'claude', OpenAI 'codex') using the user's
+    active flat-rate monthly login session with zero API key requirement.
+    """
+
+    @staticmethod
+    def _format_conversation_prompt(
+        messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        prompt_parts = []
+        if tools:
+            tool_signatures = []
+            for t in tools:
+                fn = t.get("function", {})
+                tool_signatures.append(
+                    f"- {fn.get('name')}: {fn.get('description', '')}\n  Arguments schema: {json.dumps(fn.get('parameters', {}))}"
+                )
+            tools_spec = (
+                "You have access to the following tools in this workspace:\n"
+                + "\n".join(tool_signatures)
+                + "\n\nWhen you need to use a tool, output a single JSON block formatted exactly as:\n"
+                '```json\n{"name": "<tool_name>", "arguments": {<args>}}\n```\n'
+                "Otherwise, answer normally in markdown.\n"
+            )
+            prompt_parts.append(tools_spec)
+
+        # Build transcript representation
+        for m in messages:
+            role = m.get("role", "user").upper()
+            content = m.get("content") or ""
+            if "tool_calls" in m:
+                calls = m["tool_calls"]
+                call_strs = [
+                    f"Tool Call [{tc.get('function', {}).get('name')}]: {tc.get('function', {}).get('arguments')}"
+                    for tc in calls
+                ]
+                content = (content + "\n" + "\n".join(call_strs)).strip()
+            prompt_parts.append(f"[{role}]:\n{content}")
+
+        prompt_parts.append("[ASSISTANT]:\n")
+        return "\n\n".join(prompt_parts)
+
+    @classmethod
+    def execute_turn(
+        cls,
+        provider: str,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        reasoning_effort: str = "medium",
+    ) -> Any:
+        prompt_text = cls._format_conversation_prompt(messages, tools)
+
+        if provider == "google-sub":
+            cmd = ["agy.exe" if os.name == "nt" else "agy", "--print", prompt_text]
+            if reasoning_effort in ("low", "medium", "high"):
+                cmd.extend(["--effort", reasoning_effort])
+        elif provider == "anthropic-sub":
+            cmd = ["claude.exe" if os.name == "nt" else "claude", "-p", prompt_text]
+        elif provider == "openai-sub":
+            cmd = ["codex.cmd" if os.name == "nt" else "codex", "exec", prompt_text]
+        else:
+            raise ValueError(f"Unknown subscription provider: {provider}")
+
+        try:
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=180,
+            )
+            raw_output = res.stdout.strip()
+            if res.returncode != 0 and not raw_output:
+                err_text = (
+                    res.stderr.strip() or f"Process exited with code {res.returncode}"
+                )
+                raise RuntimeError(f"Subscription CLI execution failed: {err_text}")
+        except FileNotFoundError:
+            raise RuntimeError(
+                f"Native CLI executable for '{provider}' not found on PATH. "
+                "Ensure it is installed or switch to API / Local mode via /model."
+            )
+
+        # Parse potential tool calls from JSON block
+        tool_calls = []
+        cleaned_content = raw_output
+
+        json_match = None
+        if "```json" in raw_output and "```" in raw_output.split("```json", 1)[1]:
+            raw_json_str = raw_output.split("```json", 1)[1].split("```", 1)[0].strip()
+            try:
+                parsed = json.loads(raw_json_str)
+                if (
+                    isinstance(parsed, dict)
+                    and "name" in parsed
+                    and "arguments" in parsed
+                ):
+                    json_match = parsed
+            except Exception:
+                pass
+
+        if json_match:
+            tool_calls.append(
+                SimpleNamespace(
+                    id="call_sub_" + str(int(subprocess.os.getpid())),
+                    function=SimpleNamespace(
+                        name=json_match["name"],
+                        arguments=json.dumps(json_match["arguments"]),
+                    ),
+                )
+            )
+
+        # Format into OpenAI-compatible response namespace
+        msg_obj = SimpleNamespace(
+            content=cleaned_content,
+            tool_calls=tool_calls if tool_calls else None,
+        )
+        choice_obj = SimpleNamespace(message=msg_obj)
+        return SimpleNamespace(choices=[choice_obj])
 
 
 class LLMConfig:
     # Comprehensive Frontier Subscription Presets
     PRESETS: Dict[str, Dict[str, Any]] = {
-        # --- Google Antigravity (Gemini Series) ---
+        # --- Native Monthly Subscriptions (Zero API Key / OAuth CLI) ---
+        "sub-google-antigravity": {
+            "name": "🌟 Google Antigravity (Logged-In Monthly Subscription)",
+            "provider": "google-sub",
+            "model": "google-antigravity-subscription",
+            "base_url": "subscription://agy",
+            "api_key_env": None,
+            "default_effort": "medium",
+        },
+        "sub-claude-code": {
+            "name": "⚡ Anthropic Claude Code (Logged-In Monthly Subscription)",
+            "provider": "anthropic-sub",
+            "model": "claude-code-subscription",
+            "base_url": "subscription://claude",
+            "api_key_env": None,
+            "default_effort": "high",
+        },
+        "sub-openai-codex": {
+            "name": "🧠 OpenAI Codex (Logged-In Monthly Subscription)",
+            "provider": "openai-sub",
+            "model": "openai-codex-subscription",
+            "base_url": "subscription://codex",
+            "api_key_env": None,
+            "default_effort": "high",
+        },
+        # --- Google Antigravity (Gemini API Key) ---
         "agy-flash-3.7": {
-            "name": "Google Antigravity Flash (Gemini 3.7 Flash - Agentic Workhorse)",
+            "name": "Google Antigravity Flash (Gemini 3.7 Flash - Developer API Key)",
             "provider": "google",
             "model": "gemini-3.7-flash",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "api_key_env": "GEMINI_API_KEY",
+            "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "low",
         },
         "agy-pro-3.1": {
-            "name": "Google Antigravity Pro (Gemini 3.1 Pro - Deep Reasoning Flagship)",
+            "name": "Google Antigravity Pro (Gemini 3.1 Pro - Developer API Key)",
             "provider": "google",
             "model": "gemini-3.1-pro",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "api_key_env": "GEMINI_API_KEY",
+            "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "high",
         },
         "agy-flash-3.6": {
-            "name": "Google Antigravity Flash (Gemini 3.6 Flash)",
+            "name": "Google Antigravity Flash (Gemini 3.6 Flash - Developer API Key)",
             "provider": "google",
             "model": "gemini-3.6-flash",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "api_key_env": "GEMINI_API_KEY",
+            "alt_api_key_envs": ["GOOGLE_API_KEY"],
             "default_effort": "low",
         },
-        # --- Anthropic (Claude 5 & 4.5 Series) ---
+        # --- Anthropic (Claude Developer API Key) ---
         "claude-sonnet-5": {
-            "name": "Claude Code Sonnet 5 (Flagship Balanced Agent)",
+            "name": "Claude Code Sonnet 5 (Developer API Key)",
             "provider": "anthropic",
             "model": "claude-sonnet-5",
             "base_url": "https://api.anthropic.com/v1",
@@ -46,7 +201,7 @@ class LLMConfig:
             "default_effort": "high",
         },
         "claude-opus-5": {
-            "name": "Claude Code Opus 5 (Enterprise Heavy Coding)",
+            "name": "Claude Code Opus 5 (Developer API Key)",
             "provider": "anthropic",
             "model": "claude-opus-5",
             "base_url": "https://api.anthropic.com/v1",
@@ -54,7 +209,7 @@ class LLMConfig:
             "default_effort": "high",
         },
         "claude-fable-5": {
-            "name": "Claude Code Fable 5 (Next-Gen Autonomous Thinking)",
+            "name": "Claude Code Fable 5 (Developer API Key)",
             "provider": "anthropic",
             "model": "claude-fable-5",
             "base_url": "https://api.anthropic.com/v1",
@@ -62,16 +217,16 @@ class LLMConfig:
             "default_effort": "high",
         },
         "claude-haiku-4.5": {
-            "name": "Claude Code Haiku 4.5 (High-Speed Lightweight)",
+            "name": "Claude Code Haiku 4.5 (Developer API Key)",
             "provider": "anthropic",
             "model": "claude-haiku-4.5",
             "base_url": "https://api.anthropic.com/v1",
             "api_key_env": "ANTHROPIC_API_KEY",
             "default_effort": "low",
         },
-        # --- OpenAI Codex (GPT-5.6 & o-Series) ---
+        # --- OpenAI Codex (Developer API Key) ---
         "codex-gpt-5.6-sol": {
-            "name": "OpenAI Codex GPT-5.6 Sol (Flagship Architecture & Coding)",
+            "name": "OpenAI Codex GPT-5.6 Sol (Developer API Key)",
             "provider": "openai",
             "model": "gpt-5.6-sol",
             "base_url": "https://api.openai.com/v1",
@@ -79,7 +234,7 @@ class LLMConfig:
             "default_effort": "high",
         },
         "codex-gpt-5.6-terra": {
-            "name": "OpenAI Codex GPT-5.6 Terra (Mid-Tier Balanced)",
+            "name": "OpenAI Codex GPT-5.6 Terra (Developer API Key)",
             "provider": "openai",
             "model": "gpt-5.6-terra",
             "base_url": "https://api.openai.com/v1",
@@ -87,7 +242,7 @@ class LLMConfig:
             "default_effort": "medium",
         },
         "codex-gpt-5.6-luna": {
-            "name": "OpenAI Codex GPT-5.6 Luna (Fast Agentic)",
+            "name": "OpenAI Codex GPT-5.6 Luna (Developer API Key)",
             "provider": "openai",
             "model": "gpt-5.6-luna",
             "base_url": "https://api.openai.com/v1",
@@ -95,7 +250,7 @@ class LLMConfig:
             "default_effort": "low",
         },
         "codex-o3-pro": {
-            "name": "OpenAI Codex o3-pro (Deep Multi-Step Reasoning)",
+            "name": "OpenAI Codex o3-pro (Developer API Key)",
             "provider": "openai",
             "model": "o3-pro",
             "base_url": "https://api.openai.com/v1",
@@ -103,7 +258,7 @@ class LLMConfig:
             "default_effort": "high",
         },
         "codex-o4-mini": {
-            "name": "OpenAI Codex o4-mini (Fast Mathematical Reasoning)",
+            "name": "OpenAI Codex o4-mini (Developer API Key)",
             "provider": "openai",
             "model": "o4-mini",
             "base_url": "https://api.openai.com/v1",
@@ -112,7 +267,7 @@ class LLMConfig:
         },
         # --- DeepSeek (V4 & R-Series) ---
         "deepseek-v4-pro": {
-            "name": "DeepSeek V4-Pro (1.6T MoE / 1M Context Flagship)",
+            "name": "DeepSeek V4-Pro (Developer API Key)",
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
             "base_url": "https://api.deepseek.com/v1",
@@ -120,7 +275,7 @@ class LLMConfig:
             "default_effort": "high",
         },
         "deepseek-v4-flash": {
-            "name": "DeepSeek V4-Flash (High-Efficiency 300B MoE)",
+            "name": "DeepSeek V4-Flash (Developer API Key)",
             "provider": "deepseek",
             "model": "deepseek-v4-flash",
             "base_url": "https://api.deepseek.com/v1",
@@ -128,7 +283,7 @@ class LLMConfig:
             "default_effort": "low",
         },
         "deepseek-r1": {
-            "name": "DeepSeek R1 (Distilled Chain-of-Thought)",
+            "name": "DeepSeek R1 (Developer API Key)",
             "provider": "deepseek",
             "model": "deepseek-reasoner",
             "base_url": "https://api.deepseek.com/v1",
@@ -173,10 +328,13 @@ class LLMClient:
         self._init_client()
 
     def _init_client(self):
-        self.client = OpenAI(
-            base_url=self.config.base_url,
-            api_key=self.config.api_key,
-        )
+        if not self.config.provider.endswith("-sub"):
+            self.client = OpenAI(
+                base_url=self.config.base_url,
+                api_key=self.config.api_key or "local",
+            )
+        else:
+            self.client = None
 
     def switch_model(
         self,
@@ -193,10 +351,22 @@ class LLMClient:
             self.config.base_url = preset["base_url"]
             self.config.provider = preset["provider"]
             env_key = preset.get("api_key_env")
+            found_key = None
             if env_key and os.getenv(env_key):
-                self.config.api_key = os.getenv(env_key)
+                found_key = os.getenv(env_key)
+            else:
+                for alt in preset.get("alt_api_key_envs", []):
+                    if os.getenv(alt):
+                        found_key = os.getenv(alt)
+                        break
+
+            if found_key:
+                self.config.api_key = found_key
             elif api_key:
                 self.config.api_key = api_key
+            elif self.config.provider.endswith("-sub"):
+                self.config.api_key = None
+
             if reasoning_effort:
                 self.config.reasoning_effort = reasoning_effort
             else:
@@ -223,6 +393,14 @@ class LLMClient:
         stream: bool = False,
     ):
         """Invoke chat completion with tool calling and reasoning effort support."""
+        if self.config.provider.endswith("-sub"):
+            return SubprocessSubscriptionBridge.execute_turn(
+                provider=self.config.provider,
+                messages=messages,
+                tools=tools,
+                reasoning_effort=self.config.reasoning_effort,
+            )
+
         kwargs: Dict[str, Any] = {
             "model": self.config.model,
             "messages": messages,
