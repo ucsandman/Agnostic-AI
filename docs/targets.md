@@ -10,7 +10,7 @@
 
 | Client | Category | Rules file | Traits file | Hook config | Skills dir |
 |---|---|---|---|---|---|
-**Claude Code** | CLI Agent | `~/.claude/CLAUDE.md` | `~/.claude/SOUL.md` | `~/.claude/settings.json` | `~/.claude/skills`
+**Claude Code** | CLI Agent | `~/.claude/agnostic-rules.md` | `~/.claude/SOUL.md` | `~/.claude/settings.json` | `~/.claude/skills`
 **Codex CLI** | CLI Agent | `~/.codex/AGENTS.md` | - | `~/.codex/hooks.json` | `~/.codex/skills`
 **Antigravity CLI (agy)** | CLI Agent | `~/.gemini/GEMINI.md` | - | `~/.gemini/config/hooks.json` | `~/.gemini/config/skills`
 **Cursor** | Agentic IDE | `~/.cursor/rules/global-rules.mdc` | - | `~/.cursor/mcp.json` | `~/.cursor/rules`
