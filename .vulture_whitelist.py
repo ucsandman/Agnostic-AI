@@ -16,6 +16,7 @@ from agent.loop import AgentLoop
 from agent.tools.indexer import SymbolInfo
 from agent.tools.registry import ToolRegistry, ToolResult
 from agent.tools.subagent import SubagentManager, SubagentWorker
+from agent.governance.memory import MemoryStore
 from agent.tui import AgnosticTUI
 from agent.tui_model_picker import ModelPickerScreen
 from agent.tui_picker import PickerScreen
@@ -115,3 +116,10 @@ AgentLoop.run_turn
 _forget_codex_help  # noqa: F821
 isolated_home  # noqa: F821
 no_user_pricing  # noqa: F821
+# Used by loop.py / tui phase — dead only when those callers are not staged.
+
+MemoryStore
+MemoryStore.save
+MemoryStore.delete
+MemoryStore.index_text
+MemoryStore.recall

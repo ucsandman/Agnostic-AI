@@ -224,7 +224,9 @@ class MemoryStore:
     @staticmethod
     def _write_atomic(path: Path, text: str):
         tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(text, encoding="utf-8", newline="\n")
+        # open() not Path.write_text: the newline kwarg needs Python 3.10+ and CI runs 3.9.
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
         os.replace(tmp, path)
 
     def _write_index(self):
