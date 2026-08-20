@@ -15,8 +15,10 @@ from agent.governance.watchdog import SandboxWatchdog, watchdog
 from agent.loop import AgentLoop
 from agent.tools.indexer import SymbolInfo
 from agent.tools.registry import ToolRegistry, ToolResult
-from agent.tools.subagent import SubagentManager
+from agent.tools.subagent import SubagentManager, SubagentWorker
 from agent.tui import AgnosticTUI
+from agent.tui_model_picker import ModelPickerScreen
+from textual.widgets import OptionList
 from agent.web.server import CompanionHandler, CompanionTelemetry, _CompanionServer
 from agent.workflows.pr_pilot import PRAutoPilot
 from agent.workflows.scheduler import TaskScheduler
@@ -85,3 +87,13 @@ ui_common.help_text
 ui_common.complete_token
 ui_common.stream_tail
 ui_common.LineForwarder
+# Textual framework hooks on the /model picker screen: DEFAULT_CSS, message
+# handlers and action_* methods are invoked by Textual, never by our code.
+ModelPickerScreen.DEFAULT_CSS
+ModelPickerScreen.on_option_list_option_selected
+ModelPickerScreen.action_pick
+ModelPickerScreen.action_back
+OptionList.highlighted
+# test stubs in tests/test_loop_client.py: read by the code under test, not the test
+AgentLoop.turn_lock
+SubagentWorker.build_registry

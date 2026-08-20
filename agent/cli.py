@@ -609,10 +609,16 @@ def main(argv: Optional[List[str]] = None):
             elif user_input.startswith("/model"):
                 parts = user_input.split()
                 if len(parts) > 1:
-                    target_key = parts[1].lower()
-                    effort = parts[2].lower() if len(parts) > 2 else None
+                    from agent.ui_common import parse_model_args
+
+                    target_key, sub_model, effort, err = parse_model_args(
+                        parts[1:], LLMConfig.PRESETS
+                    )
+                    if err:
+                        console.print(f"[yellow]{err}[/yellow]")
+                        continue
                     msg = agent.llm_client.switch_model(
-                        preset_key=target_key, reasoning_effort=effort
+                        preset_key=target_key, sub_model=sub_model, reasoning_effort=effort
                     )
                     console.print(f"[bold green]🧠 {msg}[/bold green]")
                 else:
@@ -682,6 +688,16 @@ def main(argv: Optional[List[str]] = None):
 
                     preset_info = LLMConfig.PRESETS[selected_preset_key]
 
+                    # 2b. Subscription presets: which concrete model the CLI should run
+                    selected_sub_model = None
+                    sub_models = LLMConfig.sub_models(selected_preset_key)
+                    if sub_models:
+                        selected_sub_model = questionary.select(
+                            "🎯 Which model should the subscription CLI run?",
+                            choices=[questionary.Choice(title="CLI default", value=None)]
+                            + [questionary.Choice(title=m, value=m) for m in sub_models],
+                        ).ask()
+
                     # 3. Select Reasoning / Thinking Effort Level
                     effort_choices = [
                         questionary.Choice(
@@ -707,7 +723,9 @@ def main(argv: Optional[List[str]] = None):
                         selected_effort = preset_info.get("default_effort", "medium")
 
                     msg = agent.llm_client.switch_model(
-                        preset_key=selected_preset_key, reasoning_effort=selected_effort
+                        preset_key=selected_preset_key,
+                        sub_model=selected_sub_model,
+                        reasoning_effort=selected_effort,
                     )
                     console.print(f"\n[bold green]✅ {msg}[/bold green]")
 

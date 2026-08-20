@@ -81,6 +81,7 @@ class SubprocessSubscriptionBridge:
         reasoning_effort: str = "medium",
         stream_callback: Optional[Any] = None,
         timeout: int = 180,
+        model: Optional[str] = None,
     ) -> Any:
         prompt_text = cls._format_conversation_prompt(messages, tools)
 
@@ -94,6 +95,8 @@ class SubprocessSubscriptionBridge:
             ]
             if reasoning_effort in ("low", "medium", "high"):
                 cmd.extend(["--effort", reasoning_effort])
+            if model:
+                cmd.extend(["--model", model])
         elif provider == "anthropic-sub":
             cmd = [
                 "claude.exe" if os.name == "nt" else "claude",
@@ -101,6 +104,8 @@ class SubprocessSubscriptionBridge:
                 prompt_text,
                 "--dangerously-skip-permissions",
             ]
+            if model:
+                cmd.extend(["--model", model])
         elif provider == "openai-sub":
             cmd = [
                 "codex.cmd" if os.name == "nt" else "codex",
@@ -108,6 +113,8 @@ class SubprocessSubscriptionBridge:
                 prompt_text,
                 "--dangerously-bypass-approvals",
             ]
+            if model:
+                cmd.extend(["-m", model])
         else:
             raise ValueError(f"Unknown subscription provider: {provider}")
 
@@ -410,6 +417,22 @@ class LLMConfig:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
+        # Concrete model handed to a subscription CLI (--model); None = CLI default.
+        self.sub_model: Optional[str] = None
+
+    @classmethod
+    def sub_models(cls, preset_key: str) -> List[str]:
+        """Models a subscription preset can run: the API-key presets of the same
+        vendor (sub-claude-code -> claude-fable-5, claude-opus-5, ...)."""
+        preset = cls.PRESETS.get(preset_key) or {}
+        provider = str(preset.get("provider", ""))
+        if not provider.endswith("-sub"):
+            return []
+        vendor = provider[: -len("-sub")]
+        return [str(p["model"]) for p in cls.PRESETS.values() if p.get("provider") == vendor]
+
+    def display_model(self) -> str:
+        return f"{self.model}/{self.sub_model}" if self.sub_model else self.model
 
 
 class LLMClient:
@@ -437,13 +460,17 @@ class LLMClient:
         else:
             self.client = None
 
-    def supports_reasoning_effort(self) -> bool:
-        """True when the active preset actually forwards reasoning effort to the backend."""
-        if self.config.provider == "google-sub":
+    @classmethod
+    def effort_supported(cls, provider: str, model: str) -> bool:
+        """True when (provider, model) actually forwards reasoning effort to the backend."""
+        if provider == "google-sub":
             return True  # passed as `--effort` to the agy CLI
-        if self.config.provider.endswith("-sub"):
+        if provider.endswith("-sub"):
             return False
-        return self.config.model.startswith(self.EFFORT_MODEL_PREFIXES)
+        return model.startswith(cls.EFFORT_MODEL_PREFIXES)
+
+    def supports_reasoning_effort(self) -> bool:
+        return self.effort_supported(self.config.provider, self.config.model)
 
     def _effort_note(self) -> str:
         effort = self.config.reasoning_effort.upper()
@@ -495,8 +522,12 @@ class LLMClient:
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         reasoning_effort: Optional[str] = None,
+        sub_model: Optional[str] = None,
     ) -> str:
-        """Switch active model configuration or load from subscription presets."""
+        """Switch active model configuration or load from subscription presets.
+
+        `sub_model` picks the concrete model a subscription CLI runs (e.g.
+        'claude-fable-5' under sub-claude-code); ignored for non-subscription presets."""
         from agent.governance.context import context_manager
 
         if preset_key and preset_key in LLMConfig.PRESETS:
@@ -536,13 +567,17 @@ class LLMClient:
             self.config.context_window = preset.get("context_window", 32768)
             context_manager.set_max_tokens(self.config.context_window)
             self.config.api_key = key
+            self.config.sub_model = (
+                sub_model if preset["provider"].endswith("-sub") and sub_model else None
+            )
 
             if reasoning_effort:
                 self.config.reasoning_effort = reasoning_effort
             else:
                 self.config.reasoning_effort = preset.get("default_effort", "medium")
             self._init_client()
-            return f"Switched to preset '{preset['name']}' ({self._effort_note()}, Context: {self.config.context_window:,} tokens)"
+            via = f" running {self.config.sub_model}" if self.config.sub_model else ""
+            return f"Switched to preset '{preset['name']}'{via} ({self._effort_note()}, Context: {self.config.context_window:,} tokens)"
 
         if model:
             self.config.model = model
@@ -570,6 +605,7 @@ class LLMClient:
                 messages=messages,
                 tools=tools,
                 reasoning_effort=self.config.reasoning_effort,
+                model=self.config.sub_model,
                 stream_callback=stream_callback,
             )
 

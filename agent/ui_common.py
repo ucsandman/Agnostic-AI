@@ -43,7 +43,7 @@ SLASH_COMMANDS = {
     "/harvest": "run engine/harvest/harvest.cjs over local agent logs",
     "/test": "[cmd] — loop fix-and-rerun until the tests pass or the retry cap",
     "/doctor": "probe the endpoint: model id, context length, latency",
-    "/model": "[key|N] [effort] — list the presets, or switch model and effort",
+    "/model": "[key|N] [sub-model] [effort] — interactive picker, or switch preset/model/effort",
     "/undo": "revert the last file write / edit",
     "/checkpoint": "save|restore|list [name] — named multi-file snapshots",
     "/commit": "propose a conventional commit from git status + diff",
@@ -372,6 +372,36 @@ def model_preset_rows(presets: dict, active_model: str, local_online: bool = Fal
             )
         )
     return rows
+
+
+EFFORT_LEVELS = ("low", "medium", "high")
+
+
+def parse_model_args(
+    tokens: list, presets: dict
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """'/model <key|N> [sub-model] [effort]' -> (preset_key, sub_model, effort, error).
+
+    A 1-based number indexes PRESETS order (the /model table); an effort word is
+    recognised anywhere after the key, everything else is the subscription's
+    concrete model (e.g. '/model 2 claude-fable-5' or '/model 2 fable high').
+    """
+    if not tokens:
+        return None, None, None, None
+    key = tokens[0].lower()
+    if key.isdigit():
+        keys = list(presets)
+        idx = int(key) - 1
+        if not 0 <= idx < len(keys):
+            return None, None, None, f"No preset #{key}. Type /model to list."
+        key = keys[idx]
+    sub_model = effort = None
+    for tok in tokens[1:]:
+        if tok.lower() in EFFORT_LEVELS:
+            effort = tok.lower()
+        else:
+            sub_model = tok
+    return key, sub_model, effort, None
 
 
 def endpoint_status_line(detection: dict, model: str) -> Tuple[str, str]:

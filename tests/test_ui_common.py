@@ -508,10 +508,11 @@ def test_model_preset_rows_marks_the_active_preset_and_reports_availability(monk
     assert all(r[1] == "" for r in offline)
 
 
-def test_tui_model_command_lists_presets_instead_of_deferring_to_the_legacy_cli():
+def test_tui_model_command_opens_the_interactive_picker_instead_of_deferring_to_the_legacy_cli():
     src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
     assert "Use the original CLI for the interactive model picker" not in src
-    assert "model_preset_rows" in src
+    assert "ModelPickerScreen" in src
+    assert "parse_model_args" in src
 
 
 # --- The TUI input has prompt history, shared with the legacy CLI -----------------
@@ -725,3 +726,71 @@ def test_tui_banner_shows_the_probing_state_until_the_endpoint_answers():
     src = inspect.getsource(tui.AgnosticTUI._show_endpoint_status)
     assert "endpoint_status_line" in src
     assert "probing" in src, "an unprobed endpoint must not be rendered as offline"
+
+
+# --- /model: argument parsing and the interactive picker ---------------------------
+
+
+def test_parse_model_args_accepts_number_sub_model_and_effort_in_any_order():
+    from agent.ui_common import parse_model_args
+    from agent.llm.client import LLMConfig
+
+    keys = list(LLMConfig.PRESETS)
+    assert parse_model_args(["2", "claude-fable-5", "high"], LLMConfig.PRESETS) == (
+        keys[1],
+        "claude-fable-5",
+        "high",
+        None,
+    )
+    assert parse_model_args(["sub-claude-code", "HIGH", "fable"], LLMConfig.PRESETS) == (
+        "sub-claude-code",
+        "fable",
+        "high",
+        None,
+    )
+    assert parse_model_args(["3", "low"], LLMConfig.PRESETS) == (keys[2], None, "low", None)
+    assert parse_model_args(["99"], LLMConfig.PRESETS)[3].startswith("No preset #99")
+    assert parse_model_args([], LLMConfig.PRESETS) == (None, None, None, None)
+
+
+def test_model_picker_walks_preset_sub_model_and_effort_with_the_keyboard():
+    import asyncio
+    from textual.app import App
+    from agent.llm.client import LLMConfig
+    from agent.tui_model_picker import ModelPickerScreen
+
+    keys = list(LLMConfig.PRESETS)
+    results = []
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(ModelPickerScreen("claude-code-subscription"), callback=results.append)
+
+    async def drive(keys_to_press):
+        results.clear()
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            for k in keys_to_press:
+                await pilot.press(k)
+                await pilot.pause()
+
+    # Active preset is highlighted; Enter on sub-claude-code -> sub-model list -> pick
+    # the 2nd model with Space; claude CLI ignores effort so it finishes there.
+    asyncio.run(drive(["enter", "down", "down", "space"]))
+    sub = LLMConfig.sub_models("sub-claude-code")
+    assert results == [("sub-claude-code", sub[1], None)]
+
+    # Esc on the first step cancels; on a later step it goes back.
+    asyncio.run(drive(["escape"]))
+    assert results == [None]
+    asyncio.run(drive(["enter", "escape", "escape"]))
+    assert results == [None]
+
+    # Antigravity subscription: sub-model then effort (agy takes --effort).
+    asyncio.run(drive(["up", "enter", "enter", "down", "enter"]))  # medium (default) -> high
+    assert results == [(keys[0], None, "high")]
+
+    # Number 4 (an API-key Gemini preset) skips the sub-model step, asks effort.
+    asyncio.run(drive(["down", "down", "enter", "enter"]))
+    assert results == [(keys[3], None, LLMConfig.PRESETS[keys[3]]["default_effort"])]

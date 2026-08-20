@@ -21,7 +21,7 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 
 | Command | UI | What it does |
 |---|---|---|
-| `/model [preset] [effort]` | both | Pick a preset: subscription bridges (`agy`, `claude`, `codex` CLIs, no API key), hosted APIs (Gemini, Claude, GPT, DeepSeek; key from env), or a local / custom OpenAI-compatible endpoint. Optional effort `low` / `medium` / `high`. With no args the legacy shell opens an arrow-key picker and the TUI prints a numbered preset table (context window, default effort, whether the key / CLI / endpoint is actually available); pick from it with `/model <key or number> [effort]`. |
+| `/model [preset] [model] [effort]` | both | Pick a preset: subscription bridges (`agy`, `claude`, `codex` CLIs, no API key), hosted APIs (Gemini, Claude, GPT, DeepSeek; key from env), or a local / custom OpenAI-compatible endpoint. With no args both shells open an arrow-key picker (↑/↓, Space/Enter to select, Esc back): preset, then — for a subscription — the concrete model the CLI should run (e.g. Claude Code Monthly Subscription → `claude-fable-5`), then effort `low` / `medium` / `high` when the model honours it. Text form: `/model <key or number> [model] [effort]`, e.g. `/model 2 claude-fable-5 high`. |
 | `/doctor` | both | Probe the configured endpoint: model id, context length, latency. |
 | `/compact` | both | Condense older turns into a summary that keeps touched files, test results and symbols. Also happens automatically near the context limit. |
 | `/session save\|load\|list <name>` | both | Snapshot / restore the conversation and whiteboard. |

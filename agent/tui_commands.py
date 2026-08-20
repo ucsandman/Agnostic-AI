@@ -17,8 +17,6 @@ from textual.widgets import RichLog
 from rich.text import Text
 from rich.panel import Panel
 from rich.markdown import Markdown
-from rich.table import Table
-from rich import box
 
 from agent.llm.client import LLMConfig
 from agent.governance.undo import undo_manager, theme_manager
@@ -29,7 +27,7 @@ from agent.governance.session_manager import session_manager
 from agent.ui_common import (
     help_text,
     maybe_start_web_companion,
-    model_preset_rows,
+    parse_model_args,
     parse_slash_command,
     safe_text,
 )
@@ -39,6 +37,19 @@ class SlashCommandMixin:
     """/commands for AgnosticTUI. Host must provide: agent, doctor, detection,
     test_runner, query_one, _write_output, _post_output, _print_banner,
     _dispatch_background, _run_agent_turn, _update_status_bar, _agent_busy."""
+
+    def _apply_model_pick(self, pick) -> None:
+        """Picker/argument result -> switch_model -> echo. pick is
+        (preset_key, sub_model, effort) or None when the picker was cancelled."""
+        if not pick:
+            return
+        key, sub_model, effort = pick
+        msg = self.agent.llm_client.switch_model(
+            preset_key=key, sub_model=sub_model, reasoning_effort=effort
+        )
+        ok = msg.startswith(("Switched", "Updated"))
+        self._write_output(Text(f"🧠 {msg}", style="bold green" if ok else "bold yellow"))
+        self._update_status_bar()
 
     def _handle_slash_command(self, user_input: str) -> bool:
         """Handle slash commands. Returns True if handled, False to fall through to agent."""
@@ -207,39 +218,23 @@ class SlashCommandMixin:
             return True
 
         elif cmd == "model":
-            parts = args.split()
-            if parts:
-                target_key = parts[0].lower()
-                if target_key.isdigit():
-                    keys = list(LLMConfig.PRESETS)
-                    idx = int(target_key) - 1
-                    if not 0 <= idx < len(keys):
-                        self._write_output(
-                            Text(f"No preset #{target_key}. Type /model to list.", style="yellow")
-                        )
-                        return True
-                    target_key = keys[idx]
-                effort = parts[1].lower() if len(parts) > 1 else None
-                msg = self.agent.llm_client.switch_model(
-                    preset_key=target_key, reasoning_effort=effort
+            if args.split():
+                target_key, sub_model, effort, err = parse_model_args(
+                    args.split(), LLMConfig.PRESETS
                 )
-                self._write_output(Text(f"🧠 {msg}", style="bold green"))
+                if err:
+                    self._write_output(Text(err, style="yellow"))
+                    return True
+                self._apply_model_pick((target_key, sub_model, effort))
             else:
-                table = Table(title="Model presets", box=box.ROUNDED, border_style="cyan")
-                for col in ("#", "", "key", "name", "ctx", "effort", "availability"):
-                    table.add_column(col, overflow="fold")
-                for row in model_preset_rows(
-                    LLMConfig.PRESETS,
-                    self.agent.llm_client.config.model,
-                    local_online=self.detection.get("status") == "online",
-                ):
-                    table.add_row(*row)
-                self._write_output(table)
-                self._write_output(
-                    Text(
-                        "Pick with /model <key|number> [low|medium|high] — e.g. /model 3 high",
-                        style="dim yellow",
-                    )
+                from agent.tui_model_picker import ModelPickerScreen
+
+                self.push_screen(
+                    ModelPickerScreen(
+                        self.agent.llm_client.config.model,
+                        local_online=self.detection.get("status") == "online",
+                    ),
+                    callback=self._apply_model_pick,
                 )
             return True
 

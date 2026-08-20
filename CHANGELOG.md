@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `/model` in the TUI is an interactive picker (`agent/tui_model_picker.py`):
+  arrow keys move, Space/Enter select, Esc steps back. Preset → (subscription
+  presets only) concrete model → effort, the last step skipped when the model
+  ignores it.
+- Subscription presets can pin the model their CLI runs: pick Claude Code
+  Monthly Subscription, then `claude-fable-5`, and the bridge passes
+  `--model claude-fable-5` to `claude` (`-m` for `codex`, `--model` for `agy`).
+  `LLMConfig.sub_model`, `LLMConfig.sub_models(key)`,
+  `switch_model(sub_model=...)`; text form `/model 2 claude-fable-5 high` (any
+  order after the key, legacy CLI included). Status bar shows `preset › model`.
+
 ### Changed
 - `agent/tui.py` (1352 lines) split: the slash-command dispatcher and `/commit`
   workflow moved verbatim into `agent/tui_commands.py` as `SlashCommandMixin`

@@ -811,3 +811,61 @@ def test_registry_streams_tool_output_to_the_loop_callback(tmp_path):
     loop.registry.on_output("compiling...")
 
     assert ("tool_chunk", "compiling...") in events
+
+
+# --- Subscription presets can pin the concrete model the CLI runs -----------------
+
+
+def test_sub_models_lists_the_vendors_api_presets():
+    from agent.llm.client import LLMConfig
+
+    claude = LLMConfig.sub_models("sub-claude-code")
+    assert "claude-fable-5" in claude and "claude-opus-5" in claude
+    assert not any(m.startswith("gpt") for m in claude)
+    assert LLMConfig.sub_models("claude-fable-5") == []  # not a subscription
+
+
+def test_switch_model_pins_sub_model_only_for_subscriptions(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "placeholder-value")
+    c = _client()
+    msg = c.switch_model(preset_key="sub-claude-code", sub_model="claude-fable-5")
+    assert c.config.sub_model == "claude-fable-5"
+    assert "claude-fable-5" in msg
+    assert c.config.display_model() == "claude-code-subscription/claude-fable-5"
+
+    c.switch_model(preset_key="deepseek-v4-pro", sub_model="claude-fable-5")
+    assert c.config.sub_model is None, "sub_model is meaningless off a subscription"
+
+
+def test_subscription_bridge_passes_the_pinned_model_to_each_cli(monkeypatch):
+    import subprocess
+
+    from agent.llm.client import SubprocessSubscriptionBridge
+
+    seen = []
+
+    class FakeProc:
+        returncode = 0
+        stdout = iter(["ok\n"])
+
+        def communicate(self):
+            return "", ""
+
+        def kill(self):
+            pass
+
+    def fake_popen(cmd, **_kw):
+        seen.append(cmd)
+        return FakeProc()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    msgs = [{"role": "user", "content": "hi"}]
+    SubprocessSubscriptionBridge.execute_turn("anthropic-sub", msgs, model="claude-fable-5")
+    SubprocessSubscriptionBridge.execute_turn("openai-sub", msgs, model="gpt-5.6-sol")
+    SubprocessSubscriptionBridge.execute_turn("google-sub", msgs, model="gemini-3.1-pro")
+    SubprocessSubscriptionBridge.execute_turn("anthropic-sub", msgs)
+
+    assert seen[0][-2:] == ["--model", "claude-fable-5"]
+    assert seen[1][-2:] == ["-m", "gpt-5.6-sol"]
+    assert seen[2][-2:] == ["--model", "gemini-3.1-pro"]
+    assert "--model" not in seen[3], "no pin -> CLI default"

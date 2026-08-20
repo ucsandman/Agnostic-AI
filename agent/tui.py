@@ -309,6 +309,8 @@ class AgnosticTUI(SlashCommandMixin, App):
                 if p["model"] == curr_model:
                     disp_model = p["name"].split("(")[0].strip()
                     break
+            if self.agent.llm_client.config.sub_model:
+                disp_model += f" › {self.agent.llm_client.config.sub_model}"
 
             st = context_manager.get_status(self.agent.history)
             used = st["used_tokens"]
