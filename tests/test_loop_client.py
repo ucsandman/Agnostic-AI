@@ -340,7 +340,10 @@ def test_reasoning_effort_reaches_api_for_supporting_presets(preset_key):
     assert fake.calls[0]["reasoning_effort"] == "high"
 
 
-def test_unsupported_effort_is_not_sent_and_not_claimed():
+def test_unsupported_effort_is_not_sent_and_not_claimed(monkeypatch):
+    # switch_model now refuses a preset whose key env is unset; this test is about
+    # effort reporting, so give it a key regardless of the machine's env.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     c = _client()
     c.config.provider = "anthropic"
     c.config.model = "claude-opus-5"
