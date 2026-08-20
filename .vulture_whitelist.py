@@ -60,7 +60,6 @@ AgnosticTUI.action_complete_slash
 AgnosticTUI.action_quit_safe
 AgnosticTUI.on_input_submitted
 AgnosticTUI.on_mount
-AgnosticTUI.on_unmount
 AgnosticTUI.display
 
 # http.server / socketserver read these class attributes and method names.
