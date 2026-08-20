@@ -18,8 +18,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const CORE_RULES_FILE = path.join(ROOT, 'core', 'rules', 'global-rules.md');
 const CORE_TRAITS_FILE = path.join(ROOT, 'core', 'traits', 'traits.md');
-const EXAMPLES_DIR = path.join(ROOT, 'core', 'examples');
-const PRUNE_REPORT_FILE = path.join(ROOT, 'storage', 'prune-report.json');
+const EXAMPLES_DIR = process.env.AGNOSTIC_EXAMPLES_DIR || path.join(ROOT, 'core', 'examples');
+const PRUNE_REPORT_FILE = path.join(process.env.AGNOSTIC_STORAGE || path.join(ROOT, 'storage'), 'prune-report.json');
 
 const MAX_CORE_PRINCIPLES = 5; // Production-tested cap to prevent prompt soup
 
@@ -134,6 +134,21 @@ function pushToExamples(candidate, options = {}) {
   const filename = `${candidate.id || 'example-' + Date.now()}.json`;
   const targetPath = path.join(EXAMPLES_DIR, filename);
 
+  // Idempotent: a candidate already exampled is not rewritten, so a no-op run
+  // does not churn git with fresh `created` timestamps.
+  if (fs.existsSync(targetPath)) {
+    try {
+      return {
+        success: true,
+        skipped: true,
+        path: targetPath,
+        example: JSON.parse(fs.readFileSync(targetPath, 'utf8'))
+      };
+    } catch (_) {
+      // Corrupt fixture — fall through and rewrite it.
+    }
+  }
+
   const examplePayload = {
     id: candidate.id,
     title: options.title || candidate.text.slice(0, 60),
@@ -162,7 +177,9 @@ function auditRuleBudget(candidates = []) {
 
   for (const c of candidates) {
     const conflicts = checkRuleConflicts(c.text, activePrinciples);
-    const wouldExceedCeiling = (activePrinciples.length + candidateAnalyses.filter(a => a.action === 'promote_rule').length) >= MAX_CORE_PRINCIPLES;
+    // Count promotions decided earlier in this same run (the field is `recommendation`).
+    const promotedThisRun = candidateAnalyses.filter(a => a.recommendation === 'promote_rule').length;
+    const wouldExceedCeiling = (activePrinciples.length + promotedThisRun) >= MAX_CORE_PRINCIPLES;
 
     let recommendation = 'promote_rule';
     let rationale = 'Healthy candidate under ceiling.';

@@ -4,16 +4,18 @@ Spawns isolated worker subagents (e.g. Researcher, Code Reviewer, Tester) with t
 and distills the findings back to the main agent loop, avoiding context rot (Claude Code pattern).
 """
 
-import json
 import time
 import uuid
 import shutil
 import subprocess
-from typing import Optional, Literal, Any
+from typing import Callable, Optional, Literal, Any
 from pathlib import Path
 from agent.llm.client import LLMClient
 
 WorkspaceMode = Literal["inherit", "share", "branch"]
+
+# Roles that must never mutate the workspace, whatever the model asks for.
+READ_ONLY_ROLES = {"researcher", "reviewer"}
 
 
 class SubagentWorker:
@@ -26,13 +28,31 @@ class SubagentWorker:
         client: LLMClient,
         workspace_root: Path,
         workspace_mode: WorkspaceMode = "inherit",
+        confirm_callback: Optional[Callable[[str], bool]] = None,
     ):
         self.role = role
         self.system_prompt = system_prompt
         self.client = client
         self.workspace_root = workspace_root
         self.workspace_mode = workspace_mode
+        self.confirm_callback = confirm_callback
         self.active_workspace = self._prepare_workspace()
+
+    def build_registry(self):
+        """Build this worker's tool registry.
+
+        Non-implementer roles get the read-only subset. An implementer role only gets
+        mutating tools when a lead-agent confirm_callback is available to approve them.
+        """
+        from agent.tools.registry import ToolRegistry
+
+        read_only = (
+            self.role.lower().strip() in READ_ONLY_ROLES
+            or self.confirm_callback is None
+        )
+        return ToolRegistry(
+            workspace_root=str(self.active_workspace), read_only=read_only
+        )
 
     def _prepare_workspace(self) -> Path:
         """Provisions workspace based on selected isolation mode."""
@@ -91,9 +111,9 @@ class SubagentWorker:
         ]
 
         # Dedicated subagent tool subset (safe reads & searches in active workspace)
-        from agent.tools.registry import ToolRegistry
+        from agent.tools.registry import parse_tool_args
 
-        sub_registry = ToolRegistry(workspace_root=str(self.active_workspace))
+        sub_registry = self.build_registry()
 
         try:
             for _ in range(max_turns):
@@ -131,16 +151,20 @@ class SubagentWorker:
                     # Execute tools in worker context
                     for tc in msg.tool_calls:
                         fn_name = tc.function.name
-                        try:
-                            args = (
-                                json.loads(tc.function.arguments)
-                                if isinstance(tc.function.arguments, str)
-                                else tc.function.arguments
+                        args, arg_error = parse_tool_args(tc.function.arguments)
+                        if arg_error:
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": arg_error,
+                                }
                             )
-                        except Exception:
-                            args = {}
+                            continue
 
-                        res = sub_registry.execute(fn_name, args)
+                        res = sub_registry.execute(
+                            fn_name, args, confirm_callback=self.confirm_callback
+                        )
                         messages.append(
                             {
                                 "role": "tool",
@@ -161,9 +185,16 @@ class SubagentWorker:
 class SubagentManager:
     """Manages subagent definitions, creation, and distillation back to the lead agent."""
 
-    def __init__(self, client: LLMClient, workspace_root: Optional[str] = None):
+    def __init__(
+        self,
+        client: LLMClient,
+        workspace_root: Optional[str] = None,
+        confirm_callback: Optional[Callable[[str], bool]] = None,
+    ):
         self.client = client
         self.workspace_root = Path(workspace_root or ".").resolve()
+        # Lead-agent confirmation channel; without it subagents stay read-only.
+        self.confirm_callback = confirm_callback
         self.subagent_roles = {
             "researcher": (
                 "You are an expert Codebase Researcher. Your job is to thoroughly inspect, find files, grep patterns, "
@@ -211,6 +242,7 @@ class SubagentManager:
             client=self.client,
             workspace_root=self.workspace_root,
             workspace_mode=workspace_mode,
+            confirm_callback=self.confirm_callback,
         )
         try:
             result = worker.run_task(prompt)
@@ -251,19 +283,10 @@ class SubagentManager:
 
 
 class SubagentRegistry:
-    """Manages active subagent tracking, custom agent type definitions, and inter-agent message dispatch."""
+    """Tracks active subagents spawned by the lead agent."""
 
     def __init__(self):
         self._subagents: dict[str, dict[str, Any]] = {}
-        self._custom_types: dict[str, dict[str, Any]] = {}
-        self._inbox: dict[str, list[dict[str, Any]]] = {}
-
-    def define_type(self, name: str, description: str, system_prompt: str):
-        self._custom_types[name.lower().strip()] = {
-            "name": name,
-            "description": description,
-            "system_prompt": system_prompt,
-        }
 
     def register_active(
         self, subagent_id: str, role: str, mode: str = "inherit"
@@ -279,7 +302,6 @@ class SubagentRegistry:
             else "",
         }
         self._subagents[subagent_id] = info
-        self._inbox[subagent_id] = []
         return info
 
     def update_state(self, subagent_id: str, state: str, detail: str = ""):  # noqa: vulture
@@ -298,25 +320,6 @@ class SubagentRegistry:
                 self._subagents[cid]["state"] = "killed"
                 killed.append(cid)
         return killed
-
-    def kill_all(self) -> int:
-        count = len(self._subagents)
-        for cid in list(self._subagents.keys()):
-            self._subagents[cid]["state"] = "killed"
-        return count
-
-    def send_message(self, recipient_id: str, message: str) -> str:
-        if recipient_id not in self._inbox:
-            self._inbox[recipient_id] = []
-        self._inbox[recipient_id].append(
-            {
-                "message": message,
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                if "time" in globals()
-                else "",
-            }
-        )
-        return f"Message delivered to subagent recipient '{recipient_id}'."
 
 
 subagent_registry = SubagentRegistry()

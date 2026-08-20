@@ -148,6 +148,7 @@ If something goes sideways mid-task, stop and re-plan instead of pushing through
 - **Fable is for four escalations only:** architecture decisions, security-sensitive reviews, cross-project synthesis, and root-cause work after two failed fixes. Cap 3 Fable spawns per session.
 - **Route by task:** Searches, formatting, mechanical edits → Haiku. Implementation, exploration → Sonnet. Architecture, final review, hard debugging → Opus.
 - **Codex = external executor** for heavy implementation, debugging, test fixing, and multi-file edits.
+- **Every subagent dispatch names its model explicitly.** Each `agent()` call in a Workflow script, and each Agent tool call, carries its own inline `model:` (`opus` / `sonnet` / `haiku`). A shared opts variable does not count; the guard reads the literal, and a script with one bare `agent()` is BLOCKED. Bare calls inherit the main-loop model (Fable), which is how 110 Fable agents burned a 5h window on 2026-06-12. Default split: finders/reviewers and the synthesizer → Opus, per-finding skeptics → Sonnet, mechanical lookups → Haiku.
 
 ---
 
@@ -188,3 +189,5 @@ Docs are part of the code. Work is complete only when:
 ## Learned Rules (Self-Promoted via Distillation Ladder)
 
 - **L1 (2026-08-13) — Before trusting a check that came back green or empty, make it fail on purpose: re-break the thing it watches, or point it at a case known to be positive. A check never observed failing has been run, not verified.**
+
+- **L2 (2026-08-20) — A check's verdict must carry the volume it processed. Anything that can pass — or fail — on zero work prints the count beside the verdict: `scanned=0`, `0 of 14 targets checked`, `harvested 0 since 08-18`. A bare OK from an instrument that touched nothing is indistinguishable from a clean week.**

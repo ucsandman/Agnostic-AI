@@ -6,13 +6,17 @@ live telemetry logs, and one-click governance controls with REST API support.
 
 import json
 import http.server
+import secrets
+import shutil
 import socketserver
 import subprocess
+import sys
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from urllib.parse import urlparse
 
 from agent.governance.state import state_manager
 from agent.governance.context import context_manager
@@ -98,6 +102,16 @@ class CompanionTelemetry:
 
 
 companion_telemetry = CompanionTelemetry()
+
+# Per-process secret required on every mutating route (defeats drive-by CSRF).
+SESSION_TOKEN = secrets.token_urlsafe(32)
+
+# Routes that change state: POST-only, token-gated, loopback-Origin-gated.
+MUTATING_ROUTES = frozenset(
+    {"/api/undo", "/api/compact", "/api/test", "/api/distill", "/api/clear_telemetry"}
+)
+
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
 
 
 HTML_PAGE = """<!DOCTYPE html>
@@ -313,8 +327,16 @@ HTML_PAGE = """<!DOCTYPE html>
         </div>
     </div>
     <script>
+        const SESSION_TOKEN = '__COMPANION_TOKEN__';
         let currentTab = 'telemetry';
         let autoScroll = true;
+
+        function mutate(endpoint) {
+            return fetch(endpoint, {
+                method: 'POST',
+                headers: { 'X-Companion-Token': SESSION_TOKEN },
+            });
+        }
 
         function setTab(tab) {
             currentTab = tab;
@@ -440,7 +462,7 @@ HTML_PAGE = """<!DOCTYPE html>
             const statusBox = document.getElementById('action-status');
             statusBox.innerText = 'Triggering ' + endpoint + '...';
             try {
-                const res = await fetch(endpoint);
+                const res = await mutate(endpoint);
                 const data = await res.json();
                 statusBox.innerText = data.message || 'Done.';
                 fetchStatus();
@@ -451,7 +473,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
         async function clearTelemetry() {
             try {
-                await fetch('/api/clear_telemetry');
+                await mutate('/api/clear_telemetry');
                 document.getElementById('telemetry-view').innerHTML = '<div style="color:#8b949e;">Telemetry logs cleared.</div>';
             } catch(e) {}
         }
@@ -463,13 +485,23 @@ HTML_PAGE = """<!DOCTYPE html>
 </html>"""
 
 
-class CompanionHandler(http.server.SimpleHTTPRequestHandler):
+class CompanionHandler(http.server.BaseHTTPRequestHandler):
+    # BaseHTTPRequestHandler, not SimpleHTTPRequestHandler: the latter would serve
+    # the entire working directory (incl. dotfiles) to any GET/HEAD we don't handle.
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
+            page = HTML_PAGE.replace("__COMPANION_TOKEN__", SESSION_TOKEN)
             self.send_response(200)
             self.send_header("Content-type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(HTML_PAGE.encode("utf-8"))
+            self.wfile.write(page.encode("utf-8"))
+            return
+
+        if self.path in MUTATING_ROUTES:
+            # State-changing routes are POST-only, so a bare <img>/GET cannot fire them.
+            self._send_json(
+                {"success": False, "message": "Method not allowed. Use POST."}, 405
+            )
             return
 
         # API Endpoints
@@ -493,7 +525,30 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(status_data)
             return
 
-        elif self.path == "/api/clear_telemetry":
+        elif self.path == "/api/retro":
+            self._send_json({"markdown": audit_manager.generate_retro_markdown()})
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def do_POST(self):  # noqa: vulture
+        if self.path not in MUTATING_ROUTES:
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        if not self._authorized():
+            self._send_json(
+                {
+                    "success": False,
+                    "message": "Forbidden: bad session token or origin.",
+                },
+                403,
+            )
+            return
+
+        if self.path == "/api/clear_telemetry":
             companion_telemetry.clear_logs()
             self._send_json({"success": True, "message": "Telemetry cleared."})
             return
@@ -505,6 +560,18 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif self.path == "/api/compact":
+            agent = companion_telemetry._agent_instance
+            if getattr(agent, "is_busy", False):
+                # Replacing history from the HTTP thread mid-turn corrupts the
+                # conversation the running turn is still appending to.
+                self._send_json(
+                    {
+                        "success": False,
+                        "message": "Agent turn in progress — try again when idle.",
+                    },
+                    409,
+                )
+                return
             history = companion_telemetry.get_history()
             if history:
                 compacted, ok, msg = context_manager.compact_messages(
@@ -524,18 +591,23 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif self.path == "/api/test":
-            res = subprocess.run(
-                "pytest tests/test_agent_qol.py"
-                if Path("tests/test_agent_qol.py").exists()
-                else (
-                    "node engine/tests/run-all.cjs"
-                    if Path("engine/tests/run-all.cjs").exists()
-                    else "npm test"
-                ),
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
+            if Path("tests/test_agent_qol.py").exists():
+                cmd = [sys.executable, "-m", "pytest", "tests/test_agent_qol.py"]
+            elif Path("engine/tests/run-all.cjs").exists():
+                cmd = ["node", "engine/tests/run-all.cjs"]
+            else:
+                cmd = [shutil.which("npm") or "npm", "test"]
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            except subprocess.TimeoutExpired:
+                self._send_json(
+                    {
+                        "success": False,
+                        "message": "Test run timed out after 600s and was killed.",
+                        "output": "",
+                    }
+                )
+                return
             msg = f"Tests {'passed' if res.returncode == 0 else 'failed'} (Exit {res.returncode})"
             companion_telemetry.log_event("system", f"Test runner executed: {msg}")
             self._send_json(
@@ -548,12 +620,22 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif self.path == "/api/distill":
-            res = subprocess.run(
-                "node engine/distill/distill.cjs",
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                res = subprocess.run(
+                    ["node", "engine/distill/distill.cjs"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+            except subprocess.TimeoutExpired:
+                self._send_json(
+                    {
+                        "success": False,
+                        "message": "Distillation timed out after 120s and was killed.",
+                        "output": "",
+                    }
+                )
+                return
             companion_telemetry.log_event("system", "Distillation run completed.")
             self._send_json(
                 {
@@ -564,12 +646,19 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
             )
             return
 
-        elif self.path == "/api/retro":
-            self._send_json({"markdown": audit_manager.generate_retro_markdown()})
-            return
-
         self.send_response(404)
         self.end_headers()
+
+    def _authorized(self) -> bool:
+        """Mutating routes need the session token AND a loopback Origin/Referer."""
+        if not secrets.compare_digest(
+            self.headers.get("X-Companion-Token", ""), SESSION_TOKEN
+        ):
+            return False
+        source = self.headers.get("Origin") or self.headers.get("Referer")
+        if source and urlparse(source).hostname not in LOOPBACK_HOSTS:
+            return False
+        return True
 
     def _send_json(self, data: Dict[str, Any], status: int = 200):
         self.send_response(status)
@@ -581,6 +670,14 @@ class CompanionHandler(http.server.SimpleHTTPRequestHandler):
         pass  # Quiet logging
 
 
+class _CompanionServer(socketserver.ThreadingTCPServer):
+    """Threading, so a slow /api/test or a parked connection can't stall the page's
+    1 Hz /api/status poll. Daemon threads so they never hold up interpreter exit."""
+
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 _server_instance: Optional[socketserver.TCPServer] = None
 _server_thread: Optional[threading.Thread] = None
 
@@ -590,12 +687,13 @@ def start_companion_server(port: int = 7843):
     if _server_instance is not None:
         return True, f"http://127.0.0.1:{port}"
     try:
-        socketserver.TCPServer.allow_reuse_address = True
-        _server_instance = socketserver.TCPServer(("", port), CompanionHandler)
+        _server_instance = _CompanionServer(("127.0.0.1", port), CompanionHandler)
+        bound_port = _server_instance.server_address[1]
         _server_thread = threading.Thread(
             target=_server_instance.serve_forever, daemon=True
         )
         _server_thread.start()
-        return True, f"http://127.0.0.1:{port}"
+        print(f"🔑 Companion session token: {SESSION_TOKEN}")
+        return True, f"http://127.0.0.1:{bound_port}"
     except Exception as e:
         return False, str(e)

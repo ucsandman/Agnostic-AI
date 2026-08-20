@@ -1,4 +1,0 @@
-[console_scripts]
-agnostic = agent.tui:main
-agnostic-agent = agent.tui:main
-agnostic-legacy = agent.cli:main

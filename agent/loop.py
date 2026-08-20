@@ -5,10 +5,16 @@ Connects Harness System Prompt, LLM Tool Calling, Subagents, and Dynamic Workflo
 
 import os
 import json
+import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 from agent.llm.client import LLMClient, LLMConfig
-from agent.tools.registry import ToolRegistry, ToolResult
+from agent.tools.registry import (
+    READ_ONLY_TOOLS,
+    ToolRegistry,
+    ToolResult,
+    parse_tool_args,
+)
 from agent.tools.subagent import SubagentManager
 from agent.tools.mcp_client import MCPBridge
 
@@ -24,14 +30,19 @@ class AgentLoop:
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.llm_client = LLMClient(llm_config or LLMConfig())
         self.registry = ToolRegistry(workspace_root=str(self.workspace_root))
+        self.confirm_callback = confirm_callback or self._default_confirm
+        # Delegate, not the value: the TUI replaces confirm_callback after
+        # construction and subagents must honour the replacement.
         self.subagents = SubagentManager(
-            client=self.llm_client, workspace_root=str(self.workspace_root)
+            client=self.llm_client,
+            workspace_root=str(self.workspace_root),
+            confirm_callback=lambda prompt: self.confirm_callback(prompt),
         )
         self.mcp_bridge = MCPBridge(self.registry)  # noqa: vulture
 
-        self.confirm_callback = confirm_callback or self._default_confirm
         self.output_callback = output_callback or self._default_output
         self.history: List[Dict[str, Any]] = []
+        self.turn_lock = threading.Lock()
 
         self._register_subagent_tool()
         self._load_harness_system_prompt()
@@ -112,6 +123,14 @@ class AgentLoop:
         )
         return ToolResult(result)
 
+    @property
+    def is_busy(self) -> bool:
+        """True while a turn is running (the UI and web companion poll this)."""
+        return self.turn_lock.locked()
+
+    # Kept as an alias: the parser now lives in the registry, shared with subagents.
+    _parse_tool_args = staticmethod(parse_tool_args)
+
     def _load_harness_system_prompt(self, compact: bool = False):
         """Loads compiled system prompt from agnostic-harness SSOT, with optional compact mode for small context local models."""
         # Check workspace storage first, then fall back to the agnostic-ai repository root
@@ -158,6 +177,13 @@ class AgentLoop:
 
     def run_turn(self, user_input: str, max_steps: int = 15) -> str:
         """Run a single interactive turn, processing tool calls iteratively until completion."""
+        self.turn_lock.acquire()
+        try:
+            return self._run_turn(user_input, max_steps)
+        finally:
+            self.turn_lock.release()
+
+    def _run_turn(self, user_input: str, max_steps: int) -> str:
         # 1. Check and trigger auto-compaction if context threshold is near
         from agent.governance.context import context_manager
 
@@ -215,32 +241,40 @@ class AgentLoop:
                 if msg.content:
                     self.output_callback("assistant", msg.content)
 
+                # A response cut off at max_tokens mid-arguments yields a broken
+                # tool call — feed it back instead of executing it.
+                if getattr(response.choices[0], "finish_reason", None) == "length":
+                    trunc_msg = (
+                        "[Tool call rejected] The response hit the output token limit "
+                        "while emitting tool-call arguments, so the call was truncated "
+                        "and NOT executed. Retry with a smaller/simpler tool call."
+                    )
+                    self.output_callback("error", trunc_msg)
+                    for tc in msg.tool_calls:
+                        self.history.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": trunc_msg,
+                            }
+                        )
+                    continue
+
                 # Process tool calls (parallel for read-only tools, sequential for mutating tools)
                 import concurrent.futures
 
-                read_only_tools = {
-                    "read_file",
-                    "grep_search",
-                    "find_files",
-                    "mcp_list_tools",
-                }
                 all_read_only = len(msg.tool_calls) > 1 and all(
-                    tc.function.name in read_only_tools for tc in msg.tool_calls
+                    tc.function.name in READ_ONLY_TOOLS for tc in msg.tool_calls
                 )
 
                 if all_read_only:
                     # Execute concurrently using ThreadPoolExecutor
                     def _exec_single(tc):
                         fn_name = tc.function.name
-                        raw_args = tc.function.arguments
-                        try:
-                            args = (
-                                json.loads(raw_args)
-                                if isinstance(raw_args, str)
-                                else raw_args
-                            )
-                        except Exception:
-                            args = {}
+                        args, arg_error = self._parse_tool_args(tc.function.arguments)
+                        if arg_error:
+                            self.output_callback("error", f"{fn_name}: {arg_error}")
+                            return tc, ToolResult(arg_error, is_error=True)
                         self.output_callback(
                             "tool_start",
                             f"⚡ [Parallel] {fn_name}({json.dumps(args, ensure_ascii=False)[:120]})",
@@ -270,15 +304,17 @@ class AgentLoop:
                     # Execute sequentially
                     for tc in msg.tool_calls:
                         fn_name = tc.function.name
-                        raw_args = tc.function.arguments
-                        try:
-                            args = (
-                                json.loads(raw_args)
-                                if isinstance(raw_args, str)
-                                else raw_args
+                        args, arg_error = self._parse_tool_args(tc.function.arguments)
+                        if arg_error:
+                            self.output_callback("error", f"{fn_name}: {arg_error}")
+                            self.history.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": arg_error,
+                                }
                             )
-                        except Exception:
-                            args = {}
+                            continue
 
                         self.output_callback(
                             "tool_start",
@@ -321,4 +357,9 @@ class AgentLoop:
                 self.output_callback("error", err_msg)
                 return err_msg
 
-        return "[Reached maximum tool call limit for this turn]"
+        cap_msg = (
+            f"[Reached maximum tool call limit ({max_steps} steps) for this turn — "
+            f"the task is likely INCOMPLETE. Send another message to continue.]"
+        )
+        self.output_callback("error", cap_msg)
+        return cap_msg

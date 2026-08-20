@@ -5,7 +5,6 @@ Inspects harness health, validates sync, and launches the web dashboard.
 """
 
 import os
-import sys
 import subprocess
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,12 +28,13 @@ def main():
     print("\n[2/4] Inspecting DashClaw integration & self-configuration...")
     subprocess.run(["node", "engine/hooks/dashclaw-setup.cjs"], cwd=ROOT_DIR)
 
-    # 3. Run Self-Tests
+    # 3. Run Self-Tests (advisory — a failing self-check must not block the dashboard)
     print("\n[3/4] Running engine test suite...")
     test_run = subprocess.run(["node", "engine/tests/run-all.cjs"], cwd=ROOT_DIR)
     if test_run.returncode != 0:
-        print("\n[ERROR] Test suite failed. Please review errors above.")
-        sys.exit(1)
+        print(
+            "\n[WARNING] Engine self-test suite failed. Review errors above; launching dashboard anyway."
+        )
 
     # 4. Launch Dashboard
     print("\n[4/4] Launching Agnostic AI Universal Command Center...")

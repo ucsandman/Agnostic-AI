@@ -30,6 +30,16 @@ const CANDIDATE_CONFIG_PATHS = [
 const DEFAULT_AGENT_ID = process.env.DASHCLAW_AGENT_ID || 'agnostic-harness';
 const DEFAULT_AGENT_NAME = process.env.DASHCLAW_AGENT_NAME || 'Agnostic AI Harness';
 
+const GUARDS_CONFIG = path.join(ROOT, 'core', 'safety', 'guards.json');
+
+function dashclawPolicy() {
+  try {
+    return JSON.parse(fs.readFileSync(GUARDS_CONFIG, 'utf8')).guards?.dashclaw || {};
+  } catch (_) {
+    return {};
+  }
+}
+
 function checkEndpointHealth(urlStr, apiKey = null, timeoutMs = 3500) {
   return new Promise((resolve) => {
     try {
@@ -131,16 +141,18 @@ function discoverDashClawSources() {
     if (fs.existsSync(candidate.path)) {
       try {
         const raw = JSON.parse(fs.readFileSync(candidate.path, 'utf8'));
-        const baseUrl = raw.baseUrl || raw.url || (raw.workspaces && raw.workspaces.length ? 'http://localhost:3000' : null);
+        // Only an explicitly declared endpoint counts. A state file that merely has
+        // workspaces is NOT a licence to adopt whatever is listening on a dev port.
+        const baseUrl = raw.baseUrl || raw.url || null;
         const apiKey = raw.apiKey || raw.key || raw.token || null;
         const agentId = raw.agentId || raw.agent_id || DEFAULT_AGENT_ID;
         const agentName = raw.agentName || raw.agent_name || DEFAULT_AGENT_NAME;
 
-        if (baseUrl || apiKey || raw.workspaces) {
+        if (baseUrl) {
           sources.push({
             type: candidate.type,
             path: candidate.path,
-            baseUrl: baseUrl || 'http://localhost:3000',
+            baseUrl,
             apiKey,
             agentId,
             agentName
@@ -162,28 +174,13 @@ async function autoConfigureDashClaw() {
   const sources = discoverDashClawSources();
 
   if (sources.length === 0) {
-    // Check fallback local ports
-    const localProbe = await checkEndpointHealth('http://127.0.0.1:3000');
-    if (localProbe.reachable) {
-      const config = {
-        configured: true,
-        active: true,
-        baseUrl: 'http://127.0.0.1:3000',
-        apiKey: null,
-        agentId: DEFAULT_AGENT_ID,
-        agentName: DEFAULT_AGENT_NAME,
-        source: 'local_daemon_probe',
-        updatedAt: new Date().toISOString()
-      };
-      fs.writeFileSync(CONFIG_STORAGE, JSON.stringify(config, null, 2), 'utf8');
-      return config;
-    }
-
+    // No probing of common dev ports: a bare health-200 on 127.0.0.1:3000 is not
+    // proof of a governance authority (guards.dashclaw.adoptLocalhostPortsAllowed).
     const fallbackConfig = {
       configured: false,
       active: false,
       source: 'none',
-      reason: 'No DashClaw instance detected. Local safety guards active.',
+      reason: 'No explicitly declared DashClaw endpoint (DASHCLAW_BASE_URL or a config file baseUrl). Local safety guards active and failing closed.',
       updatedAt: new Date().toISOString()
     };
     fs.writeFileSync(CONFIG_STORAGE, JSON.stringify(fallbackConfig, null, 2), 'utf8');
@@ -194,6 +191,21 @@ async function autoConfigureDashClaw() {
   const selected = sources.find(s => s.type === 'environment') ||
                    sources.find(s => s.type === 'global_config') ||
                    sources[0];
+
+  // A loopback endpoint is only trusted when the operator declared it via the
+  // environment, or policy explicitly permits adopting local ports.
+  const isLoopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(selected.baseUrl || '');
+  if (isLoopback && selected.type !== 'environment' && dashclawPolicy().adoptLocalhostPortsAllowed !== true) {
+    const rejected = {
+      configured: false,
+      active: false,
+      source: 'none',
+      reason: `Refused to adopt local endpoint ${selected.baseUrl} from ${selected.type}: guards.dashclaw.adoptLocalhostPortsAllowed is false. Set DASHCLAW_BASE_URL to opt in explicitly.`,
+      updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(CONFIG_STORAGE, JSON.stringify(rejected, null, 2), 'utf8');
+    return rejected;
+  }
 
   const config = {
     configured: true,

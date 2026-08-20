@@ -19,11 +19,13 @@ const os = require('os');
 const { auditRuleBudget, pushToExamples, MAX_CORE_PRINCIPLES } = require('./prune.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const STORAGE = path.join(ROOT, 'storage');
+const STORAGE = process.env.AGNOSTIC_STORAGE || path.join(ROOT, 'storage');
 const CANDIDATES_FILE = path.join(STORAGE, 'candidates.jsonl');
 const CORRECTIONS_FILE = path.join(STORAGE, 'corrections.jsonl');
 const PROPOSAL_FILE = path.join(STORAGE, 'distill-PROPOSAL.md');
 const DIGEST_FILE = path.join(STORAGE, 'distill-digest.json');
+const CORE_RULES_FILE = path.join(ROOT, 'core', 'rules', 'global-rules.md');
+const LEARNED_HEADING = '## Learned Rules (Self-Promoted via Distillation Ladder)';
 
 function hashFingerprint(text) {
   const normalized = text.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -260,8 +262,75 @@ function runDistillation() {
   return digest;
 }
 
+/**
+ * Closes the promotion loop: writes an approved candidate into the SSOT
+ * (core/rules/global-rules.md) so `node engine/sync/sync.cjs` can fan it out.
+ * Idempotent — a rule whose text is already present is never appended twice.
+ */
+function approveCandidate(id, rulesFile = CORE_RULES_FILE) {
+  const candidates = loadCandidates();
+  const item = candidates.get(id);
+  if (!item) return { ok: false, reason: 'unknown-candidate', id };
+  if (!fs.existsSync(rulesFile)) return { ok: false, reason: 'missing-rules-file', path: rulesFile };
+
+  const text = String(item.text || '').trim();
+  if (!text) return { ok: false, reason: 'empty-candidate-text', id };
+
+  const md = fs.readFileSync(rulesFile, 'utf8');
+  const headIdx = md.indexOf(LEARNED_HEADING);
+  if (headIdx === -1) return { ok: false, reason: 'missing-learned-section', path: rulesFile };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const markPromoted = () => {
+    item.tier = Math.max(item.tier || 0, 2);
+    item.promoted = true;
+    item.promotedAt = item.promotedAt || today;
+    candidates.set(id, item);
+    // harvest owns the candidates+digest write path; reuse it so the dashboard
+    // overview is not stale until the next harvest run.
+    require('../harvest/harvest.cjs').saveCandidatesMap(candidates);
+  };
+
+  // Only the Learned Rules section counts as "already promoted" \u2014 the same words
+  // appearing in the prose above it are not a promotion.
+  const rest = md.slice(headIdx + LEARNED_HEADING.length);
+  const nextHeadRel = rest.search(/\n##\s/);
+  const insertAt = nextHeadRel === -1 ? md.length : headIdx + LEARNED_HEADING.length + nextHeadRel;
+
+  if (md.slice(headIdx, insertAt).includes(text)) {
+    markPromoted();
+    return { ok: true, id, alreadyPresent: true, path: rulesFile };
+  }
+
+  const labels = md.match(/^- \*\*L(\d+)\b/gm) || [];
+  const nextNumber = labels.reduce((max, l) => Math.max(max, parseInt(l.replace(/\D/g, ''), 10) || 0), 0) + 1;
+  const label = `L${nextNumber}`;
+  const bullet = `- **${label} (${today}) \u2014 ${text}**\n`;
+
+  const before = md.slice(0, insertAt).replace(/\s*$/, '\n');
+  const after = md.slice(insertAt).replace(/^\n+/, '');
+
+  fs.writeFileSync(rulesFile, `${before}\n${bullet}${after ? '\n' + after : ''}`, 'utf8');
+  markPromoted();
+  return { ok: true, id, label, path: rulesFile, appended: bullet.trim() };
+}
+
 if (require.main === module) {
+  const approveIdx = process.argv.indexOf('--approve');
+  if (approveIdx !== -1) {
+    const id = process.argv[approveIdx + 1];
+    const rulesIdx = process.argv.indexOf('--rules-file');
+    const rulesFile = rulesIdx !== -1 ? process.argv[rulesIdx + 1] : CORE_RULES_FILE;
+    const res = approveCandidate(id, rulesFile);
+    if (res.ok) {
+      console.log(`[Distill] Approved ${id}${res.alreadyPresent ? ' (already present — no change)' : ` as ${res.label}`} -> ${res.path}`);
+      console.log('  Next: node engine/sync/sync.cjs');
+    } else {
+      console.error(`[Distill] Approve failed for ${id}: ${res.reason}`);
+    }
+    process.exit(res.ok ? 0 : 1);
+  }
   runDistillation();
 }
 
-module.exports = { runDistillation, hashFingerprint };
+module.exports = { runDistillation, hashFingerprint, approveCandidate, CORE_RULES_FILE };

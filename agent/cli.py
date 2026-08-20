@@ -7,12 +7,10 @@ hotkeys, session memory, fuzzy @file and #symbol auto-completion, and multi-line
 
 import sys
 import os
-import re
 import time
-import argparse
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -31,7 +29,6 @@ from datetime import datetime
 
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
-from agent.llm.detector import ModelDoctor
 from agent.governance.undo import undo_manager, theme_manager
 from agent.governance.context import context_manager
 from agent.governance.guard import guard
@@ -39,6 +36,17 @@ from agent.governance.audit import audit_manager
 from agent.governance.session_manager import session_manager
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
+from agent.ui_common import (
+    SLASH_COMMANDS,
+    build_arg_parser,
+    detect_model,
+    expand_prompt_references,
+    format_user_display,
+    index_workspace,
+    maybe_start_web_companion,
+    parse_slash_command,
+    safe_text,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -53,58 +61,14 @@ if hasattr(sys.stderr, "reconfigure"):
 
 console = Console()
 
-SLASH_COMMANDS = [
-    "/theme",
-    "/plan",
-    "/fix",
-    "/compact",
-    "/trust",
-    "/untrust",
-    "/session",
-    "/audit",
-    "/retro",
-    "/research",
-    "/review",
-    "/swarm",
-    "/diagram",
-    "/pr",
-    "/harvest",
-    "/test",
-    "/doctor",
-    "/model",
-    "/undo",
-    "/checkpoint",
-    "/commit",
-    "/learn",
-    "/grill-me",
-    "/schedule",
-    "/loop",
-    "/state",
-    "/distill",
-    "/web",
-    "/clear",
-    "/multiline",
-    "/help",
-    "/exit",
-]
-
 
 def get_ui_width() -> int:
     """Returns a bounded narrow column width for readable layout with clean word wrapping."""
     return min(max(console.width - 4, 60), 94)
 
 
-def format_user_display(raw_input: str) -> str:
-    """Formats user input for clean display in the user panel.
-
-    Puts @image: references on their own lines and ensures text body
-    is cleanly separated, matching Claude Code's prompt layout.
-    """
-    # Put each @image: reference on its own line
-    formatted = re.sub(r"[ \t]*(@image:\S+)[ \t]*", r"\n\1\n", raw_input)
-    # Collapse runs of blank lines into single newlines
-    formatted = re.sub(r"\n{3,}", "\n\n", formatted).strip()
-    return formatted
+# A dropdown longer than this is unusable and costs a full index scan to build.
+MAX_COMPLETIONS = 50
 
 
 class AgnosticCompleter(Completer):
@@ -127,20 +91,28 @@ class AgnosticCompleter(Completer):
         if word.startswith("@"):
             query = word[1:].lower()
             files = self.indexer.get_indexed_files()
+            shown = 0
             for f in files:
                 if not query or query in f.lower():
                     yield Completion(
                         f"@{f}", start_position=-len(word), display=f"@{f}"
                     )
+                    shown += 1
+                    if shown >= MAX_COMPLETIONS:
+                        return
 
         elif word.startswith("#"):
             query = word[1:].lower()
             symbols = self.indexer.get_all_symbols()
+            shown = 0
             for s in symbols:
                 if not query or query in s.lower():
                     yield Completion(
                         f"#{s}", start_position=-len(word), display=f"#{s}"
                     )
+                    shown += 1
+                    if shown >= MAX_COMPLETIONS:
+                        return
 
 
 # KeyBindings for interactive features (Alt+V clipboard image paste, multiline Enter-to-submit)
@@ -196,65 +168,6 @@ def _handle_alt_v(event):  # noqa: vulture
             )
     except Exception as e:
         console.print(f"\n[red]Failed to attach image from clipboard: {str(e)}[/red]")
-
-
-def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
-    """Injects code snippets and references for any @file, #symbol, or @image found in prompt."""
-    image_refs = re.findall(r"@image:([a-zA-Z0-9_\-\.\/\\]+)", user_prompt)
-    file_refs = re.findall(r"@([a-zA-Z0-9_\-\.\/\\]+)", user_prompt)
-    symbol_refs = re.findall(r"#([a-zA-Z0-9_\.\:]+)", user_prompt)
-
-    injected_context = []
-
-    # Handle @image:... references
-    ws_root = getattr(indexer, "workspace_root", Path(os.getcwd()))
-    if isinstance(ws_root, str):
-        ws_root = Path(ws_root)
-
-    for img_rel in image_refs:
-        img_path = (ws_root / img_rel).resolve()
-        if not img_path.exists():
-            img_path = (Path(os.getcwd()) / img_rel).resolve()
-
-        if img_path.exists() and img_path.is_file():
-            try:
-                from PIL import Image
-
-                with Image.open(img_path) as im:
-                    w, h = im.size
-                    fmt = im.format
-                size_kb = img_path.stat().st_size / 1024.0
-                injected_context.append(
-                    f"### [Attached Image Reference: @image:{img_rel} ({w}x{h} {fmt}, {size_kb:.1f} KB)]\n"
-                    f"Image file on disk: `{str(img_path)}`"
-                )
-            except Exception:
-                injected_context.append(
-                    f"### [Attached Image Reference: @image:{img_rel}]\n"
-                    f"Image file on disk: `{str(img_path)}`"
-                )
-
-    for f in file_refs:
-        if f == "image" or f.startswith("image:"):
-            continue
-        res = indexer.resolve_file(f)
-        if res:
-            rel, content = res
-            injected_context.append(
-                f"### [Context Reference: @{rel}]:\n```\n{content[:2500]}\n```"
-            )
-
-    for s in symbol_refs:
-        res = indexer.resolve_symbol(s)
-        if res:
-            loc, snippet = res
-            injected_context.append(
-                f"### [Symbol Reference: #{s} ({loc})]:\n```\n{snippet}\n```"
-            )
-
-    if injected_context:
-        return user_prompt + "\n\n" + "\n\n".join(injected_context)
-    return user_prompt
 
 
 def print_banner():
@@ -318,15 +231,17 @@ def rich_output_callback(msg_type: str, content: str):
             console.print(panel)
 
     elif msg_type == "tool_start":
-        console.print(
-            f"[dim magenta]⚙️  Executing Tool:[/dim magenta] [yellow]{content}[/yellow]"
-        )
+        label = Text.from_markup("[dim magenta]⚙️  Executing Tool:[/dim magenta] ")
+        label.append(content, style="yellow")
+        console.print(label)
 
     elif msg_type == "tool_end":
+        # Raw tool output (e.g. a grep hit containing '[/etc/hosts]') must never be
+        # parsed as Rich console markup — Panel(str) would raise MarkupError on it.
         clipped = content[:600] + ("..." if len(content) > 600 else "")
         console.print(
             Panel(
-                clipped,
+                safe_text(clipped),
                 title="[dim blue]⚙️ Tool Output[/dim blue]",
                 title_align="left",
                 border_style="dim blue",
@@ -337,15 +252,19 @@ def rich_output_callback(msg_type: str, content: str):
         )
 
     elif msg_type == "subagent":
-        console.print(f"[bold green]🐝 Subagent Notification:[/bold green] {content}")
+        label = Text.from_markup("[bold green]🐝 Subagent Notification:[/bold green] ")
+        label.append(content)
+        console.print(label)
 
     elif msg_type == "system":
-        console.print(f"[bold yellow]🔔 {content}[/bold yellow]")
+        label = Text.from_markup("[bold yellow]🔔[/bold yellow] ")
+        label.append(content, style="bold yellow")
+        console.print(label)
 
     elif msg_type == "error":
         console.print(
             Panel(
-                f"[bold red]{content}[/bold red]",
+                safe_text(content, style="bold red"),
                 title="[bold red]❌ Error[/bold red]",
                 title_align="left",
                 border_style="red",
@@ -381,7 +300,7 @@ def handle_commit(agent: AgentLoop):
                 "git diff", shell=True, capture_output=True, text=True
             ).stdout.strip()
 
-        console.print(Panel(st, title="Git Status", border_style="yellow"))
+        console.print(Panel(safe_text(st), title="Git Status", border_style="yellow"))
 
         commit_prompt = (
             f"Based on the following git changes:\n```\n{st}\n```\nDiff preview:\n```\n{diff[:1500]}\n```\n"
@@ -414,44 +333,12 @@ def handle_commit(agent: AgentLoop):
         console.print(f"[red]Git commit workflow error: {str(e)}[/red]")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Agnostic AI Autonomous Coding Agent")
-    parser.add_argument(
-        "--url",
-        default="http://localhost:1234/v1",
-        help="LLM API Base URL (LM Studio, Ollama, etc.)",
-    )
-    parser.add_argument("--model", default="local-model", help="Model name / ID")
-    parser.add_argument("--api-key", default="lm-studio", help="API Key")
-    parser.add_argument(
-        "--compact",
-        action="store_true",
-        default=True,
-        help="Use compact harness prompt for local context limits (default: True)",
-    )
-    parser.add_argument(
-        "--full-prompt",
-        action="store_true",
-        help="Force loading full 14KB system prompt",
-    )
-    parser.add_argument("--prompt", "-p", help="Single prompt execution mode")
-    parser.add_argument(
-        "--ask-permissions",
-        action="store_true",
-        default=False,
-        help="Enable manual confirmation gates for hard-stop commands (Default is fully autonomous)",
-    )
-    parser.add_argument(
-        "--web",
-        action="store_true",
-        help="Start the real-time visual web companion on port 7843",
-    )
-    args = parser.parse_args()
+def main(argv: Optional[List[str]] = None):
+    parser = build_arg_parser()
+    args = parser.parse_args(argv)
 
     # 1. Auto-discover active model from endpoint
-    doctor = ModelDoctor(base_url=args.url, api_key=args.api_key)
-    detection = doctor.inspect()
-    detected_model = detection.get("active_model") or args.model
+    doctor, detected_model, detection = detect_model(args.url, args.api_key, args.model)
 
     config = LLMConfig(
         base_url=args.url,
@@ -465,31 +352,25 @@ def main():
     agent = AgentLoop(
         workspace_root=os.getcwd(),
         llm_config=config,
+        # Default DENIES hard-stops (safe for non-interactive `-p` runs); pass
+        # --ask-permissions to get an interactive y/n prompt instead of a block.
         confirm_callback=rich_confirm_callback
         if require_confirmation
-        else (lambda _: True),
+        else (lambda _: False),
         output_callback=rich_output_callback,
     )
     if use_compact:
         agent._load_harness_system_prompt(compact=True)
 
     # Pre-index workspace for fast fuzzy autocomplete & symbol lookups
-    code_indexer.workspace_root = Path(os.getcwd()).resolve()
-    code_indexer.index_workspace()
+    index_workspace()
 
     from agent.web.server import companion_telemetry
 
     companion_telemetry.bind_agent(agent)
 
     if args.web:
-        from agent.web.server import start_companion_server
-        import webbrowser
-
-        ok, web_url = start_companion_server(7843)
-        try:
-            webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
-        except Exception:
-            pass
+        ok, web_url = maybe_start_web_companion(agent)
         if ok:
             console.print(
                 f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
@@ -617,6 +498,8 @@ def main():
                 )
                 console.print(user_panel)
 
+            cmd, cmd_args = parse_slash_command(user_input)
+
             if user_input == "/clear":
                 console.clear()
                 print_banner()
@@ -646,13 +529,13 @@ def main():
                 console.print(f"[bold green]{msg}[/bold green]")
                 continue
 
-            elif user_input.startswith("/fix"):
-                custom_cmd = user_input.replace("/fix", "").strip() or None
+            elif cmd == "fix":
+                custom_cmd = cmd_args or None
                 test_runner.quick_fix(custom_command=custom_cmd)
                 continue
 
-            elif user_input.startswith("/trust"):
-                mode = user_input.replace("/trust", "").strip() or "reads"
+            elif cmd == "trust":
+                mode = cmd_args or "reads"
                 msg = guard.set_trust_tier(mode)
                 console.print(f"[bold green]🛡️ {msg}[/bold green]")
                 continue
@@ -727,22 +610,14 @@ def main():
                 continue
 
             elif user_input == "/web":
-                from agent.web.server import start_companion_server, companion_telemetry
-                import webbrowser
-
-                companion_telemetry.bind_agent(agent)
-                ok, web_url = start_companion_server(7843)
-                try:
-                    webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
-                except Exception:
-                    pass
+                ok, web_url = maybe_start_web_companion(agent)
                 if ok:
                     console.print(
                         f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
                     )
                 else:
                     console.print(
-                        "[yellow]Companion server is active at: http://127.0.0.1:7843[/yellow]"
+                        f"[red]Companion server failed to start: {web_url}[/red]"
                     )
                 continue
 
@@ -933,13 +808,13 @@ def main():
                 handle_commit(agent)
                 continue
 
-            elif user_input.startswith("/test"):
-                custom_cmd = user_input.replace("/test", "").strip() or None
+            elif cmd == "test":
+                custom_cmd = cmd_args or None
                 test_runner.auto_repair_loop(custom_command=custom_cmd)
                 continue
 
-            elif user_input.startswith("/research"):
-                topic = user_input.replace("/research", "").strip()
+            elif cmd == "research":
+                topic = cmd_args
                 if not topic:
                     console.print(
                         "[yellow]Please provide a research query, e.g. /research database connection pooling[/yellow]"
@@ -965,8 +840,8 @@ def main():
                 console.print(Markdown(report))
                 continue
 
-            elif user_input.startswith("/plan"):
-                task = user_input.replace("/plan", "").strip() or "General Task Plan"
+            elif cmd == "plan":
+                task = cmd_args or "General Task Plan"
                 console.print(
                     f"[cyan]Initiating Dynamic Planning Workflow for: {task}[/cyan]"
                 )
@@ -981,8 +856,8 @@ def main():
                     agent.run_turn(plan_prompt)
                 continue
 
-            elif user_input.startswith("/learn"):
-                lesson = user_input.replace("/learn", "").strip()
+            elif cmd == "learn":
+                lesson = cmd_args
                 if not lesson:
                     console.print(
                         "[yellow]Usage: /learn <lesson or constraint>[/yellow]"
@@ -1006,7 +881,7 @@ def main():
                 continue
 
             elif user_input.startswith("/grill-me") or user_input.startswith("/grill"):
-                task = user_input.replace("/grill-me", "").replace("/grill", "").strip()
+                task = cmd_args
                 if not task:
                     task = Prompt.ask(
                         "[cyan]What feature or architecture task do you want to be grilled on?[/cyan]"
@@ -1035,7 +910,7 @@ def main():
 
                 console.print(
                     Panel(
-                        state_manager.read_state(),
+                        safe_text(state_manager.read_state()),
                         title="🎯 Persistent State Whiteboard (.agnostic/state.md)",
                         border_style="green",
                     )
@@ -1053,15 +928,15 @@ def main():
                 )
                 console.print(
                     Panel(
-                        res.stdout or res.stderr or "Distillation complete.",
+                        safe_text(res.stdout or res.stderr or "Distillation complete."),
                         title="Distillation Results",
                         border_style="cyan",
                     )
                 )
                 continue
 
-            elif user_input.startswith("/swarm"):
-                task = user_input.replace("/swarm", "").strip()
+            elif cmd == "swarm":
+                task = cmd_args
                 if not task:
                     console.print(
                         "[yellow]Usage: /swarm <complex task or feature>[/yellow]"
@@ -1087,7 +962,7 @@ def main():
                 m_code = diag.generate_mermaid_map()
                 console.print(
                     Panel(
-                        m_code,
+                        safe_text(m_code),
                         title="📊 Mermaid Architecture Diagram",
                         border_style="cyan",
                     )

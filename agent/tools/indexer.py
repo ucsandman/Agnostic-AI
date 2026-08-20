@@ -82,8 +82,9 @@ class CodebaseIndexer:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or ".").resolve()
         self.symbols: Dict[str, List[SymbolInfo]] = {}
+        self._sorted_symbols: Optional[List[str]] = None
         self.indexed_files: List[str] = []
-        self._file_mtimes: Dict[str, float] = {}
+        self._file_mtimes: Dict[str, tuple] = {}
         self._ignore_patterns: Set[str] = set()
         self._load_agentignore()
 
@@ -155,19 +156,24 @@ class CodebaseIndexer:
                     continue
 
                 try:
-                    mtime = p.stat().st_mtime
+                    stat = p.stat()
+                    # Key on (mtime, size): a rewrite within the same mtime tick
+                    # still changes size, so edits are never missed.
+                    fingerprint = (stat.st_mtime, stat.st_size)
                 except Exception:
-                    mtime = 0.0
+                    fingerprint = (0.0, -1)
 
-                if force or self._file_mtimes.get(rel_path) != mtime:
-                    self._file_mtimes[rel_path] = mtime
-                    # Remove previous symbols for this file
-                    self._remove_symbols_for_file(p)
-
-                    if f.endswith(".py"):
-                        self._index_python_file(p)
-                    elif f.endswith((".js", ".ts", ".jsx", ".tsx")):
-                        self._index_js_file(p)
+                if force or self._file_mtimes.get(rel_path) != fingerprint:
+                    self._file_mtimes[rel_path] = fingerprint
+                    is_py = f.endswith(".py")
+                    is_js = f.endswith((".js", ".ts", ".jsx", ".tsx"))
+                    if is_py or is_js:
+                        # Symbol purging is O(#symbols); only code files hold any.
+                        self._remove_symbols_for_file(p)
+                        if is_py:
+                            self._index_python_file(p)
+                        else:
+                            self._index_js_file(p)
 
         # Clean up deleted files
         deleted_files = set(self._file_mtimes.keys()) - found_files_set
@@ -179,6 +185,7 @@ class CodebaseIndexer:
         self.indexed_files = current_files
 
     def _remove_symbols_for_file(self, file_path: Path):
+        self._sorted_symbols = None
         for name in list(self.symbols.keys()):
             self.symbols[name] = [
                 sym for sym in self.symbols[name] if sym.file_path != file_path
@@ -242,6 +249,7 @@ class CodebaseIndexer:
             pass
 
     def _add_symbol(self, name: str, sym: SymbolInfo):
+        self._sorted_symbols = None
         if name not in self.symbols:
             self.symbols[name] = []
         self.symbols[name].append(sym)
@@ -254,7 +262,9 @@ class CodebaseIndexer:
     def get_all_symbols(self) -> List[str]:
         if not self.symbols:
             self.index_workspace()
-        return sorted(list(self.symbols.keys()))
+        if self._sorted_symbols is None:
+            self._sorted_symbols = sorted(self.symbols.keys())
+        return self._sorted_symbols
 
     def resolve_symbol(self, symbol_name: str) -> Optional[Tuple[str, str]]:
         """Return (relative_file_path:start-end, extracted_code_snippet)."""
@@ -281,15 +291,43 @@ class CodebaseIndexer:
         except Exception:
             return None
 
+    def _check_access(self, clean_path: str, target: Path) -> Optional[str]:
+        """Returns a refusal reason if the path is a protected secret or outside the workspace."""
+        from agent.governance.guard import SafetyGuard
+
+        # Guard is built per-call because workspace_root is re-pointed at runtime.
+        active_guard = SafetyGuard(workspace_root=str(self.workspace_root))
+        for candidate in (clean_path, str(target)):
+            safe, reason = active_guard.check_path_access(candidate)
+            if not safe:
+                return f"refused: secret path — {reason}"
+
+        try:
+            target.relative_to(self.workspace_root)
+        except ValueError:
+            return (
+                f"refused: out-of-workspace path — '{clean_path}' resolves outside "
+                f"the active workspace ({self.workspace_root})."
+            )
+        return None
+
     def resolve_file(self, file_path_str: str) -> Optional[Tuple[str, str]]:
         """Resolves an @file reference and returns (relative_path, content)."""
         clean_path = file_path_str.lstrip("@").strip()
         target = (self.workspace_root / clean_path).resolve()
+
+        refusal = self._check_access(clean_path, target)
+        if refusal:
+            return (clean_path, refusal)
+
         if not target.exists() or not target.is_file():
             # Try matching against indexed files
             for idx_f in self.get_indexed_files():
                 if idx_f.endswith(clean_path) or clean_path in idx_f:
                     target = (self.workspace_root / idx_f).resolve()
+                    refusal = self._check_access(idx_f, target)
+                    if refusal:
+                        return (idx_f, refusal)
                     break
 
         if target.exists() and target.is_file():

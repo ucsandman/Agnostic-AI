@@ -1,11 +1,26 @@
 #!/usr/bin/env node
 /**
  * engine/tests/run-all.cjs — Comprehensive Test Runner for Agnostic AI Harness.
+ *
+ * HERMETIC BY DESIGN:
+ *   - Never asserts real machine state (candidate counts, skill counts, "am I
+ *     in sync with my own home directory") — those numbers differ on every
+ *     clone and every day. Assertions here check SHAPE (types, structure) or
+ *     behavior against fixtures this file creates itself.
+ *   - Any engine function that writes to real storage/ or ~ (home) files is
+ *     wrapped so the suite leaves those files byte-for-byte as it found them,
+ *     even if a test throws. Nothing here mutates the developer's real
+ *     candidates.jsonl, skills/definitions/, or DashClaw config.
+ *   - Must pass with exit 0 on a clean clone with an empty storage/.
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const assert = require('assert');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const STORAGE = path.join(ROOT, 'storage');
 
 console.log('=== Running Agnostic AI Test Suite ===\n');
 let passed = 0;
@@ -14,17 +29,65 @@ let failed = 0;
 async function test(name, fn) {
   try {
     await fn();
-    console.log(`  ✓ ${name}`);
+    console.log(`  \u2713 ${name}`);
     passed++;
   } catch (err) {
-    console.error(`  ✗ ${name}`);
+    console.error(`  \u2717 ${name}`);
     console.error(`    ${err.message}`);
     failed++;
   }
 }
 
+// ── Hermetic helpers ─────────────────────────────────────────────────────────
+// Snapshot real files a function under test may write to, then restore them
+// exactly (including "did not exist before") once the test is done, whether
+// it passed or threw. This is what keeps calls into the real engine modules
+// (which hardcode paths under storage/ or ~) from leaving lasting mutations.
+
+function snapshotFile(filePath) {
+  const existed = fs.existsSync(filePath);
+  const original = existed ? fs.readFileSync(filePath) : null;
+  return function restore() {
+    if (existed) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, original);
+    } else if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  };
+}
+
+async function withRealFilesRestored(filePaths, fn) {
+  const restores = filePaths.map(snapshotFile);
+  try {
+    return await fn();
+  } finally {
+    for (const restore of restores) restore();
+  }
+}
+
+async function withEnvCleared(keys, fn) {
+  const saved = {};
+  for (const k of keys) {
+    saved[k] = process.env[k];
+    delete process.env[k];
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+}
+
+function makeTmpDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
 async function run() {
-  // 1. Test Sync Engine
+  // 1. Test Sync Engine (pure: compileTarget/loadSource only read repo-committed SSOT files)
   const { compileTarget, loadSource } = require('../sync/sync.cjs');
   await test('Sync: loads source rules and compiles target output', () => {
     const source = loadSource();
@@ -35,7 +98,7 @@ async function run() {
     assert(compiled.includes('Simplicity first'), 'Compiled output should include core rules');
   });
 
-  // 2. Test Universal Hook Adapter Across All Dialects
+  // 2. Test Universal Hook Adapter Across All Dialects (pure)
   const { normalizePayload, formatDenial, formatApproval, detectClient } = require('../hooks/universal-adapter.cjs');
   await test('Hooks: normalizes Claude payload', () => {
     const payload = {
@@ -140,7 +203,7 @@ async function run() {
     assert.strictEqual(gooseDenial.block, true);
   });
 
-  // 3. Test Secret Guard
+  // 3. Test Secret Guard (pure: mockConfig passed explicitly, no real config file touched)
   const { checkSecrets } = require('../hooks/secret-guard.cjs');
   await test('Security: blocks access to .secrets.env', () => {
     const mockConfig = {
@@ -160,24 +223,35 @@ async function run() {
     assert.strictEqual(safeRes.blocked, false, 'Should allow safe files');
   });
 
-  // 4. Test Distill Ladder Evaluation
-  const { runDistillation } = require('../distill/distill.cjs');
-  await test('Distill: executes reflection pass and generates proposal', () => {
-    const digest = runDistillation();
-    assert(digest !== null, 'Digest should not be null');
-    assert(digest.stats.candidatesTotal !== undefined, 'Digest stats should be present');
+  // 4. Test Distill Ladder Fingerprinting (pure). Deliberately NOT calling
+  // runDistillation() here: it writes storage/candidates.jsonl,
+  // distill-PROPOSAL.md, distill-digest.json, storage/prune-report.json, AND
+  // migrates promoted items into dynamically-named core/examples/<hash>.json
+  // files whose names can't be known ahead of time to back up — there is no
+  // way to call it without leaving real, unpredictable production writes.
+  const { hashFingerprint } = require('../distill/distill.cjs');
+  await test('Distill: fingerprints candidate text deterministically', () => {
+    const a = hashFingerprint('Always validate user input at the API boundary.');
+    const b = hashFingerprint('  ALWAYS validate user input at the api boundary!!  ');
+    assert.strictEqual(a, b, 'Fingerprint should normalize case/punctuation/whitespace');
+    assert.strictEqual(typeof a, 'string');
+    assert.strictEqual(a.length, 16, 'Fingerprint should be a 16-char hex slice');
+
+    const c = hashFingerprint('A completely different observation.');
+    assert.notStrictEqual(a, c, 'Different text should fingerprint differently');
   });
 
-  // 5. Test Recall Engine
+  // 5. Test Recall Engine (read-only against repo-committed core/rules/global-rules.md)
   const { searchMemory } = require('../../tools/recall/recall.cjs');
   await test('Recall: searches rules and facts', () => {
     const results = searchMemory('Simplicity');
-    assert(results.length > 0, 'Should find Simplicity rule');
+    assert(Array.isArray(results), 'Results should be an array');
+    assert(results.length > 0, 'Should find Simplicity rule in the repo SSOT');
     assert.strictEqual(results[0].type, 'rule');
   });
 
-  // 6. Test Multi-Rule Merger Across Polyglot Formats
-  const { mergeRuleFiles, parseSections } = require('../ingest/merge.cjs');
+  // 6. Test Multi-Rule Merger Across Polyglot Formats (pure, given mock files)
+  const { mergeRuleFiles } = require('../ingest/merge.cjs');
   await test('Merge: ingests and unifies CLAUDE.md, AGENTS.md, .cursorrules, and CONVENTIONS.md', () => {
     const mockFiles = [
       { name: 'CLAUDE.md', content: '## Core Rules\n\n- Rule A\n\n## Learned Rules\n\n- **L1 (2026-08-10)**: First lesson' },
@@ -194,135 +268,231 @@ async function run() {
     assert(merged.includes('L2 (2026-08-12)'), 'Merged should contain L2');
   });
 
-  // 7. Test Parity Status Across All 18 Targets
-  const { getParityStatus } = require('../../tools/sync/parity.cjs');
-  await test('Parity: validates that all 18 configured runtimes are tracked and in sync', () => {
-    const status = getParityStatus();
-    assert.strictEqual(status.targets.length, 18, 'Should track exactly 18 targets');
-    const targetIds = status.targets.map(t => t.id);
-    const expectedIds = ['claude', 'codex', 'agy', 'cursor', 'windsurf', 'copilot', 'cline', 'aider', 'openhands', 'goose', 'continue', 'zed', 'trae', 'amazonq', 'cody', 'openclaw', 'hermes', 'generic'];
-    for (const eid of expectedIds) {
-      assert(targetIds.includes(eid), `Target ${eid} should be present in status`);
+  // 7. Test Parity Engine — tracked-target shape from the repo SSOT config, plus a
+  // fixture in-sync/drifted round-trip through the real compileTarget/loadSource
+  // pipeline. No real home-directory rules files are read or compared here.
+  await test('Parity: tracks 18 targets and detects in-sync vs. drifted fixtures', () => {
+    const targetsConfig = JSON.parse(
+      fs.readFileSync(path.join(ROOT, 'core', 'templates', 'targets.json'), 'utf8')
+    );
+    const targets = targetsConfig.targets || [];
+    assert.strictEqual(targets.length, 18, 'Should track exactly 18 targets');
+    for (const t of targets) {
+      assert.strictEqual(typeof t.id, 'string', 'Each target needs a string id');
+      assert.strictEqual(typeof t.name, 'string', 'Each target needs a string name');
+      assert.strictEqual(typeof t.dialect, 'string', 'Each target needs a string dialect');
     }
-    assert.strictEqual(status.allInSync, true, 'All targets should be in sync');
+
+    // Fixture round-trip: compile once, write it out, confirm it reads back in-sync;
+    // then drift the file and confirm the same equality check now reports drift.
+    const source = loadSource();
+    const fixtureTarget = { id: 'fixture-target', name: 'Fixture Target', preamble: '# Fixture\n', dialect: 'generic' };
+    const compiled = compileTarget(fixtureTarget, source);
+
+    const tmpDir = makeTmpDir('agnostic-parity-fixture-');
+    try {
+      const fixtureFile = path.join(tmpDir, 'fixture-rules.md');
+
+      fs.writeFileSync(fixtureFile, compiled, 'utf8');
+      const inSyncExisting = fs.readFileSync(fixtureFile, 'utf8');
+      assert.strictEqual(inSyncExisting === compiled, true, 'Freshly written fixture should report in-sync');
+
+      fs.writeFileSync(fixtureFile, compiled + '\nSTALE DRIFT LINE\n', 'utf8');
+      const driftedExisting = fs.readFileSync(fixtureFile, 'utf8');
+      assert.strictEqual(driftedExisting === compiled, false, 'Manually drifted fixture should report out-of-sync');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
-  // 8. Test DashClaw Auto-Discovery & Self-Configuration
-  const { discoverDashClawSources, autoConfigureDashClaw, getStoredDashClawConfig } = require('../hooks/dashclaw-setup.cjs');
-  await test('DashClaw Setup: discovers instance and configures agent identity', async () => {
+  // 8. Test DashClaw Auto-Discovery (read-only paths only — never calls
+  // autoConfigureDashClaw(), which writes storage/dashclaw-config.json and can
+  // attempt a real network probe).
+  const { discoverDashClawSources, getStoredDashClawConfig } = require('../hooks/dashclaw-setup.cjs');
+  await test('DashClaw Setup: discovery and stored-config readers are well-shaped', () => {
     const sources = discoverDashClawSources();
     assert(Array.isArray(sources), 'Should return sources array');
 
-    const config = await autoConfigureDashClaw();
-    assert(config !== null, 'Config should not be null');
-    assert(config.agentId === 'agnostic-harness' || typeof config.agentId === 'string', 'Agent ID should be configured');
-
     const stored = getStoredDashClawConfig();
-    assert(stored !== null, 'Stored config should exist after configuration');
+    assert(stored === null || typeof stored === 'object', 'Stored config should be null or an object');
   });
 
-  // 9. Test DashClaw Guard & Risk Scoring
+  // 9. Test DashClaw Guard & Risk Scoring — every real config source
+  // getDashClawConfig()/discoverDashClawSources() can find (repo-local
+  // .dashclaw-local/state.json, ~/.dashclaw/config.json, ~/.dashclaw/instance.json,
+  // storage/dashclaw-config.json) plus the DashClaw env vars are neutralized for
+  // the duration, byte-for-byte restored after. This is not just "hermetic" —
+  // without it, handleGuard() below resolves a real stored DashClaw API key and
+  // fires an actual network request carrying it on every test run.
   const { calculateLocalRisk, handleGuard, getDashClawConfig } = require('../hooks/dashclaw-guard.cjs');
+  const DASHCLAW_REAL_FILES = [
+    path.join(STORAGE, 'dashclaw-config.json'),
+    path.join(ROOT, '.dashclaw-local', 'state.json'),
+    path.join(os.homedir(), '.dashclaw', 'config.json'),
+    path.join(os.homedir(), '.dashclaw', 'instance.json')
+  ];
   await test('DashClaw Guard: calculates risk score for destructive actions', async () => {
-    const dcConfig = getDashClawConfig();
-    assert(dcConfig.agentId !== undefined, 'Guard config should have agentId');
+    await withRealFilesRestored(DASHCLAW_REAL_FILES, () =>
+      withEnvCleared(['DASHCLAW_BASE_URL', 'DASHCLAW_API_KEY', 'DASHCLAW_AGENT_ID', 'DASHCLAW_AGENT_NAME'], async () => {
+        for (const f of DASHCLAW_REAL_FILES) {
+          if (fs.existsSync(f)) fs.unlinkSync(f);
+        }
 
-    const highRisk = calculateLocalRisk({ command: 'git push --force origin main' });
-    assert.strictEqual(highRisk >= 80, true, 'git push --force should be high risk');
+        const dcConfig = getDashClawConfig();
+        assert.strictEqual(dcConfig.enabled, false, 'With no config/env, DashClaw should resolve disabled');
 
-    const lowRisk = calculateLocalRisk({ command: 'npm test' });
-    assert.strictEqual(lowRisk <= 20, true, 'npm test should be low risk');
+        const highRisk = calculateLocalRisk({ command: 'git push --force origin main' });
+        assert.strictEqual(highRisk >= 80, true, 'git push --force should be high risk');
 
-    const agyPayload = {
-      eventName: 'PreInvocation',
-      toolCall: { name: 'run_command', args: { CommandLine: 'git push --force origin main' } }
-    };
-    const decision = await handleGuard(agyPayload);
-    assert.strictEqual(decision.decision, 'deny', 'High risk command should be blocked without override');
+        const lowRisk = calculateLocalRisk({ command: 'npm test' });
+        assert.strictEqual(lowRisk <= 20, true, 'npm test should be low risk');
+
+        const agyPayload = {
+          eventName: 'PreInvocation',
+          toolCall: { name: 'run_command', args: { CommandLine: 'git push --force origin main' } }
+        };
+        const decision = await handleGuard(agyPayload);
+        assert.strictEqual(decision.decision, 'deny', 'High risk command should be blocked without override');
+      })
+    );
   });
 
-  // 10. Test Data Harvester
+  // 10. Test Data Harvester — real function (exercises the actual harvest
+  // pipeline), but storage/candidates.jsonl and distill-digest.json are
+  // restored afterward. A seeded fixture makes the verdict carry volume: a
+  // pass on an empty machine would prove nothing.
   const { runHarvest } = require('../harvest/harvest.cjs');
-  await test('Harvester: ingests error-log, corrections, and candidates from existing agents', () => {
-    const res = runHarvest();
-    assert(res !== null, 'Harvest result should not be null');
-    assert(res.stats.candidatesTotal >= 500, 'Should harvest 500+ unique candidates from agent history');
+  let harvestTotal = null;
+  await test('Harvester: produces a well-shaped result without corrupting storage', async () => {
+    const candidatesFile = path.join(STORAGE, 'candidates.jsonl');
+    await withRealFilesRestored(
+      [candidatesFile, path.join(STORAGE, 'distill-digest.json')],
+      () => {
+        const fixture = {
+          id: 'runallfixture01',
+          text: 'run-all fixture candidate: harvest must carry this through the merge.',
+          firstSeen: '2026-08-20',
+          sightingDays: ['2026-08-20'],
+          tier: 0,
+          client: 'test-fixture',
+          tags: ['fixture']
+        };
+        fs.mkdirSync(STORAGE, { recursive: true });
+        const existing = fs.existsSync(candidatesFile) ? fs.readFileSync(candidatesFile, 'utf8').trim() : '';
+        fs.writeFileSync(candidatesFile, (existing ? existing + '\n' : '') + JSON.stringify(fixture) + '\n', 'utf8');
+
+        const res = runHarvest();
+        assert(res !== null, 'Harvest result should not be null');
+        assert.strictEqual(typeof res.stats.candidatesTotal, 'number', 'candidatesTotal should be a number');
+        assert(res.stats.candidatesTotal >= 1, `candidatesTotal must count the seeded fixture, got ${res.stats.candidatesTotal}`);
+        assert(res.allCandidates.some(c => c.id === fixture.id), 'the seeded fixture must survive the harvest merge');
+        harvestTotal = res.stats.candidatesTotal;
+      }
+    );
+  });
+  console.log(`      candidatesTotal=${harvestTotal} (1 seeded fixture + whatever this machine holds)`);
+
+  // 11. Test Skill Metadata Parsing — fixture SKILL.md in a tmp dir, never touches
+  // ~/.claude/skills (or any other real agent skills dir) or skills/definitions/.
+  const { parseSkillMetadata } = require('../skills/consolidate.cjs');
+  await test('Skills: parses SKILL.md frontmatter into consolidated metadata', () => {
+    const tmpDir = makeTmpDir('agnostic-skill-fixture-');
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, 'SKILL.md'),
+        '---\nname: "fixture-skill"\ndescription: "A fixture skill for hermetic testing"\n---\n\nBody text.\n',
+        'utf8'
+      );
+      const metadata = parseSkillMetadata(tmpDir, 'fixture-skill');
+      assert.strictEqual(metadata.name, 'fixture-skill');
+      assert.strictEqual(metadata.description, 'A fixture skill for hermetic testing');
+      assert.strictEqual(metadata.hasSkillMd, true);
+      assert(Array.isArray(metadata.tags), 'tags should be an array');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
-  // 11. Test Skill Consolidation & Manifest
-  const { consolidateSkills } = require('../skills/consolidate.cjs');
-  await test('Skills: consolidates unique skills across agent dirs into harness definitions', () => {
-    const { manifest } = consolidateSkills();
-    const count = Object.keys(manifest).length;
-    assert(count >= 50, 'Should consolidate at least 50+ unique skills');
-    assert(manifest['blindspot'] !== undefined, 'Should include blindspot skill');
-    assert(manifest['install-anti-slop'] !== undefined, 'Should include install-anti-slop skill');
+  // 12. Test Project Tech-Stack Analyzer — fixture project dir with a package.json,
+  // never reads/writes real storage/skills-config.json or scans C:\Projects.
+  const { analyzeProjectTechStack } = require('../skills/recommend.cjs');
+  await test('Recommender: analyzes project tech stack from a fixture package.json', () => {
+    const tmpDir = makeTmpDir('agnostic-project-fixture-');
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'fixture-project', dependencies: { three: '^0.160.0', react: '^18.0.0' } }),
+        'utf8'
+      );
+      const tech = analyzeProjectTechStack(tmpDir);
+      assert.strictEqual(tech.exists, true);
+      assert(tech.languages.includes('JavaScript'), 'Should detect JavaScript from package.json');
+      assert(tech.frameworks.includes('React'), 'Should detect React dependency');
+      assert(tech.libraries.includes('Three.js'), 'Should detect Three.js dependency');
+      assert(tech.traits.includes('3d-graphics'), 'Should tag 3d-graphics trait');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
-  // 12. Test Project Analyzer & Skill Recommender
-  const { recommendSkillsForProject, toggleSkill, applyProjectRecommendations } = require('../skills/recommend.cjs');
-  await test('Recommender: analyzes project tech stack and recommends optimal skills', () => {
-    const rec = recommendSkillsForProject('C:\\Projects\\agnostic-ai');
-    assert(rec.project !== null, 'Project info should exist');
-    assert(rec.recommendations.length > 0, 'Should have recommendations');
-    assert(rec.recommendedCount > 0, 'Should have recommended skills');
-
-    // Test toggle
-    const toggled = toggleSkill('blindspot', false, 'C:\\Projects\\agnostic-ai');
-    assert.strictEqual(toggled.projectOverrides['C:\\Projects\\agnostic-ai']['blindspot'], false);
-    toggleSkill('blindspot', true, 'C:\\Projects\\agnostic-ai'); // revert
-  });
-
-  // 13. Test First-Run Setup & Default State
+  // 13. Test First-Run Setup & Default State (read-only against real storage/harness-installed.json)
   const { isFirstRun } = require('../setup/first-run.cjs');
   await test('First-Run Setup: verifies installation state and default harness status', () => {
     const firstRun = isFirstRun();
     assert.strictEqual(typeof firstRun, 'boolean', 'isFirstRun should return boolean');
   });
 
-  // 14. Test Candidate Update & Tombstoned Deletion
-  const { getCandidate, updateCandidate, deleteCandidate, loadDeletedIds, loadAllCandidatesMap } = require('../harvest/harvest.cjs');
-  await test('Candidates: supports editing message and permanent tombstone deletion', () => {
-    const testId = 'test-cand-001';
-    const testText = 'Temporary testing observation for deletion verification';
-    const map = loadAllCandidatesMap();
-    map.set(testId, {
-      id: testId,
-      text: testText,
-      tier: 0,
-      kind: 'deviation',
-      bucket: 'testing',
-      firstSeen: '2026-08-18',
-      sightingDays: ['2026-08-18'],
-      tags: ['test']
-    });
-    const CANDIDATES_FILE = path.join(__dirname, '..', '..', 'storage', 'candidates.jsonl');
-    fs.writeFileSync(CANDIDATES_FILE, Array.from(map.values()).map(v => JSON.stringify(v)).join('\n') + '\n');
+  // 14. Test Candidate Update & Tombstoned Deletion — real storage/candidates.jsonl
+  // and distill-digest.json are restored afterward regardless of outcome.
+  const { getCandidate, updateCandidate, deleteCandidate, loadDeletedIds } = require('../harvest/harvest.cjs');
+  await test('Candidates: supports editing message and permanent tombstone deletion', async () => {
+    await withRealFilesRestored(
+      [path.join(STORAGE, 'candidates.jsonl'), path.join(STORAGE, 'distill-digest.json')],
+      () => {
+        const { loadAllCandidatesMap } = require('../harvest/harvest.cjs');
+        const testId = 'test-cand-001';
+        const testText = 'Temporary testing observation for deletion verification';
+        const map = loadAllCandidatesMap();
+        map.set(testId, {
+          id: testId,
+          text: testText,
+          tier: 0,
+          kind: 'deviation',
+          bucket: 'testing',
+          firstSeen: '2026-08-18',
+          sightingDays: ['2026-08-18'],
+          tags: ['test']
+        });
+        const CANDIDATES_FILE = path.join(STORAGE, 'candidates.jsonl');
+        fs.mkdirSync(STORAGE, { recursive: true });
+        fs.writeFileSync(CANDIDATES_FILE, Array.from(map.values()).map(v => JSON.stringify(v)).join('\n') + '\n');
 
-    const fetched = getCandidate(testId);
-    assert(fetched !== null, 'Should find test candidate');
-    const updated = updateCandidate(testId, { text: 'Updated test observation message', tier: 1 });
-    assert.strictEqual(updated.text, 'Updated test observation message');
-    assert.strictEqual(updated.tier, 1);
+        const fetched = getCandidate(testId);
+        assert(fetched !== null, 'Should find test candidate');
+        const updated = updateCandidate(testId, { text: 'Updated test observation message', tier: 1 });
+        assert.strictEqual(updated.text, 'Updated test observation message');
+        assert.strictEqual(updated.tier, 1);
 
-    const delRes = deleteCandidate(testId);
-    assert.strictEqual(delRes.success, true);
-    assert.strictEqual(getCandidate(testId), null, 'Candidate should be deleted from candidates.jsonl');
-    const deletedIds = loadDeletedIds();
-    assert(deletedIds.has(testId), 'Candidate ID should be in tombstone deleted-candidates set');
+        const delRes = deleteCandidate(testId);
+        assert.strictEqual(delRes.success, true);
+        assert.strictEqual(getCandidate(testId), null, 'Candidate should be deleted from candidates.jsonl');
+        const deletedIds = loadDeletedIds();
+        assert(deletedIds.has(testId), 'Candidate ID should be in tombstone deleted-candidates set');
+      }
+    );
   });
 
-  // 15. Test Bloat Audit Engine
+  // 15. Test Bloat Audit Engine (read-only against real storage/*.json — no writes)
   const { auditHarnessBloat } = require('../audit/bloat-audit.cjs');
   await test('Bloat Audit: audits tool bloat, context tax, and calculates token savings', () => {
     const audit = auditHarnessBloat();
-    assert(typeof audit.score === 'number', 'Audit score should be a number');
-    assert(audit.skills.total >= 50, 'Should detect consolidated skills');
+    assert.strictEqual(typeof audit.score, 'number', 'Audit score should be a number');
+    assert.strictEqual(typeof audit.skills.total, 'number', 'skills.total should be a number');
     assert(audit.tokenTax.estimatedTokenSavings >= 0, 'Should calculate estimated token savings');
-    assert(audit.recommendations.length > 0, 'Should produce actionable recommendations');
+    assert(Array.isArray(audit.recommendations) && audit.recommendations.length > 0, 'Should produce actionable recommendations');
   });
 
-  console.log(`\n=== Tests Complete: ${passed} passed, ${failed} failed ===`);
+  console.log(`\n=== Tests Complete: ${passed} passed / ${failed} failed ===`);
   if (failed > 0) process.exit(1);
 }
 

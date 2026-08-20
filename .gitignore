@@ -30,3 +30,13 @@ Thumbs.db
 .dashclaw-local/
 .offlocal/
 .agnostic/
+
+# vendored skill cache (rebuilt locally by consolidate.cjs)
+skills/definitions/
+# build/test caches
+agnostic_agent.egg-info/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+storage/backups/
+storage/sync-state.json

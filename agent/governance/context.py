@@ -70,8 +70,17 @@ class ContextManager:
             if messages and messages[0]["role"] == "system"
             else {"role": "system", "content": "You are an autonomous AI coding agent."}
         )
-        recent_turns = messages[-3:]  # Retain last 3 turns verbatim
-        middle_turns = messages[1:-3]
+        # Retain last 3 turns verbatim, but never begin the retained window on an
+        # orphaned 'tool' message — its assistant 'tool_calls' must come with it or
+        # the next API call 400s.
+        cut = len(messages) - 3
+        while cut > 1 and messages[cut].get("role") == "tool":
+            cut -= 1
+
+        recent_turns = messages[cut:]
+        middle_turns = messages[1:cut]
+        if not middle_turns:
+            return messages, False, "Conversation is too short to compact."
 
         # Condense middle turns into dense structured distillation
         summary_lines = []

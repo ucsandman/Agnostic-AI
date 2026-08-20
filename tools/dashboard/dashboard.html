@@ -730,7 +730,7 @@
       <div class="status-badges">
         <span id="bloat-header-badge" class="tag tag-accent" style="cursor: pointer;" onclick="openBloatAuditModal()" title="Harness Context Health Score">🧹 Harness Health: 40/100</span>
         <span id="dashclaw-badge" class="tag tag-warning">Probing DashClaw...</span>
-        <span id="targets-badge" class="tag tag-success">18 Targets Synced</span>
+        <span id="targets-badge" class="tag tag-warning">Checking parity...</span>
         <button class="btn btn-accent" onclick="openBloatAuditModal()">🧹 Reduce Bloat</button>
         <button class="btn" onclick="triggerSync()">⚡ Sync Rules</button>
       </div>
@@ -739,7 +739,7 @@
     <!-- Navigation Bar -->
     <div class="nav-tabs">
       <button class="tab-btn active" data-tab="overview">📊 Overview &amp; Health</button>
-      <button class="tab-btn" data-tab="errors">🔍 Errors &amp; Distill <span id="tab-badge-errors" class="tab-badge">877</span></button>
+      <button class="tab-btn" data-tab="errors">🔍 Errors &amp; Distill <span id="tab-badge-errors" class="tab-badge">0</span></button>
       <button class="tab-btn" data-tab="skills">🧩 Skills &amp; Recommendations <span id="tab-badge-skills" class="tab-badge">99</span></button>
       <button class="tab-btn" data-tab="rules">📜 Rules &amp; Dispositions</button>
       <button class="tab-btn" data-tab="routines">⏱️ Routines &amp; Schedules</button>
@@ -769,12 +769,12 @@
       <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Active Error Candidates</div>
-          <div class="metric-value" id="m-candidates">877</div>
+          <div class="metric-value" id="m-candidates">0</div>
           <div class="metric-subtext">Harvested across all agent logs</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Observations (T0)</div>
-          <div class="metric-value" id="m-t0" style="color: var(--tier0)">871</div>
+          <div class="metric-value" id="m-t0" style="color: var(--tier0)">0</div>
           <div class="metric-subtext">Raw sightings under observation</div>
         </div>
         <div class="metric-card">
@@ -784,7 +784,7 @@
         </div>
         <div class="metric-card">
           <div class="metric-label">Candidate Rules (T2)</div>
-          <div class="metric-value" id="m-t2" style="color: var(--tier2)">2</div>
+          <div class="metric-value" id="m-t2" style="color: var(--tier2)">0</div>
           <div class="metric-subtext">Universal multi-day constraints</div>
         </div>
         <div class="metric-card">
@@ -1609,6 +1609,7 @@ dashclaw install claude --trial</code></pre>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
           <button class="btn" onclick="closeCandidateEditModal()">Cancel</button>
+          <button class="btn btn-accent" onclick="approveCandidateFromModal()" title="Write this rule into core/rules/global-rules.md (the SSOT) and queue it for sync to all targets">✅ Approve &amp; Promote</button>
           <button class="btn btn-primary" onclick="saveCandidateFromModal()">💾 Save Changes</button>
         </div>
       </div>
@@ -1769,18 +1770,29 @@ dashclaw install claude --trial</code></pre>
       if (subTab === 'stream') loadDecisions();
     }
 
+    function setMetric(id, value) {
+      const el = document.getElementById(id);
+      el.textContent = value || 0;
+      el.title = value ? '' : 'No data yet';
+    }
+
     async function loadOverview() {
       try {
         const res = await fetch('/api/overview');
         overviewData = await res.json();
         const s = overviewData.candidates || {};
-        document.getElementById('m-candidates').textContent = s.candidatesTotal || 877;
-        document.getElementById('m-t0').textContent = s.observationsCount || 871;
-        document.getElementById('m-t1').textContent = s.promotedFactsCount || 4;
-        document.getElementById('m-t2').textContent = s.candidateRulesCount || 2;
-        document.getElementById('m-skills').textContent = overviewData.skills.total || 99;
-        document.getElementById('tab-badge-errors').textContent = s.candidatesTotal || 877;
-        document.getElementById('tab-badge-skills').textContent = overviewData.skills.total || 99;
+        setMetric('m-candidates', s.candidatesTotal);
+        setMetric('m-t0', s.observationsCount);
+        setMetric('m-t1', s.promotedFactsCount);
+        setMetric('m-t2', s.candidateRulesCount);
+        setMetric('m-skills', overviewData.skills.total);
+        setMetric('tab-badge-errors', s.candidatesTotal);
+        setMetric('tab-badge-skills', overviewData.skills.total);
+
+        const p = overviewData.parity || {};
+        const targetsBadge = document.getElementById('targets-badge');
+        targetsBadge.textContent = `${p.inSyncCount || 0}/${p.total || 0} synced, ${p.staleCount || 0} stale`;
+        targetsBadge.className = 'tag ' + (p.staleCount ? 'tag-warning' : 'tag-success');
 
         const dc = overviewData.dashclaw;
         const dcBadge = document.getElementById('dashclaw-badge');
@@ -2490,6 +2502,32 @@ dashclaw install claude --trial</code></pre>
       }
     }
 
+    async function approveCandidateFromModal() {
+      const id = document.getElementById('c-edit-id').value;
+      if (!id) return;
+      const confirmed = confirm("Promote this candidate to a Learned Rule?\n\nIt will be appended to core/rules/global-rules.md (the single source of truth) and distributed to every target on the next sync.");
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch('/api/candidate/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const out = await res.json();
+        if (!res.ok || out.error || out.ok === false) {
+          throw new Error(out.error || out.reason || ('HTTP ' + res.status));
+        }
+        closeCandidateEditModal();
+        showToast('✓ Rule promoted to global-rules.md. Run Sync to distribute it.', 'success');
+        loadErrors();
+        loadOverview();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to promote rule: ' + err.message, 'error');
+      }
+    }
+
     async function deleteCandidatePrompt(candidateId = null) {
       const id = candidateId || document.getElementById('c-edit-id').value;
       if (!id) return;
@@ -3009,15 +3047,36 @@ dashclaw install claude --trial</code></pre>
       }
     }
 
-    async function runRoutine(id) {
+    async function runRoutine(id, opts = {}) {
       try {
         const res = await fetch('/api/routines/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ routineId: id })
+          body: JSON.stringify({ routineId: id, ...opts })
         });
         const out = await res.json();
-        alert(`Routine '${id}' executed successfully!`);
+        if (!res.ok || out.error) throw new Error(out.error || `HTTP ${res.status}`);
+        if (id === 'sync' && Array.isArray(out.result)) {
+          // sync.cjs refuses to overwrite hand-edited targets unless forced —
+          // say so instead of claiming success.
+          const total = out.result.length;
+          const written = out.result.filter(r => r.written).length;
+          const skipped = out.result.filter(r => r.drifted && !r.written);
+          if (skipped.length && !opts.force) {
+            const names = skipped.map(r => r.name).join(', ');
+            const force = confirm(
+              `Sync: ${written}/${total} updated, ${skipped.length} skipped because they were hand-edited since the last sync (backups saved):
+${names}
+
+Overwrite them with the SSOT now?`
+            );
+            if (force) return runRoutine('sync', { force: true });
+          } else {
+            showToast(`Sync: ${written}/${total} targets updated${skipped.length ? `, ${skipped.length} skipped` : ''}.`, 'success');
+          }
+        } else {
+          showToast(`Routine '${id}' executed.`, 'success');
+        }
         loadOverview();
       } catch (err) {
         alert(`Error executing routine: ${err.message}`);

@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
+from rich.markup import escape
 
 from agent.llm.client import LLMClient
 
@@ -34,10 +35,12 @@ class PRAutoPilot:
                 )
                 return True
             else:
-                console.print(f"[red]Error creating branch: {res.stderr.strip()}[/red]")
+                console.print(
+                    f"[red]Error creating branch: {escape(res.stderr.strip())}[/red]"
+                )
                 return False
         except Exception as e:
-            console.print(f"[red]Git branch error: {str(e)}[/red]")
+            console.print(f"[red]Git branch error: {escape(str(e))}[/red]")
             return False
 
     def generate_pr_summary(self) -> str:

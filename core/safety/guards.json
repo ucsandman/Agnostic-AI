@@ -1,23 +1,45 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "_note": "SINGLE SOURCE OF TRUTH for all safety policy. Consumed read-only by agent/governance/guard.py (Python), engine/hooks/secret-guard.cjs, engine/hooks/dashclaw-guard.cjs (Node), and the dashboard. Do not hardcode policy anywhere else.",
   "guards": {
     "secretScan": {
       "enabled": true,
       "blockedFiles": [
+        "**/.env",
+        "**/.env.*",
         "**/.secrets.env",
-        "**/.env.production",
-        "**/.env.local",
+        "**/.secrets",
         "**/id_rsa",
         "**/id_ed25519",
+        "**/id_ecdsa",
+        "**/id_dsa",
         "**/*.pem",
-        "**/*.pfx"
+        "**/*.pfx",
+        "**/*.key",
+        "**/*.p12",
+        "**/credentials.json",
+        "**/.aws/credentials",
+        "**/.npmrc",
+        "**/.dashclaw-local/secrets/**"
+      ],
+      "secretPathRegexes": [
+        "(?i)(^|[\\s=\"'`/\\\\(@<>:,*&|;])\\.env(rc)?\\b",
+        "(?i)\\.secrets(\\.env)?\\b",
+        "(?i)\\bid_(rsa|ed25519|ecdsa|dsa)\\b",
+        "(?i)\\.(pem|pfx|p12|key)\\b",
+        "(?i)\\bcredentials\\.json\\b",
+        "(?i)\\.aws[\\\\/]credentials\\b",
+        "(?i)\\.dashclaw-local[\\\\/]secrets"
       ],
       "sensitivePatterns": [
         "(?i)sk_live_[0-9a-zA-Z]{24,}",
+        "(?i)sk-[0-9a-zA-Z]{20,}",
         "(?i)ghp_[0-9a-zA-Z]{36}",
-        "(?i)xox[baprs]-[0-9a-zA-Z]{10,}",
+        "(?i)gho_[0-9a-zA-Z]{36}",
+        "(?i)xox[baprs]-[0-9a-zA-Z-]{10,}",
         "(?i)AIza[0-9A-Za-z-_]{35}",
+        "(?i)-----BEGIN [A-Z ]*PRIVATE KEY-----",
         "(?i)bearer\\s+[a-zA-Z0-9_\\-\\.]{20,}"
       ]
     },
@@ -40,20 +62,32 @@
       ]
     },
     "hardStops": {
+      "_note": "Matched anywhere in the command string; order-independent. These require explicit human approval.",
       "requireApprovalPatterns": [
-        "(?i)git\\s+push.*(--force|-f)",
-        "(?i)git\\s+reset.*--hard",
-        "(?i)npm\\s+publish",
-        "(?i)vercel\\s+--prod",
-        "(?i)railway\\s+up",
-        "(?i)render\\s+deploy",
-        "(?i)stripe\\s+(delete|refund|payout)"
+        "(?i)\\bgit\\s+push\\b",
+        "(?i)\\bgit\\s+push\\b.*(--force\\b|--force-with-lease\\b|\\s-f\\b)",
+        "(?i)\\bgit\\s+push\\s+-f\\b",
+        "(?i)\\bgit\\s+reset\\s+.*--hard\\b",
+        "(?i)\\bgit\\s+clean\\s+.*-[a-z]*f",
+        "(?i)\\brm\\s+-[a-z]*r[a-z]*f|\\brm\\s+-[a-z]*f[a-z]*r",
+        "(?i)\\brmdir\\s+/s\\b|\\bRemove-Item\\b.*-Recurse",
+        "(?i)\\b(drop\\s+(database|table)|truncate\\s+table)\\b",
+        "(?i)\\bnpm\\s+publish\\b",
+        "(?i)\\bnpm\\s+audit\\s+fix\\s+--force\\b",
+        "(?i)\\bvercel\\s+(--prod|deploy\\s+--prod)\\b",
+        "(?i)\\brailway\\s+up\\b",
+        "(?i)\\brender\\s+deploy\\b",
+        "(?i)\\bstripe\\s+(delete|refund|payout)\\b",
+        "(?i)\\b(deploy|migrate)\\s+(prod|production)\\b"
       ]
     },
     "dashclaw": {
       "enabled": true,
       "autoDiscover": true,
       "defaultRiskThreshold": 50,
+      "hardBlockRiskThreshold": 90,
+      "failClosed": true,
+      "adoptLocalhostPortsAllowed": false,
       "baseUrl": "https://my-dashclaw.vercel.app",
       "predictiveRiskEnabled": true,
       "autoScanBlock": true,

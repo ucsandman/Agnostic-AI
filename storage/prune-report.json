@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-08-19T02:35:30.979Z",
-  "activeCount": 4,
+  "timestamp": "2026-08-20T15:53:08.200Z",
+  "activeCount": 5,
   "ceiling": 5,
   "status": "HEALTHY",
   "activePrinciples": [
@@ -31,64 +31,71 @@
       "title": "- **L1 (2026-08-13) — Before trusting a ",
       "text": "- **L1 (2026-08-13) — Before trusting a check that came back green or empty, make it fail on purpose: re-break the thing it watches, or point it at a case known to be positive. A check never observed failing has been run, not verified.**",
       "sourceFile": "core/rules/global-rules.md"
+    },
+    {
+      "id": "learned-5",
+      "type": "learned_rule",
+      "title": "- **L2 (2026-08-20) — A check's verdict ",
+      "text": "- **L2 (2026-08-20) — A check's verdict must carry the volume it processed. Anything that can pass — or fail — on zero work prints the count beside the verdict: `scanned=0`, `0 of 14 targets checked`, `harvested 0 since 08-18`. A bare OK from an instrument that touched nothing is indistinguishable from a clean week.**",
+      "sourceFile": "core/rules/global-rules.md"
     }
   ],
   "candidateAnalyses": [
     {
-      "id": "654b59c95087bcc3",
-      "text": "The portfolio is one idea expressed four ways — when may a machine",
-      "sightings": 3,
+      "id": "522e1bc0f80b7390",
+      "text": "The portfolio is one idea expressed four ways — when may a machine act without a human, and can the human read the reason.",
+      "sightings": 4,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "0198dbe80a441cae",
-      "text": "The axis is not boldness against restraint, it",
+      "id": "23f633b64c0038c0",
+      "text": "The axis is not boldness against restraint, it is whose account the cost lands in. A guard I choose freely is not free if the human pays its friction; the fix is to move the cost onto something other than him, not to drop the guard.",
       "sightings": 3,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "df5ab88e64ea8127",
-      "text": "A health signal that proves a mechanism CAN work gets read as proof",
-      "sightings": 3,
+      "id": "b50074644b65d1f4",
+      "text": "A self-promoted rule becomes load-bearing in project repos within a day, carried by nothing but its presence in CLAUDE.md. So a wrong rule costs more than a missing one, and the refusal rate is the only safety margin.",
+      "sightings": 5,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "66fc1f7ecbda68a7",
-      "text": "A self-promoted rule becomes load-bearing in project repos within a",
-      "sightings": 3,
+      "id": "ef48df4d3d1e42b1",
+      "text": "The layers added between me and a real binary — compression proxies, governance hooks, path shims, search wrappers — are now a leading source of confident false negatives, and they are invisible to the negative-control test in L1 because a deliberate break runs through the same broken layer.",
+      "sightings": 4,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "3498bdbdab37d1a8",
-      "text": "The layers added between me and a real binary — compression proxies,",
+      "id": "a2b1314a3cbb6f1a",
+      "text": "When a practice is ported into another system, the half that generates output travels and the half that refuses output thins out — and it thins most at the top of the ladder, where the gates are strictest and the evidence is hardest to carry across a repo boundary.",
       "sightings": 3,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "faff320a373d18a1",
-      "text": "When the next real step is uncomfortable (outreach), the day fills",
+      "id": "7260fba1046c8a6a",
+      "text": "When the next real step is uncomfortable (outreach), the day fills with defensible refinement commits on an already-sellable product.",
       "sightings": 3,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     },
     {
-      "id": "cd63e3d33ef55a36",
-      "text": "What separates a job that ships from a job that gets killed is not",
+      "id": "9bbcf7bf36833379",
+      "text": "What separates a job that ships from a job that gets killed is not planning quality but whether the plan was amended in flight. A plan approved once and never rewritten is a stale plan, whatever its quality at signing.",
       "sightings": 3,
       "conflicts": [],
-      "recommendation": "promote_rule",
-      "rationale": "Healthy candidate under ceiling."
+      "recommendation": "push_to_examples",
+      "rationale": "Core principle ceiling reached (5/5). Converted to few-shot example fixture."
     }
   ]
 }

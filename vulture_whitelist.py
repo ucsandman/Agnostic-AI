@@ -16,7 +16,7 @@ from agent.governance.session_manager import SessionManager
 from agent.governance.state import SessionState
 from agent.governance.watchdog import SandboxWatchdog
 from agent.governance.learn import Learner
-from agent.tools.mcp_discovery import MCPDiscovery
+from agent.tools.mcp_discovery import MCPAutoDiscovery
 from agent.tools.subagent import SubagentManager
 from agent.workflows.planner import ExecutionPlanner
 from agent.workflows.pr_pilot import PRPilot
@@ -58,7 +58,7 @@ SessionManager.delete_session
 SessionState.update_whiteboard
 SandboxWatchdog.get_clean_snapshot_hash
 SandboxWatchdog.rollback_to_clean
-MCPDiscovery.discover_mcp_servers
+MCPAutoDiscovery.discover_mcp_servers
 SubagentManager.spawn_parallel
 ExecutionPlanner.add_step
 ExecutionPlanner.update_status

@@ -7,19 +7,20 @@ available — you can type the next prompt while the LLM is responding.
 
 import sys
 import os
-import re
+import contextlib
+import io
 import time
 import subprocess
 import threading
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from collections import deque
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Static, Input, RichLog
 from textual.binding import Binding
-from textual import work
+from textual import events, work
 from textual.css.query import NoMatches
 
 from rich.text import Text
@@ -37,6 +38,17 @@ from agent.governance.audit import audit_manager
 from agent.governance.session_manager import session_manager
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
+from agent.ui_common import (
+    SLASH_COMMANDS,
+    build_arg_parser,
+    detect_model,
+    expand_prompt_references,
+    format_user_display,
+    index_workspace,
+    maybe_start_web_companion,
+    parse_slash_command,
+    safe_text,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -48,115 +60,6 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-
-SLASH_COMMANDS = [
-    "/theme",
-    "/plan",
-    "/fix",
-    "/compact",
-    "/trust",
-    "/untrust",
-    "/session",
-    "/audit",
-    "/retro",
-    "/research",
-    "/review",
-    "/swarm",
-    "/diagram",
-    "/pr",
-    "/harvest",
-    "/test",
-    "/doctor",
-    "/model",
-    "/undo",
-    "/checkpoint",
-    "/commit",
-    "/learn",
-    "/grill-me",
-    "/schedule",
-    "/loop",
-    "/state",
-    "/distill",
-    "/web",
-    "/clear",
-    "/multiline",
-    "/help",
-    "/exit",
-]
-
-
-def get_ui_width() -> int:
-    """Returns a bounded narrow column width for readable layout."""
-    try:
-        cols = os.get_terminal_size().columns
-    except Exception:
-        cols = 100
-    return min(max(cols - 4, 60), 94)
-
-
-def format_user_display(raw_input: str) -> str:
-    """Formats user input for clean display in the user panel."""
-    formatted = re.sub(r"[ \t]*(@image:\S+)[ \t]*", r"\n\1\n", raw_input)
-    formatted = re.sub(r"\n{3,}", "\n\n", formatted).strip()
-    return formatted
-
-
-def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
-    """Injects code snippets and references for any @file, #symbol, or @image found in prompt."""
-    image_refs = re.findall(r"@image:([a-zA-Z0-9_\-\./\\]+)", user_prompt)
-    file_refs = re.findall(r"@([a-zA-Z0-9_\-\./\\]+)", user_prompt)
-    symbol_refs = re.findall(r"#([a-zA-Z0-9_\.\:]+)", user_prompt)
-
-    injected_context = []
-
-    ws_root = getattr(indexer, "workspace_root", Path(os.getcwd()))
-    if isinstance(ws_root, str):
-        ws_root = Path(ws_root)
-
-    for img_rel in image_refs:
-        img_path = (ws_root / img_rel).resolve()
-        if not img_path.exists():
-            img_path = (Path(os.getcwd()) / img_rel).resolve()
-        if img_path.exists() and img_path.is_file():
-            try:
-                from PIL import Image
-
-                with Image.open(img_path) as im:
-                    w, h = im.size
-                    fmt = im.format
-                size_kb = img_path.stat().st_size / 1024.0
-                injected_context.append(
-                    f"### [Attached Image Reference: @image:{img_rel} ({w}x{h} {fmt}, {size_kb:.1f} KB)]\n"
-                    f"Image file on disk: `{str(img_path)}`"
-                )
-            except Exception:
-                injected_context.append(
-                    f"### [Attached Image Reference: @image:{img_rel}]\n"
-                    f"Image file on disk: `{str(img_path)}`"
-                )
-
-    for f in file_refs:
-        if f == "image" or f.startswith("image:"):
-            continue
-        res = indexer.resolve_file(f)
-        if res:
-            rel, content = res
-            injected_context.append(
-                f"### [Context Reference: @{rel}]:\n```\n{content[:2500]}\n```"
-            )
-
-    for s in symbol_refs:
-        res = indexer.resolve_symbol(s)
-        if res:
-            loc, snippet = res
-            injected_context.append(
-                f"### [Symbol Reference: #{s} ({loc})]:\n```\n{snippet}\n```"
-            )
-
-    if injected_context:
-        return user_prompt + "\n\n" + "\n\n".join(injected_context)
-    return user_prompt
-
 
 # ─── Textual TUI Application ────────────────────────────────────────────────────
 
@@ -231,6 +134,7 @@ class AgnosticTUI(App):
     BINDINGS = [  # noqa: vulture
         Binding("ctrl+c", "quit_safe", "Exit", show=True),
         Binding("ctrl+l", "clear_output", "Clear", show=True),
+        Binding("tab", "complete_slash", "Complete", show=False),
     ]
 
     def __init__(
@@ -256,6 +160,24 @@ class AgnosticTUI(App):
         self._stream_buffer: List[str] = []
         self._did_stream = False
         self._lock = threading.Lock()
+        # Rendered by the UI thread, refreshed by a background worker (see
+        # _refresh_git_status) — `git rev-parse` + `git status` on the UI thread
+        # stalled the app on every 3s tick.
+        self._git_status = ""
+
+        # Human-in-the-loop confirmation for hard-stop commands. Blocks the calling
+        # worker thread via this event until the human answers in the input box.
+        self._confirm_event = threading.Event()
+        self._confirm_response = False
+        self._awaiting_confirm = False
+        # Always wire a REAL confirm callback. A missing/None callback is treated as
+        # auto-approve by AgentLoop/the tool registry — the TUI must never rely on
+        # that fallback, so this is set unconditionally, not gated on --ask-permissions.
+        self.agent.confirm_callback = self._tui_confirm_callback
+        # Wired ONCE, for the life of the app. Swapping it in only for the duration
+        # of _run_agent_turn threw away everything /fix, /test, /schedule and /loop
+        # produced — those drive the agent from their own worker/scheduler threads.
+        self.agent.output_callback = self._output_callback
 
     def compose(self) -> ComposeResult:  # noqa: vulture
         yield Static(id="status-bar")
@@ -271,11 +193,27 @@ class AgnosticTUI(App):
 
     def on_mount(self) -> None:  # noqa: vulture
         """Initialize on app mount."""
+        # Textual runs the whole process inside redirect_stdout(_PrintCapture); that
+        # capture only forwards to targets registered here, so without this every
+        # Console().print() from a tool (ask_question prompts, diff cards, the test
+        # runner) is silently dropped.
+        self.begin_capture_print(self)
         self._print_banner()
         self._update_status_bar()
         self.query_one("#prompt-input", Input).focus()
-        # Periodic status bar update
+        # Periodic status bar update (render only — git shells out on a worker)
         self.set_interval(3.0, self._update_status_bar)
+        self._refresh_git_status()
+        self.set_interval(3.0, self._refresh_git_status)
+
+    def on_print(self, event: events.Print) -> None:  # noqa: vulture
+        """Show stray stdout/stderr writes in the log. Print events arrive through
+        post_message(), which hands off to the event loop via call_soon_threadsafe
+        when the print came from a worker thread — so this handler always runs on
+        the UI thread and can write directly."""
+        text = event.text.rstrip("\n")
+        if text.strip():
+            self._write_output(safe_text(text))
 
     def _print_banner(self) -> None:
         log = self.query_one("#output-log", RichLog)
@@ -305,30 +243,7 @@ class AgnosticTUI(App):
             home = str(Path.home())
             display_cwd = "~" + cwd[len(home) :] if cwd.startswith(home) else cwd
 
-            git_str = ""
-            try:
-                b_res = subprocess.run(
-                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                    capture_output=True,
-                    text=True,
-                    timeout=0.3,
-                )
-                if b_res.returncode == 0 and b_res.stdout.strip():
-                    branch = b_res.stdout.strip()
-                    st_res = subprocess.run(
-                        ["git", "status", "--porcelain"],
-                        capture_output=True,
-                        text=True,
-                        timeout=0.3,
-                    )
-                    dirty_count = (
-                        len(st_res.stdout.strip().splitlines())
-                        if st_res.stdout.strip()
-                        else 0
-                    )
-                    git_str = f" | 🌿 {branch}{'*' if dirty_count else ''}"
-            except Exception:
-                pass
+            git_str = self._git_status
 
             curr_model = self.agent.llm_client.config.model
             curr_effort = (
@@ -357,13 +272,54 @@ class AgnosticTUI(App):
         except Exception:
             pass
 
+    @work(thread=True, exclusive=True, group="statusbar")
+    def _refresh_git_status(self) -> None:
+        """Shells out for branch/dirty state on a worker thread and caches the
+        rendered fragment for _update_status_bar."""
+        git_str = ""
+        try:
+            b_res = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=0.3,
+            )
+            if b_res.returncode == 0 and b_res.stdout.strip():
+                branch = b_res.stdout.strip()
+                st_res = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    capture_output=True,
+                    text=True,
+                    timeout=0.3,
+                )
+                dirty_count = (
+                    len(st_res.stdout.strip().splitlines())
+                    if st_res.stdout.strip()
+                    else 0
+                )
+                git_str = f" | 🌿 {branch}{'*' if dirty_count else ''}"
+        except Exception:
+            pass
+        if git_str != self._git_status:
+            self._git_status = git_str
+            self.call_from_thread(self._update_status_bar)
+
     def _write_output(self, *args, **kwargs) -> None:
-        """Thread-safe write to the output log."""
+        """Write to the output log. MUST be called from the app/UI thread — use
+        _post_output() from a worker thread instead."""
         try:
             log = self.query_one("#output-log", RichLog)
             log.write(*args, **kwargs)
         except NoMatches:
             pass
+
+    def _post_output(self, *args, **kwargs) -> None:
+        """Thread-safe write to the output log — safe to call from the UI thread
+        or from any worker thread."""
+        if threading.get_ident() == self._thread_id:
+            self._write_output(*args, **kwargs)
+        else:
+            self.call_from_thread(self._write_output, *args, **kwargs)
 
     def _output_callback(self, msg_type: str, content: str) -> None:
         """Callback from AgentLoop — runs on worker thread, posts to UI thread."""
@@ -392,8 +348,7 @@ class AgnosticTUI(App):
             self._flush_stream()
             if not had_streamed and content:
                 # Non-streamed final response — show as panel
-                self.call_from_thread(
-                    self._write_output,
+                self._post_output(
                     Panel(
                         Markdown(content),
                         title="[bold cyan]🛡️ Agnostic Agent[/bold cyan]",
@@ -401,59 +356,54 @@ class AgnosticTUI(App):
                         border_style="cyan",
                         box=box.ROUNDED,
                         padding=(0, 1),
-                    ),
+                    )
                 )
             with self._lock:
                 self._stream_buffer = []
                 self._did_stream = False
 
         elif msg_type == "tool_start":
-            self.call_from_thread(
-                self._write_output,
-                Text.from_markup(
-                    f"[dim magenta]⚙️  Executing Tool:[/dim magenta] [yellow]{content}[/yellow]"
-                ),
-            )
+            label = Text.from_markup("[dim magenta]⚙️  Executing Tool:[/dim magenta] ")
+            label.append(content, style="yellow")
+            self._post_output(label)
 
         elif msg_type == "tool_end":
+            # Raw tool output (e.g. a grep hit containing '[/etc/hosts]') must never be
+            # parsed as Rich console markup — Panel(str) would raise MarkupError on it.
             clipped = content[:600] + ("..." if len(content) > 600 else "")
-            self.call_from_thread(
-                self._write_output,
+            self._post_output(
                 Panel(
-                    clipped,
+                    safe_text(clipped),
                     title="[dim blue]⚙️ Tool Output[/dim blue]",
                     title_align="left",
                     border_style="dim blue",
                     box=box.ROUNDED,
                     padding=(0, 1),
-                ),
+                )
             )
 
         elif msg_type == "subagent":
-            self.call_from_thread(
-                self._write_output,
-                Text.from_markup(
-                    f"[bold green]🐝 Subagent Notification:[/bold green] {content}"
-                ),
+            label = Text.from_markup(
+                "[bold green]🐝 Subagent Notification:[/bold green] "
             )
+            label.append(content)
+            self._post_output(label)
 
         elif msg_type == "system":
-            self.call_from_thread(
-                self._write_output,
-                Text.from_markup(f"[bold yellow]🔔 {content}[/bold yellow]"),
-            )
+            label = Text.from_markup("[bold yellow]🔔[/bold yellow] ")
+            label.append(content, style="bold yellow")
+            self._post_output(label)
 
         elif msg_type == "error":
-            self.call_from_thread(
-                self._write_output,
+            self._post_output(
                 Panel(
-                    Text(content, style="bold red"),
+                    safe_text(content, style="bold red"),
                     title="[bold red]❌ Error[/bold red]",
                     title_align="left",
                     border_style="red",
                     box=box.ROUNDED,
                     padding=(0, 1),
-                ),
+                )
             )
 
     def _flush_stream(self) -> None:
@@ -465,10 +415,39 @@ class AgnosticTUI(App):
             self._stream_buffer = []
             self._did_stream = True
         if chunk.strip():
-            self.call_from_thread(
-                self._write_output,
-                Text.from_markup(f"[bold cyan]🛡️ Agnostic Agent:[/bold cyan] {chunk}"),
-            )
+            # Raw model text ('[/]' and friends) must never be parsed as markup.
+            line = Text.from_markup("[bold cyan]🛡️ Agnostic Agent:[/bold cyan] ")
+            line.append(chunk)
+            self._post_output(line)
+
+    def _tui_confirm_callback(self, prompt_msg: str) -> bool:
+        """Real human-in-the-loop confirmation for hard-stop commands.
+
+        Called by the tool registry from a worker thread (the tool call chain
+        always runs via a Textual @work worker — see _run_agent_turn /
+        _run_background). Blocks that worker thread until the human answers in
+        the input box; the UI thread stays fully responsive and renders the
+        prompt.
+        """
+        self._confirm_response = False
+        self._confirm_event.clear()
+        self._awaiting_confirm = True
+        self.call_from_thread(
+            self._write_output,
+            Panel(
+                safe_text(
+                    f"{prompt_msg}\n\nType y/yes to approve or n/no to deny, then press Enter."
+                ),
+                title="[bold red]⚠️  GOVERNANCE HARD-STOP[/bold red]",
+                title_align="left",
+                border_style="red",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            ),
+        )
+        self._confirm_event.wait()
+        self._awaiting_confirm = False
+        return self._confirm_response
 
     def on_input_submitted(self, event: Input.Submitted) -> None:  # noqa: vulture
         """Handle Enter key in the input box."""
@@ -476,6 +455,18 @@ class AgnosticTUI(App):
         if not user_input:
             return
         event.input.value = ""
+
+        if self._awaiting_confirm:
+            approved = user_input.lower() in ("y", "yes")
+            self._confirm_response = approved
+            self._confirm_event.set()
+            self._write_output(
+                Text(
+                    f"→ {'Approved' if approved else 'Denied'}",
+                    style="bold green" if approved else "bold yellow",
+                )
+            )
+            return
 
         if self._agent_busy:
             # Queue the prompt for later
@@ -525,7 +516,8 @@ class AgnosticTUI(App):
                 )
             )
 
-        # --- Slash commands (handled synchronously) ---
+        # --- Slash commands (dispatched synchronously; expensive ones hand off
+        # to a background worker before returning) ---
         handled = self._handle_slash_command(user_input)
         if handled:
             self._update_status_bar()
@@ -542,16 +534,12 @@ class AgnosticTUI(App):
         """Execute agent turn in a background thread so input stays responsive."""
         start_time = time.time()
         try:
-            # Swap the output callback to our TUI callback
-            original_callback = self.agent.output_callback
-            self.agent.output_callback = self._output_callback
             self.agent.run_turn(expanded_input)
-            self.agent.output_callback = original_callback
         except Exception as e:
             self.call_from_thread(
                 self._write_output,
                 Panel(
-                    Text(f"Error: {str(e)}", style="bold red"),
+                    safe_text(f"Error: {str(e)}", style="bold red"),
                     title="[bold red]❌ Error[/bold red]",
                     title_align="left",
                     border_style="red",
@@ -569,6 +557,47 @@ class AgnosticTUI(App):
             # Process next queued prompt if any
             self.call_from_thread(self._process_queue)
 
+    def _dispatch_background(self, fn) -> None:
+        """Marks the agent busy and runs fn() on a background worker so the input
+        box stays responsive. Use for any slash command that talks to the LLM,
+        subagents, or shells out — never run those inline on the UI thread."""
+        self._agent_busy = True
+        self._update_status_bar()
+        self._run_background(fn)
+
+    @work(thread=True, exclusive=True, group="agent_turn")
+    def _run_background(self, fn) -> None:
+        """Runs fn() on a background thread. fn may return a Rich renderable to
+        display, or None. Captures fn's raw stdout — workflows like AutoTestRunner
+        print through their own Rich Console — so it lands in the TUI's own output
+        log instead of scribbling raw ANSI over the Textual canvas.
+        """
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                result = fn()
+            if result is not None:
+                self.call_from_thread(self._write_output, result)
+        except Exception as e:
+            self.call_from_thread(
+                self._write_output,
+                Panel(
+                    safe_text(f"Error: {e}", style="bold red"),
+                    title="[bold red]❌ Error[/bold red]",
+                    title_align="left",
+                    border_style="red",
+                    box=box.ROUNDED,
+                    padding=(0, 1),
+                ),
+            )
+        finally:
+            captured = buf.getvalue()
+            if captured.strip():
+                self.call_from_thread(self._write_output, safe_text(captured))
+            self._agent_busy = False
+            self.call_from_thread(self._update_status_bar)
+            self.call_from_thread(self._process_queue)
+
     def _process_queue(self) -> None:
         """Process the next queued prompt if any."""
         if self._prompt_queue and not self._agent_busy:
@@ -583,6 +612,7 @@ class AgnosticTUI(App):
 
     def _handle_slash_command(self, user_input: str) -> bool:
         """Handle slash commands. Returns True if handled, False to fall through to agent."""
+        cmd, args = parse_slash_command(user_input)
 
         if user_input == "/clear":
             log = self.query_one("#output-log", RichLog)
@@ -590,10 +620,10 @@ class AgnosticTUI(App):
             self._print_banner()
             return True
 
-        elif user_input.startswith("/theme"):
-            parts = user_input.split()
-            if len(parts) > 1:
-                msg = theme_manager.set_theme(parts[1])
+        elif cmd == "theme":
+            if args:
+                theme_key = args.split()[0]
+                msg = theme_manager.set_theme(theme_key)
                 self._write_output(Text(f"🎨 {msg}", style="bold green"))
             else:
                 available = ", ".join(
@@ -614,13 +644,15 @@ class AgnosticTUI(App):
             self._write_output(Text(msg, style="bold green"))
             return True
 
-        elif user_input.startswith("/fix"):
-            custom_cmd = user_input.replace("/fix", "").strip() or None
-            self.test_runner.quick_fix(custom_command=custom_cmd)
+        elif cmd == "fix":
+            custom_cmd = args or None
+            self._dispatch_background(
+                lambda: self.test_runner.quick_fix(custom_command=custom_cmd)
+            )
             return True
 
-        elif user_input.startswith("/trust"):
-            mode = user_input.replace("/trust", "").strip() or "reads"
+        elif cmd == "trust":
+            mode = args or "reads"
             msg = guard.set_trust_tier(mode)
             self._write_output(Text(f"🛡️ {msg}", style="bold green"))
             return True
@@ -630,10 +662,10 @@ class AgnosticTUI(App):
             self._write_output(Text(f"🛡️ {msg}", style="bold yellow"))
             return True
 
-        elif user_input.startswith("/session"):
-            parts = user_input.split()
-            subcmd = parts[1].lower() if len(parts) > 1 else "list"
-            sess_name = parts[2] if len(parts) > 2 else "latest"
+        elif cmd == "session":
+            parts = args.split()
+            subcmd = parts[0].lower() if parts else "list"
+            sess_name = parts[1] if len(parts) > 1 else "latest"
 
             if subcmd == "save":
                 ok, msg = session_manager.save_session(sess_name, self.agent.history)
@@ -680,10 +712,10 @@ class AgnosticTUI(App):
             self._write_output(Text(f"{icon} {msg}", style=style))
             return True
 
-        elif user_input.startswith("/checkpoint"):
-            parts = user_input.split()
-            subcmd = parts[1].lower() if len(parts) > 1 else "list"
-            cp_name = parts[2] if len(parts) > 2 else "latest"
+        elif cmd == "checkpoint":
+            parts = args.split()
+            subcmd = parts[0].lower() if parts else "list"
+            cp_name = parts[1] if len(parts) > 1 else "latest"
 
             if subcmd == "save":
                 msg = undo_manager.create_checkpoint(cp_name)
@@ -714,29 +746,33 @@ class AgnosticTUI(App):
             return True
 
         elif user_input == "/commit":
-            self._handle_commit()
+            self._dispatch_background(self._handle_commit)
             return True
 
-        elif user_input.startswith("/test"):
-            custom_cmd = user_input.replace("/test", "").strip() or None
-            self.test_runner.auto_repair_loop(custom_command=custom_cmd)
+        elif cmd == "test":
+            custom_cmd = args or None
+            self._dispatch_background(
+                lambda: self.test_runner.auto_repair_loop(custom_command=custom_cmd)
+            )
             return True
 
         elif user_input == "/doctor":
-            self._write_output(
-                Panel(
+
+            def _do_doctor():
+                return Panel(
                     self.doctor.format_report(),
                     title="Agnostic Doctor / Endpoint Inspector",
                     border_style="cyan",
                 )
-            )
+
+            self._dispatch_background(_do_doctor)
             return True
 
-        elif user_input.startswith("/model"):
-            parts = user_input.split()
-            if len(parts) > 1:
-                target_key = parts[1].lower()
-                effort = parts[2].lower() if len(parts) > 2 else None
+        elif cmd == "model":
+            parts = args.split()
+            if parts:
+                target_key = parts[0].lower()
+                effort = parts[1].lower() if len(parts) > 1 else None
                 msg = self.agent.llm_client.switch_model(
                     preset_key=target_key, reasoning_effort=effort
                 )
@@ -752,8 +788,8 @@ class AgnosticTUI(App):
                 )
             return True
 
-        elif user_input.startswith("/plan"):
-            task = user_input.replace("/plan", "").strip() or "General Task Plan"
+        elif cmd == "plan":
+            task = args or "General Task Plan"
             self._write_output(
                 Text(f"Initiating Dynamic Planning Workflow for: {task}", style="cyan")
             )
@@ -766,8 +802,8 @@ class AgnosticTUI(App):
             self._run_agent_turn(plan_prompt)
             return True
 
-        elif user_input.startswith("/research"):
-            topic = user_input.replace("/research", "").strip()
+        elif cmd == "research":
+            topic = args
             if not topic:
                 self._write_output(
                     Text(
@@ -777,86 +813,96 @@ class AgnosticTUI(App):
                 )
                 return True
             self._write_output(Text(f"Subagent researching '{topic}'...", style="cyan"))
-            try:
+
+            def _do_research():
                 report = self.agent.subagents.spawn("researcher", topic)
-                self._write_output(
-                    Panel(
-                        Markdown(report), title="Research Results", border_style="cyan"
-                    )
+                return Panel(
+                    Markdown(report), title="Research Results", border_style="cyan"
                 )
-            except Exception as e:
-                self._write_output(Text(f"Research error: {e}", style="red"))
+
+            self._dispatch_background(_do_research)
             return True
 
-        elif user_input.startswith("/review"):
+        elif cmd == "review":
             self._write_output(
                 Text("Subagent reviewing workspace diffs...", style="cyan")
             )
-            try:
+
+            def _do_review():
                 report = self.agent.subagents.spawn(
                     "reviewer",
                     "Inspect git status and recent diffs for bugs, missing tests, or security concerns.",
                 )
-                self._write_output(
-                    Panel(Markdown(report), title="Code Review", border_style="cyan")
-                )
-            except Exception as e:
-                self._write_output(Text(f"Review error: {e}", style="red"))
+                return Panel(Markdown(report), title="Code Review", border_style="cyan")
+
+            self._dispatch_background(_do_review)
             return True
 
-        elif user_input.startswith("/swarm"):
-            task = user_input.replace("/swarm", "").strip()
+        elif cmd == "swarm":
+            task = args
             if not task:
                 self._write_output(
                     Text("Usage: /swarm <complex task or feature>", style="yellow")
                 )
                 return True
-            from agent.workflows.swarm import SwarmCoordinator
 
-            swarm = SwarmCoordinator(self.agent.subagents, self.agent.llm_client)
-            synthesis = swarm.dispatch_swarm(task)
-            self._write_output(
-                Panel(
+            def _do_swarm():
+                from agent.workflows.swarm import SwarmCoordinator
+
+                swarm = SwarmCoordinator(self.agent.subagents, self.agent.llm_client)
+                synthesis = swarm.dispatch_swarm(task)
+                return Panel(
                     Markdown(synthesis),
                     title="🐝 Swarm Unified Strategy",
                     border_style="green",
                 )
-            )
+
+            self._dispatch_background(_do_swarm)
             return True
 
         elif user_input.startswith(("/diagram", "/map")):
-            from agent.workflows.diagram import ArchitectureDiagrammer
 
-            diag = ArchitectureDiagrammer(self.agent.workspace_root)
-            m_code = diag.generate_mermaid_map()
-            self._write_output(
-                Panel(
-                    m_code, title="📊 Mermaid Architecture Diagram", border_style="cyan"
+            def _do_diagram():
+                from agent.workflows.diagram import ArchitectureDiagrammer
+
+                diag = ArchitectureDiagrammer(self.agent.workspace_root)
+                return Panel(
+                    safe_text(diag.generate_mermaid_map()),
+                    title="📊 Mermaid Architecture Diagram",
+                    border_style="cyan",
                 )
-            )
+
+            self._dispatch_background(_do_diagram)
             return True
 
-        elif user_input.startswith("/pr"):
-            from agent.workflows.pr_pilot import PRAutoPilot
+        elif cmd == "pr":
 
-            pilot = PRAutoPilot(self.agent.workspace_root, self.agent.llm_client)
-            pilot.generate_pr_summary()
+            def _do_pr():
+                from agent.workflows.pr_pilot import PRAutoPilot
+
+                pilot = PRAutoPilot(self.agent.workspace_root, self.agent.llm_client)
+                pilot.generate_pr_summary()
+                return None
+
+            self._dispatch_background(_do_pr)
             return True
 
         elif user_input.startswith("/harvest"):
-            from agent.governance.harvester import harvester
 
-            count = harvester.scan_and_harvest()
-            self._write_output(
-                Text(
+            def _do_harvest():
+                from agent.governance.harvester import harvester
+
+                count = harvester.scan_and_harvest()
+                return Text(
                     f"🌾 Harvested {count} cross-agent corrections into candidate ladder.",
                     style="bold green",
                 )
-            )
+
+            self._dispatch_background(_do_harvest)
             return True
 
-        elif user_input.startswith("/learn"):
-            lesson = user_input.replace("/learn", "").strip()
+        elif cmd == "learn":
+            lesson = args
             if not lesson:
                 self._write_output(
                     Text("Usage: /learn <lesson or constraint>", style="yellow")
@@ -891,7 +937,7 @@ class AgnosticTUI(App):
 
             self._write_output(
                 Panel(
-                    state_manager.read_state(),
+                    safe_text(state_manager.read_state()),
                     title="🎯 Persistent State Whiteboard (.agnostic/state.md)",
                     border_style="green",
                 )
@@ -902,36 +948,30 @@ class AgnosticTUI(App):
             self._write_output(
                 Text("Triggering Harness Distillation Engine...", style="cyan")
             )
-            res = subprocess.run(
-                "node engine/distill/distill.cjs",
-                cwd=str(self.agent.workspace_root),
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
-            self._write_output(
-                Panel(
-                    res.stdout or res.stderr or "Distillation complete.",
+
+            def _do_distill():
+                res = subprocess.run(
+                    "node engine/distill/distill.cjs",
+                    cwd=str(self.agent.workspace_root),
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                )
+                return Panel(
+                    safe_text(res.stdout or res.stderr or "Distillation complete."),
                     title="Distillation Results",
                     border_style="cyan",
                 )
-            )
+
+            self._dispatch_background(_do_distill)
             return True
 
         elif user_input == "/web":
-            from agent.web.server import start_companion_server, companion_telemetry
-            import webbrowser
-
-            companion_telemetry.bind_agent(self.agent)
-            ok, web_url = start_companion_server(7843)
-            try:
-                webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
-            except Exception:
-                pass
+            ok, web_url = maybe_start_web_companion(self.agent)
             msg = (
                 f"🌐 Live Visual Companion active at: {web_url}"
                 if ok
-                else "Companion server is active at: http://127.0.0.1:7843"
+                else f"Companion server failed to start: {web_url}"
             )
             self._write_output(Text(msg, style="bold green" if ok else "yellow"))
             return True
@@ -980,9 +1020,10 @@ class AgnosticTUI(App):
 
         return False
 
-    def _handle_commit(self) -> None:
-        """Autonomous Git Commit generator workflow."""
-        self._write_output(
+    def _handle_commit(self) -> Optional[Panel]:
+        """Autonomous Git Commit generator workflow. Runs on a background worker
+        (see _dispatch_background) — writes go through _post_output()."""
+        self._post_output(
             Text("Inspecting staged changes and git status...", style="cyan")
         )
         try:
@@ -990,10 +1031,10 @@ class AgnosticTUI(App):
                 "git status --short", shell=True, capture_output=True, text=True
             ).stdout.strip()
             if not st:
-                self._write_output(
+                self._post_output(
                     Text("No changes detected in git working tree.", style="dim")
                 )
-                return
+                return None
 
             diff = subprocess.run(
                 "git diff --cached", shell=True, capture_output=True, text=True
@@ -1003,7 +1044,9 @@ class AgnosticTUI(App):
                     "git diff", shell=True, capture_output=True, text=True
                 ).stdout.strip()
 
-            self._write_output(Panel(st, title="Git Status", border_style="yellow"))
+            self._post_output(
+                Panel(safe_text(st), title="Git Status", border_style="yellow")
+            )
 
             commit_prompt = (
                 f"Based on the following git changes:\n```\n{st}\n```\nDiff preview:\n```\n{diff[:1500]}\n```\n"
@@ -1023,27 +1066,37 @@ class AgnosticTUI(App):
                 .message.content.strip()
             )
 
-            self._write_output(
-                Text(f"Suggested Commit Message:\n{msg}", style="bold green")
+            self._post_output(
+                Panel(
+                    safe_text(f"Suggested Commit Message:\n{msg}"),
+                    border_style="green",
+                )
             )
-            self._write_output(
+            self._post_output(
                 Text(
                     'To commit, type: git add -A && git commit -m "<message>" in your terminal.',
                     style="dim yellow",
                 )
             )
         except Exception as e:
-            self._write_output(
-                Text(f"Git commit workflow error: {str(e)}", style="red")
-            )
+            self._post_output(Text(f"Git commit workflow error: {str(e)}", style="red"))
+        return None
 
     def action_quit_safe(self) -> None:  # noqa: vulture
         """Ctrl+C handler."""
         if self._agent_busy:
+            # A worker thread cannot be forcibly interrupted mid-run — do NOT clear
+            # _agent_busy here, or a second overlapping turn could start on the same
+            # agent.history while the first is still writing to it.
+            # ponytail: no cooperative-cancel hook in AgentLoop yet; add one if a hard
+            # abort becomes necessary.
             self._write_output(
-                Text("Agent is busy. Press Ctrl+C again to force quit.", style="yellow")
+                Text(
+                    "Agent turn is still running in the background and can't be "
+                    "force-stopped yet. Press Ctrl+C again once it finishes to exit.",
+                    style="yellow",
+                )
             )
-            self._agent_busy = False
         else:
             self.exit()
 
@@ -1053,44 +1106,30 @@ class AgnosticTUI(App):
         log.clear()
         self._print_banner()
 
+    def action_complete_slash(self) -> None:  # noqa: vulture
+        """Tab handler: completes a partially typed slash command against the
+        shared SLASH_COMMANDS table (cli.py's prompt_toolkit completer uses the
+        same table — restores the tab-completion the TUI had lost)."""
+        try:
+            inp = self.query_one("#prompt-input", Input)
+        except NoMatches:
+            return
+        val = inp.value
+        if not val.startswith("/") or " " in val:
+            return
+        matches = [c for c in SLASH_COMMANDS if c.startswith(val)]
+        if len(matches) == 1:
+            inp.value = matches[0] + " "
+            inp.cursor_position = len(inp.value)  # noqa: vulture
+        elif matches:
+            self._write_output(Text("  ".join(matches), style="dim"))
+
 
 # ─── Entry Point ─────────────────────────────────────────────────────────────────
 
 
 def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Agnostic AI Autonomous Coding Agent")
-    parser.add_argument(
-        "--url",
-        default="http://localhost:1234/v1",
-        help="LLM API Base URL (LM Studio, Ollama, etc.)",
-    )
-    parser.add_argument("--model", default="local-model", help="Model name / ID")
-    parser.add_argument("--api-key", default="lm-studio", help="API Key")
-    parser.add_argument(
-        "--compact",
-        action="store_true",
-        default=True,
-        help="Use compact harness prompt for local context limits (default: True)",
-    )
-    parser.add_argument(
-        "--full-prompt",
-        action="store_true",
-        help="Force loading full 14KB system prompt",
-    )
-    parser.add_argument("--prompt", "-p", help="Single prompt execution mode")
-    parser.add_argument(
-        "--ask-permissions",
-        action="store_true",
-        default=False,
-        help="Enable manual confirmation gates for hard-stop commands",
-    )
-    parser.add_argument(
-        "--web",
-        action="store_true",
-        help="Start the real-time visual web companion on port 7843",
-    )
+    parser = build_arg_parser()
     parser.add_argument(
         "--legacy",
         action="store_true",
@@ -1102,13 +1141,13 @@ def main():
     if args.legacy:
         from agent.cli import main as legacy_main
 
-        legacy_main()
+        # cli.main() re-parses sys.argv, which still carries --legacy (its parser
+        # has no such flag) — hand it the argv it can actually parse.
+        legacy_main([a for a in sys.argv[1:] if a != "--legacy"])
         return
 
     # Auto-discover active model
-    doctor = ModelDoctor(base_url=args.url, api_key=args.api_key)
-    detection = doctor.inspect()
-    detected_model = detection.get("active_model") or args.model
+    doctor, detected_model, detection = detect_model(args.url, args.api_key, args.model)
 
     config = LLMConfig(
         base_url=args.url,
@@ -1119,38 +1158,29 @@ def main():
     use_compact = not args.full_prompt
     require_confirmation = args.ask_permissions
 
-    def _noop_confirm(_: str) -> bool:
-        return True
-
     def _noop_output(msg_type: str, content: str) -> None:
         pass  # TUI overrides this
 
     agent = AgentLoop(
         workspace_root=os.getcwd(),
         llm_config=config,
-        confirm_callback=_noop_confirm if not require_confirmation else None,
+        # No confirm_callback here on purpose: AgentLoop falls back to a real
+        # (blocking) confirm, never an auto-approve, and AgnosticTUI wires its own
+        # human-in-the-loop confirm the moment it's constructed below.
         output_callback=_noop_output,
     )
     if use_compact:
         agent._load_harness_system_prompt(compact=True)
 
     # Pre-index workspace
-    code_indexer.workspace_root = Path(os.getcwd()).resolve()
-    code_indexer.index_workspace()
+    index_workspace()
 
     from agent.web.server import companion_telemetry
 
     companion_telemetry.bind_agent(agent)
 
     if args.web:
-        from agent.web.server import start_companion_server
-        import webbrowser
-
-        ok, web_url = start_companion_server(7843)
-        try:
-            webbrowser.open(web_url if ok else "http://127.0.0.1:7843")
-        except Exception:
-            pass
+        maybe_start_web_companion(agent)
 
     # Single prompt mode: run without TUI
     if args.prompt:

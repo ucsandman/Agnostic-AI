@@ -32,6 +32,11 @@ Agnostic AI is a two-in-one system designed for developers who want complete aut
 
 ## 🤖 Native Autonomous Coding Agent
 
+`agnostic` launches a Textual-based TUI (Claude Code-style, with a fixed input box
+pinned to the bottom and streaming output above). Prefer the older prompt_toolkit
+readline shell? Run `agnostic-legacy` instead — both entry points share the same
+agent loop, tools, and slash commands below.
+
 Run the autonomous coding agent in any directory or project:
 
 ```bash
@@ -156,13 +161,19 @@ Optional integration with DashClaw for remote approval of high-risk actions (for
 | **Hermes** | `~/.hermes/agent_system.md` | JSON Hook Proxy | Custom link |
 | **Generic / Local LLMs** | `storage/compiled/system_prompt.md` | HTTP / CLI wrapper | Directory export |
 
+> **Current wiring status:** every client above gets its rules file compiled and synced (18/18).
+> Hook proxies (`engine/hooks/dashclaw-guard.cjs`) are actually wired for 10 of the 18 clients today
+> (Copilot, Aider, Zed, Amazon Q, Cody, OpenClaw, Hermes, and Generic fall back to declarative
+> guards only). Skill-directory junctions are wired for 14 of 18 (Aider, Amazon Q, Cody, and
+> Generic have no `skillsDir`). See `core/templates/targets.json` for the exact per-target config.
+
 ## 📦 Using This Template
  
  You can use this repository as a clean template to establish your own personalized cross-agent harness:
  
  1. Click **"Use this template"** on GitHub to create your personal harness repository (e.g. `yourname/agnostic-harness`).
  2. Clone your repo locally onto your development machine.
- 3. Customize [`core/rules/global-rules.md`](file:///C:/Projects/agnostic-ai/core/rules/global-rules.md) with your preferred working style, rules, non-negotiables, and tool preferences.
+ 3. Customize [`core/rules/global-rules.md`](core/rules/global-rules.md) with your preferred working style, rules, non-negotiables, and tool preferences.
  4. Run `npm run setup:default` (or `python launch.py`) to automatically consolidate existing skills, harvest local logs, and link all 18 agent target configurations.
  
  ---
@@ -248,6 +259,33 @@ Governance is **100% optional**. You can opt out at any time:
 2. **Via Config File:** Set `"active": false` in `storage/dashclaw-config.json`.
 
 When opted out, the harness operates with zero external network requests, enforcing all safety boundaries through local declarative guards.
+
+---
+
+## 🧹 Uninstall / Restore
+
+The harness only writes inside this repo's own `storage/` and `skills/definitions/`
+folders, plus one rules/hooks/skills file per AI client under your home directory
+(`~`) — the same 18 targets listed in [Supported Clients](#-supported-clients--runtimes),
+each backed up automatically before every overwrite:
+
+1. **Restore a client's previous rules file:** `node engine/sync/sync.cjs` copies a
+   timestamped backup to `storage/backups/<client-id>-<filename>-<timestamp>.bak` before
+   every overwrite (and before skipping a hand-edited target). Copy the newest `.bak`
+   for that client back over the target listed in its row above.
+2. **Remove a client's rules file entirely:** delete the path in the "Synchronized
+   File Target" column (e.g. `~/.claude/CLAUDE.md`) and, if present, the skill
+   junction/directory in the "Skill Linking" column.
+3. **Remove hook wiring:** delete the `PreToolUse` entry pointing at
+   `engine/hooks/dashclaw-guard.cjs` from `~/.claude/settings.json`, or delete
+   `~/.codex/hooks.json` / `~/.gemini/config/hooks.json` for Codex/Antigravity.
+4. **Remove harness-local state:** delete this repo's `storage/` directory
+   (candidates, digests, backups, DashClaw config) and `skills/definitions/`
+   (consolidated skill copies). Neither is required by any other client.
+5. **Uninstall the Python package:** `pip uninstall agnostic-agent`.
+
+There is no destructive uninstall script — every write above is additive/backed-up,
+so undoing it is copy-back-the-backup or delete-the-file, never a data migration.
 
 ---
 

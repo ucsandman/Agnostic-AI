@@ -6,7 +6,9 @@
  * Catches destructive or high-risk tool calls (git force push, db drops, deletions)
  * before execution and holds for remote approval via DashClaw (web/phone/Telegram).
  *
- * Falls back gracefully to local guard rules if DashClaw is not running.
+ * Falls back to local guard rules (core/safety/guards.json) if DashClaw is not
+ * running. That fallback fails CLOSED: an unreachable, timed-out or crashed
+ * governance layer never turns a hard-stop command into an approval.
  */
 
 const fs = require('fs');
@@ -17,6 +19,7 @@ const os = require('os');
 const { normalizePayload, formatDenial, formatApproval } = require('./universal-adapter.cjs');
 
 const { getStoredDashClawConfig, discoverDashClawSources } = require('./dashclaw-setup.cjs');
+const { checkSecrets } = require('./secret-guard.cjs');
 
 const GUARDS_CONFIG = path.resolve(__dirname, '..', '..', 'core', 'safety', 'guards.json');
 const HOME = os.homedir();
@@ -59,18 +62,51 @@ function getDashClawConfig() {
   };
 }
 
-function calculateLocalRisk(normalized) {
-  const cmd = (normalized.command || '').toLowerCase();
-  const file = (normalized.targetFile || '').toLowerCase();
+let guardsCache = null;
+function loadGuards() {
+  if (guardsCache) return guardsCache;
+  try {
+    guardsCache = JSON.parse(fs.readFileSync(GUARDS_CONFIG, 'utf8')).guards || {};
+  } catch (_) {
+    guardsCache = {};
+  }
+  return guardsCache;
+}
 
-  // High risk triggers (80-100)
-  if (cmd.includes('drop table') || cmd.includes('rmdir /s') || cmd.includes('rm -rf /') || cmd.includes('git push --force') || cmd.includes('git reset --hard')) {
-    return 90;
+// guards.json patterns carry an inline (?i) flag that JS RegExp does not support.
+function matchesAny(patterns, subject) {
+  for (const pat of patterns || []) {
+    try {
+      const re = new RegExp(pat.replace(/^\(\?i\)/, ''), pat.startsWith('(?i)') ? 'i' : '');
+      if (re.test(subject)) return true;
+    } catch (_) {
+      // Skip invalid regex
+    }
   }
-  // Medium risk triggers (50-79)
-  if (cmd.includes('npm publish') || cmd.includes('vercel --prod') || cmd.includes('stripe') || file.includes('.env')) {
-    return 65;
-  }
+  return false;
+}
+
+function riskThresholds() {
+  const dc = loadGuards().dashclaw || {};
+  return {
+    hardBlock: typeof dc.hardBlockRiskThreshold === 'number' ? dc.hardBlockRiskThreshold : 90,
+    query: typeof dc.defaultRiskThreshold === 'number' ? dc.defaultRiskThreshold : 50,
+    failClosed: dc.failClosed !== false
+  };
+}
+
+function calculateLocalRisk(normalized) {
+  const subject = `${normalized.command || ''} ${normalized.targetFile || ''}`;
+  const guards = loadGuards();
+  const { hardBlock, query } = riskThresholds();
+
+  // Hard stops — anything needing explicit human approval, plus blocked process control.
+  if (matchesAny(guards.hardStops?.requireApprovalPatterns, subject)) return hardBlock;
+  if (matchesAny(guards.processControl?.blockedCommands, subject)) return hardBlock;
+
+  // Secret paths anywhere in the command or target are governance-worthy, not hard stops.
+  if (matchesAny(guards.secretScan?.secretPathRegexes, subject)) return query;
+
   return 10;
 }
 
@@ -126,26 +162,65 @@ async function queryDashClawGuard(config, actionPayload) {
   });
 }
 
-async function handleGuard(rawPayload) {
+async function handleGuard(rawPayload, deps = {}) {
   const normalized = normalizePayload(rawPayload);
-  const dcConfig = getDashClawConfig();
 
-  // Local risk check
-  const risk = calculateLocalRisk(normalized);
+  // Secret-path block first: on the flat-format targets (Codex, Gemini) this is
+  // the only hook installed, so it must also enforce the never-read-secrets rule.
+  try {
+    let guardsConfig = {};
+    if (fs.existsSync(GUARDS_CONFIG)) {
+      guardsConfig = JSON.parse(fs.readFileSync(GUARDS_CONFIG, 'utf8'));
+    }
+    const secretResult = checkSecrets(normalized, guardsConfig);
+    if (secretResult.blocked) {
+      return formatDenial(normalized.client, secretResult.reason);
+    }
+  } catch (_) {
+    // checkSecrets fails closed internally; a config read error here is non-fatal.
+  }
 
-  // If DashClaw is active, query DashClaw
-  if (dcConfig.enabled && risk >= 50) {
-    const dcResponse = await queryDashClawGuard(dcConfig, normalized);
-    if (dcResponse && dcResponse.decision === 'block') {
-      return formatDenial(
-        normalized.client,
-        `[DashClaw Guard] Blocked action (Risk: ${dcResponse.risk || risk}). Reason: ${dcResponse.reason || 'High risk policy violation'}`
-      );
+  const { hardBlock, query, failClosed } = riskThresholds();
+  const getConfig = deps.getDashClawConfig || getDashClawConfig;
+  const askDashClaw = deps.queryDashClawGuard || queryDashClawGuard;
+
+  // Unknown risk is treated as maximum risk: scoring must never fail open.
+  let risk = hardBlock;
+  try {
+    risk = calculateLocalRisk(normalized);
+  } catch (_) {}
+
+  if (risk >= query) {
+    try {
+      const dcConfig = getConfig();
+      if (dcConfig.enabled) {
+        const dcResponse = await askDashClaw(dcConfig, normalized);
+        if (dcResponse && (dcResponse.decision === 'block' || dcResponse.decision === 'require_approval')) {
+          return formatDenial(
+            normalized.client,
+            `[DashClaw Guard] Blocked action (Risk: ${dcResponse.risk || risk}). Reason: ${dcResponse.reason || 'High risk policy violation'}`
+          );
+        }
+        // No usable decision (unreachable, timeout, bad JSON): fail closed on hard stops.
+        if (!dcResponse && failClosed && risk >= hardBlock) {
+          return formatDenial(
+            normalized.client,
+            `[DashClaw Guard] Governance returned no decision and local risk ${risk} >= ${hardBlock}. Failing closed: ${normalized.command}`
+          );
+        }
+      }
+    } catch (err) {
+      if (failClosed && risk >= hardBlock) {
+        return formatDenial(
+          normalized.client,
+          `[DashClaw Guard] Governance check failed (${err.message}) and local risk ${risk} >= ${hardBlock}. Failing closed: ${normalized.command}`
+        );
+      }
     }
   }
 
-  // Fallback to local hard-stop rules
-  if (risk >= 90 && !process.env.ALLOW_HIGH_RISK) {
+  // Local hard-stop rules. No environment variable may disable this.
+  if (risk >= hardBlock) {
     return formatDenial(
       normalized.client,
       `[Safety Guard] High-risk command requires explicit human confirmation: ${normalized.command}`
@@ -169,10 +244,25 @@ if (require.main === module) {
       }
       process.exit(0);
     } catch (err) {
+      // Fail closed: an unparseable payload still gets scored as raw text.
+      const { hardBlock } = riskThresholds();
+      let risk = hardBlock;
+      try {
+        risk = calculateLocalRisk({ command: buffer });
+      } catch (_) {}
+      if (risk >= hardBlock) {
+        process.stdout.write(JSON.stringify({
+          decision: 'deny',
+          permissionDecision: 'deny',
+          allowed: false,
+          reason: `[Safety Guard] Guard hook error (${err.message}) on a high-risk payload. Failing closed.`
+        }) + '\n');
+        process.exit(2);
+      }
       process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
       process.exit(0);
     }
   });
 }
 
-module.exports = { handleGuard, calculateLocalRisk, getDashClawConfig };
+module.exports = { handleGuard, calculateLocalRisk, getDashClawConfig, riskThresholds };

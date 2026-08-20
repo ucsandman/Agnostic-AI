@@ -39,8 +39,9 @@ const {
 } = require('../../engine/skills/recommend.cjs');
 const { run: runSync, loadSource, expandPath } = require('../../engine/sync/sync.cjs');
 const { getStoredDashClawConfig, autoConfigureDashClaw, checkEndpointHealth } = require('../../engine/hooks/dashclaw-setup.cjs');
-const { runDistillation } = require('../../engine/distill/distill.cjs');
+const { runDistillation, approveCandidate } = require('../../engine/distill/distill.cjs');
 const { auditHarnessBloat, applyBloatOptimizations } = require('../../engine/audit/bloat-audit.cjs');
+const { getParityStatus } = require('../sync/parity.cjs');
 
 function getOverviewData() {
   const digestFile = path.join(STORAGE, 'distill-digest.json');
@@ -57,10 +58,17 @@ function getOverviewData() {
   const skillsTotal = Object.keys(manifest).length;
   const skillsEnabled = Object.keys(manifest).filter(id => config.globalEnabled[id] !== false).length;
 
+  let parity = { total: targetsConfig.targets.length, inSyncCount: 0, staleCount: targetsConfig.targets.length, allInSync: false };
+  try {
+    const status = getParityStatus();
+    parity = { total: status.total, inSyncCount: status.inSyncCount, staleCount: status.staleCount, allInSync: status.allInSync };
+  } catch (_) {}
+
   return {
     candidates: digest.stats || {},
     skills: { total: skillsTotal, enabled: skillsEnabled },
     targets: { total: targetsConfig.targets.length, active: targetsConfig.targets.length },
+    parity,
     dashclaw: dashclaw || { configured: false },
     updatedAt: new Date().toISOString()
   };
@@ -190,14 +198,14 @@ function getRoutinesData() {
   ];
 }
 
-function executeRoutine(routineId) {
+function executeRoutine(routineId, opts = {}) {
   switch (routineId) {
     case 'distill':
       return { success: true, result: runDistillation() };
     case 'harvest':
       return { success: true, result: runHarvest() };
     case 'sync':
-      return { success: true, result: runSync() };
+      return { success: true, result: runSync({ force: Boolean(opts.force) }) };
     case 'skills_consolidate':
       return { success: true, result: consolidateSkills() };
     case 'dashclaw_probe':
@@ -525,6 +533,21 @@ function serveDashboard() {
           return sendJson({ error: err.message }, 400);
         }
       }
+      if (req.method === 'POST' && pathname === '/api/candidate/approve') {
+        // Closes the promotion loop from the human surface: writes the rule into
+        // core/rules/global-rules.md (the SSOT) so the next sync distributes it.
+        const body = await readBody();
+        if (!body.id) return sendJson({ error: 'Missing candidate id' }, 400);
+        try {
+          const resObj = approveCandidate(body.id);
+          // approveCandidate reports failure in the payload; a 200 there would
+          // let the UI show a success toast for a rule that was never written.
+          if (resObj.ok === false) return sendJson({ error: resObj.reason, ...resObj }, 400);
+          return sendJson(resObj);
+        } catch (err) {
+          return sendJson({ error: err.message }, 400);
+        }
+      }
       if (req.method === 'GET' && pathname === '/api/rules') {
         return sendJson(getRulesData());
       }
@@ -566,7 +589,7 @@ function serveDashboard() {
       }
       if (req.method === 'POST' && pathname === '/api/routines/run') {
         const body = await readBody();
-        const resObj = await executeRoutine(body.routineId);
+        const resObj = await executeRoutine(body.routineId, { force: Boolean(body.force) });
         return sendJson(resObj);
       }
       if (req.method === 'GET' && pathname === '/api/decisions') {

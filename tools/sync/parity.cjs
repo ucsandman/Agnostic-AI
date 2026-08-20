@@ -20,7 +20,7 @@ const TARGETS_CONFIG = path.join(ROOT, 'core', 'templates', 'targets.json');
 const HTML_FILE = path.join(__dirname, 'parity.html');
 
 const OPEN_FLAG = process.argv.includes('--open');
-const PORT = process.env.PARITY_PORT || 7843;
+const PORT = process.env.PARITY_PORT || 7845;
 
 function getParityStatus() {
   const source = loadSource();
@@ -46,7 +46,13 @@ function getParityStatus() {
     let skillsLinked = false;
     if (target.skillsDir) {
       const sPath = expandPath(target.skillsDir);
-      skillsLinked = fs.existsSync(sPath);
+      // Honest check: only a managed symlink/junction counts as linked. A plain
+      // real directory is the target's own skills folder, NOT our synced catalog.
+      try {
+        skillsLinked = fs.lstatSync(sPath).isSymbolicLink();
+      } catch (_) {
+        skillsLinked = false;
+      }
     }
 
     return {
@@ -116,13 +122,15 @@ function serve() {
   });
 }
 
-if (OPEN_FLAG || process.argv.includes('--serve')) {
-  serve();
-} else {
-  const status = getParityStatus();
-  console.log('[Agnostic Parity Status]');
-  for (const t of status.targets) {
-    console.log(`  ${t.inSync ? '✓' : '✗'} ${t.name.padEnd(25)} [${t.inSync ? 'IN SYNC' : 'STALE'}] -> ${t.path}`);
+if (require.main === module) {
+  if (OPEN_FLAG || process.argv.includes('--serve')) {
+    serve();
+  } else {
+    const status = getParityStatus();
+    console.log('[Agnostic Parity Status]');
+    for (const t of status.targets) {
+      console.log(`  ${t.inSync ? '✓' : '✗'} ${t.name.padEnd(25)} [${t.inSync ? 'IN SYNC' : 'STALE'}] -> ${t.path}`);
+    }
   }
 }
 

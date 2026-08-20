@@ -26,7 +26,7 @@ const os = require('os');
 const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const STORAGE = path.join(ROOT, 'storage');
+const STORAGE = process.env.AGNOSTIC_STORAGE || path.join(ROOT, 'storage');
 const CANDIDATES_FILE = path.join(STORAGE, 'candidates.jsonl');
 const DIGEST_FILE = path.join(STORAGE, 'distill-digest.json');
 const DELETED_FILE = path.join(STORAGE, 'deleted-candidates.json');
@@ -62,11 +62,17 @@ function loadAllCandidatesMap() {
   if (!fs.existsSync(CANDIDATES_FILE)) return new Map();
   const lines = fs.readFileSync(CANDIDATES_FILE, 'utf8').trim().split('\n').filter(Boolean);
   const map = new Map();
+  let unparseable = 0;
   for (const line of lines) {
     try {
       const item = JSON.parse(line);
       map.set(item.id, item);
-    } catch (_) {}
+    } catch (_) {
+      unparseable++;
+    }
+  }
+  if (unparseable) {
+    console.warn(`[Harvest] WARNING: skipped ${unparseable} unparseable line(s) in ${CANDIDATES_FILE}`);
   }
   return map;
 }
@@ -385,9 +391,21 @@ function harvestWesErrorLog() {
   return items;
 }
 
-function deduplicateAndMerge(allItems) {
+function deduplicateAndMerge(allItems, seedMap) {
   const map = new Map();
   const deletedIds = loadDeletedIds();
+
+  // Seed with what is already on disk so tier promotions, sighting history and
+  // dashboard edits survive a re-harvest. Only tombstoned ids are dropped.
+  const existingMap = seedMap || loadAllCandidatesMap();
+  for (const [id, item] of existingMap) {
+    if (deletedIds.has(id) || deletedIds.has(hashFingerprint(item.text || ''))) continue;
+    map.set(id, {
+      ...item,
+      sightingDays: Array.isArray(item.sightingDays) ? item.sightingDays.slice() : [],
+      tags: Array.isArray(item.tags) ? item.tags.slice() : []
+    });
+  }
 
   for (const item of allItems) {
     // Strictly exclude any candidate that was deleted/tombstoned by the user
@@ -404,8 +422,8 @@ function deduplicateAndMerge(allItems) {
         }
       }
       existing.sightingDays.sort();
-      // Keep the higher tier
-      if (item.tier > existing.tier) {
+      // Keep the higher tier — never reset an existing promotion
+      if ((item.tier || 0) > (existing.tier || 0)) {
         existing.tier = item.tier;
         existing.status = item.status;
       }
@@ -522,6 +540,7 @@ if (require.main === module) {
 
 module.exports = {
   runHarvest,
+  deduplicateAndMerge,
   harvestClaudeErrorLog,
   harvestMeditationCandidates,
   getCandidate,
@@ -529,5 +548,6 @@ module.exports = {
   deleteCandidate,
   loadDeletedIds,
   saveDeletedId,
-  loadAllCandidatesMap
+  loadAllCandidatesMap,
+  saveCandidatesMap
 };

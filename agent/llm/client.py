@@ -5,9 +5,11 @@ Supports LM Studio (localhost:1234), Ollama (localhost:11434), OpenAI, vLLM, Dee
 
 import os
 import json
+import time
 import subprocess
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
+import httpx
 from openai import OpenAI
 
 
@@ -360,6 +362,9 @@ class LLMConfig:
         reasoning_effort: str = "medium",  # "low", "medium", "high"
         provider: str = "local",
         context_window: Optional[int] = None,
+        timeout: float = 300.0,
+        max_retries: int = 3,
+        retry_backoff: float = 0.5,
     ):
         self.base_url = base_url or os.getenv(
             "LLM_BASE_URL", "http://localhost:1234/v1"
@@ -371,9 +376,16 @@ class LLMConfig:
         self.reasoning_effort = reasoning_effort
         self.provider = provider
         self.context_window = context_window or 32768
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
 
 
 class LLMClient:
+    # Models that accept the OpenAI-compatible `reasoning_effort` request field.
+    EFFORT_MODEL_PREFIXES = ("o1", "o3", "o4", "gpt-5", "gemini-3")
+    TRANSIENT_STATUS_CODES = (408, 409, 425, 429, 500, 502, 503, 504)
+
     def __init__(self, config: Optional[LLMConfig] = None):
         self.config = config or LLMConfig()
         self._init_client()
@@ -383,9 +395,64 @@ class LLMClient:
             self.client = OpenAI(
                 base_url=self.config.base_url,
                 api_key=self.config.api_key or "local",
+                # Long read budget for slow local models, short connect budget so
+                # an unreachable endpoint fails in seconds instead of minutes.
+                timeout=httpx.Timeout(self.config.timeout, connect=10.0),
+                max_retries=0,  # retries are owned by _with_retry below
             )
         else:
             self.client = None
+
+    def supports_reasoning_effort(self) -> bool:
+        """True when the active preset actually forwards reasoning effort to the backend."""
+        if self.config.provider == "google-sub":
+            return True  # passed as `--effort` to the agy CLI
+        if self.config.provider.endswith("-sub"):
+            return False
+        return self.config.model.startswith(self.EFFORT_MODEL_PREFIXES)
+
+    def _effort_note(self) -> str:
+        effort = self.config.reasoning_effort.upper()
+        if self.supports_reasoning_effort():
+            return f"Effort: {effort}"
+        return f"Effort: {effort} (not supported by this model — ignored)"
+
+    def _is_transient(self, exc: Exception) -> bool:
+        status = getattr(exc, "status_code", None) or getattr(
+            getattr(exc, "response", None), "status_code", None
+        )
+        if status in self.TRANSIENT_STATUS_CODES:
+            return True
+        name = type(exc).__name__.lower()
+        if "timeout" in name:
+            return False
+        return any(
+            k in name
+            for k in (
+                "connection",
+                "ratelimit",
+                "internalserver",
+                "apierror",
+            )
+        )
+
+    def _with_retry(self, call: Any):
+        """Bounded retry with exponential backoff on transient failures."""
+        attempts = max(1, self.config.max_retries)
+        last_err: Optional[Exception] = None
+        for attempt in range(attempts):
+            try:
+                return call()
+            except Exception as e:
+                if not self._is_transient(e):
+                    raise
+                last_err = e
+                if attempt < attempts - 1:
+                    time.sleep(self.config.retry_backoff * (2**attempt))
+        raise RuntimeError(
+            f"LLM request to '{self.config.model}' via provider '{self.config.provider}' "
+            f"failed after {attempts} attempt(s): {last_err}"
+        ) from last_err
 
     def switch_model(
         self,
@@ -400,11 +467,6 @@ class LLMClient:
 
         if preset_key and preset_key in LLMConfig.PRESETS:
             preset = LLMConfig.PRESETS[preset_key]
-            self.config.model = preset["model"]
-            self.config.base_url = preset["base_url"]
-            self.config.provider = preset["provider"]
-            self.config.context_window = preset.get("context_window", 32768)
-            context_manager.set_max_tokens(self.config.context_window)
 
             env_key = preset.get("api_key_env")
             found_key = None
@@ -416,19 +478,37 @@ class LLMClient:
                         found_key = os.getenv(alt)
                         break
 
-            if found_key:
-                self.config.api_key = found_key
-            elif api_key:
-                self.config.api_key = api_key
-            elif self.config.provider.endswith("-sub"):
+            key = found_key or api_key
+            if not key and preset["provider"] == "local":
+                # Local endpoints ignore the key, but must never inherit the
+                # previous provider's one either.
+                key = "lm-studio"
+            if not key and not preset["provider"].endswith("-sub"):
+                # Switching anyway would silently send the PREVIOUS provider's key
+                # to a new endpoint and report success.
+                names = " or ".join(
+                    n for n in [env_key] + list(preset.get("alt_api_key_envs", [])) if n
+                )
                 self.config.api_key = None
+                return (
+                    f"Cannot switch to '{preset['name']}': no API key found. "
+                    f"Set {names} in your .env, or pass one explicitly. "
+                    f"Still on '{self.config.model}'."
+                )
+
+            self.config.model = preset["model"]
+            self.config.base_url = preset["base_url"]
+            self.config.provider = preset["provider"]
+            self.config.context_window = preset.get("context_window", 32768)
+            context_manager.set_max_tokens(self.config.context_window)
+            self.config.api_key = key
 
             if reasoning_effort:
                 self.config.reasoning_effort = reasoning_effort
             else:
                 self.config.reasoning_effort = preset.get("default_effort", "medium")
             self._init_client()
-            return f"Switched to preset '{preset['name']}' (Effort: {self.config.reasoning_effort.upper()}, Context: {self.config.context_window:,} tokens)"
+            return f"Switched to preset '{preset['name']}' ({self._effort_note()}, Context: {self.config.context_window:,} tokens)"
 
         if model:
             self.config.model = model
@@ -439,7 +519,9 @@ class LLMClient:
         if reasoning_effort:
             self.config.reasoning_effort = reasoning_effort
         self._init_client()
-        return f"Updated model configuration: {self.config.model} (Effort: {self.config.reasoning_effort.upper()})"
+        return (
+            f"Updated model configuration: {self.config.model} ({self._effort_note()})"
+        )
 
     def chat_completion(  # noqa: vulture
         self,
@@ -464,10 +546,11 @@ class LLMClient:
             "messages": messages,
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens,
+            "timeout": self.config.timeout,
         }
 
-        # Inject reasoning_effort if supported (e.g. OpenAI o1/o3-mini or Gemini 3.7)
-        if self.config.model.startswith(("o1", "o3", "gemini-3.7")):
+        # Inject reasoning_effort only for models that actually accept it
+        if self.supports_reasoning_effort():
             kwargs["reasoning_effort"] = self.config.reasoning_effort
 
         if tools:
@@ -475,14 +558,21 @@ class LLMClient:
             kwargs["tool_choice"] = tool_choice
 
         if stream or stream_callback is not None:
-            # Stream tokens live
-            response_stream = self.client.chat.completions.create(stream=True, **kwargs)
+            # Stream tokens live.
+            # ponytail: retry covers request setup only; a mid-stream drop is surfaced
+            # to the caller rather than replayed (would duplicate emitted tokens).
+            response_stream = self._with_retry(
+                lambda: self.client.chat.completions.create(stream=True, **kwargs)
+            )
             collected_chunks = []
             tool_calls_dict = {}
+            finish_reason = None
 
             for chunk in response_stream:
                 if not chunk.choices or len(chunk.choices) == 0:
                     continue
+                if chunk.choices[0].finish_reason:
+                    finish_reason = chunk.choices[0].finish_reason
                 delta = chunk.choices[0].delta
                 if delta.content:
                     collected_chunks.append(delta.content)
@@ -526,6 +616,10 @@ class LLMClient:
                 content=full_content,
                 tool_calls=tool_calls_list if tool_calls_list else None,
             )
-            return SimpleNamespace(choices=[SimpleNamespace(message=msg_obj)])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=msg_obj, finish_reason=finish_reason)]
+            )
         else:
-            return self.client.chat.completions.create(**kwargs)
+            return self._with_retry(
+                lambda: self.client.chat.completions.create(**kwargs)
+            )

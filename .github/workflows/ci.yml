@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python package
+        run: pip install -e .
+
+      - name: Run Python tests
+        run: pytest tests/ -q
+
+      - name: Run engine test suite
+        run: node engine/tests/run-all.cjs
+
+      - name: Run sync regression tests
+        run: node engine/tests/reg-sync.cjs
+
+      - name: Run security-hook regression tests
+        run: node engine/tests/reg-hooks.cjs

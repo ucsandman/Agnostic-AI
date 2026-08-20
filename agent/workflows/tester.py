@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 from rich.console import Console
 from rich.panel import Panel
+from rich.markup import escape
 
 console = Console()
 
@@ -89,7 +90,11 @@ class AutoTestRunner:
             trace = error_trace[-2500:]
 
         console.print(
-            Panel(trace, title="Diagnosed Failure / Error Trace", border_style="red")
+            Panel(
+                escape(trace),
+                title="Diagnosed Failure / Error Trace",
+                border_style="red",
+            )
         )
         prompt = (
             f"Diagnose and fix the following failure trace using surgical file edits:\n```\n{trace}\n```\n"
@@ -123,7 +128,11 @@ class AutoTestRunner:
             )
             clipped_output = result["output"][-2500:]  # Last 2500 chars of stack trace
             console.print(
-                Panel(clipped_output, title="Test Failure Trace", border_style="red")
+                Panel(
+                    escape(clipped_output),
+                    title="Test Failure Trace",
+                    border_style="red",
+                )
             )
 
             if attempt == max_attempts:

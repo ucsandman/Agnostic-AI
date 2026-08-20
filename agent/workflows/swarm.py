@@ -91,7 +91,9 @@ class SwarmCoordinator:
             try:
                 if wt:
                     manager = SubagentManager(
-                        client=self.client, workspace_root=str(wt)
+                        client=self.client,
+                        workspace_root=str(wt),
+                        confirm_callback=self.subagents.confirm_callback,
                     )
                     return manager.spawn(role, prompt)
                 else:

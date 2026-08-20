@@ -46,6 +46,36 @@ class CodeInterceptor:
         return True, None
 
     @staticmethod
+    def _local_guard_fallback(tool_name: str, args: dict) -> Tuple[bool, Optional[str]]:
+        """Fail-closed fallback when the Node security hooks cannot run.
+
+        Uses the in-process SafetyGuard (which loads core/safety/guards.json) to
+        block secret access and hard-stop commands. A missing node binary or a
+        hook timeout must never silently allow a governed tool call.
+        """
+        try:
+            from agent.governance.guard import SafetyGuard
+
+            guard = SafetyGuard()
+            command = args.get("command")
+            if command:
+                blocked, req_approval, reason = guard.check_command_safety(command)
+                if blocked or req_approval:
+                    return False, f"[Local guard fallback] {reason}"
+            for key in ("path", "file_path", "target_file", "file"):
+                target = args.get(key)
+                if target:
+                    ok, reason = guard.check_path_access(str(target))
+                    if not ok:
+                        return False, f"[Local guard fallback] {reason}"
+        except Exception:
+            # If even the local guard cannot be evaluated, deny governed tools
+            # that carry a command; allow pure reads to avoid a hard lock-up.
+            if args.get("command"):
+                return False, "[Local guard fallback] unable to verify command safety"
+        return True, None
+
+    @staticmethod
     def execute_lifecycle_hook(
         event: str, tool_name: str, args: dict, result: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
@@ -67,55 +97,72 @@ class CodeInterceptor:
             "result": (result or "")[:1500],
         }
 
-        # 1. Pre-tool Secret Guard hook
+        # 1./2. Pre-tool Secret Guard + DashClaw governance hooks.
+        # Both are spawned first and collected after, so a tool call pays one
+        # node start-up latency instead of two. Semantics are unchanged: each
+        # hook still blocks on a non-zero exit and still fails CLOSED.
         if event == "pre_tool":
-            secret_hook = hooks_dir / "secret-guard.cjs"
-            if secret_hook.exists():
+            hook_names = [
+                (hooks_dir / "secret-guard.cjs", "Blocked by secret-guard hook"),
+                (hooks_dir / "dashclaw-guard.cjs", "Blocked by DashClaw hook"),
+            ]
+            encoded = json.dumps(payload)
+            running = []
+            for hook_path, default_err in hook_names:
+                if not hook_path.exists():
+                    continue
                 try:
-                    proc = subprocess.run(
-                        ["node", str(secret_hook)],
-                        input=json.dumps(payload),
-                        capture_output=True,
+                    proc = subprocess.Popen(
+                        ["node", str(hook_path)],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
                         text=True,
-                        timeout=5,
                     )
-                    if proc.returncode != 0:
-                        err = (
-                            proc.stderr or proc.stdout or "Blocked by secret-guard hook"
-                        )
-                        return False, err.strip()
                 except Exception:
-                    pass
+                    proc = None
+                running.append((proc, default_err))
 
-            # 2. Pre-tool DashClaw governance hook
-            dc_hook = hooks_dir / "dashclaw-guard.cjs"
-            if dc_hook.exists():
-                try:
-                    proc = subprocess.run(
-                        ["node", str(dc_hook)],
-                        input=json.dumps(payload),
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if proc.returncode != 0:
-                        err = proc.stderr or proc.stdout or "Blocked by DashClaw hook"
-                        return False, err.strip()
-                except Exception:
-                    pass
+            try:
+                for proc, default_err in running:
+                    try:
+                        if proc is None:
+                            raise RuntimeError("hook process could not be started")
+                        out, err_out = proc.communicate(input=encoded, timeout=5)
+                        if proc.returncode != 0:
+                            err = err_out or out or default_err
+                            return False, err.strip()
+                    except Exception:
+                        # Node hook unavailable/timeout: fail CLOSED via the
+                        # in-process guard rather than silently allowing the call.
+                        ok, err = CodeInterceptor._local_guard_fallback(tool_name, args)
+                        if not ok:
+                            return False, err
+            finally:
+                # A denial returns early; never leave a spawned hook waiting on stdin.
+                for proc, _default_err in running:
+                    if proc is not None and proc.poll() is None:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
 
         # 3. Post-tool correction tracker hook
         elif event == "post_tool":
             tracker = hooks_dir / "correction-tracker.cjs"
             if tracker.exists():
                 try:
-                    subprocess.Popen(
+                    # Fire-and-forget: the tracker's result is never read, so the
+                    # tool call must not pay for its start-up or its runtime.
+                    proc = subprocess.Popen(
                         ["node", str(tracker)],
                         stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         text=True,
-                    ).communicate(input=json.dumps(payload), timeout=2)
+                    )
+                    proc.stdin.write(json.dumps(payload))
+                    proc.stdin.close()
                 except Exception:
                     pass
 

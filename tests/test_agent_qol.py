@@ -389,8 +389,17 @@ def test_simulate_command_tool(temp_workspace):
     assert "BLOCKED" in res_blocked.output
 
 
-def test_model_switching_and_presets():
+def test_model_switching_and_presets(monkeypatch):
     from agent.llm.client import LLMClient
+
+    # Every API-key preset needs its env var present, or the switch is refused.
+    for env_var in (
+        "GEMINI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "DEEPSEEK_API_KEY",
+    ):
+        monkeypatch.setenv(env_var, "placeholder-value")
 
     client = LLMClient()
     assert client.config.model == "local-model"
@@ -418,14 +427,11 @@ def test_model_switching_and_presets():
     assert client.config.model == "deepseek-v4-pro"
 
     # Test alt_api_key_envs resolution for Google Antigravity
-    import os
-
-    os.environ["GOOGLE_API_KEY"] = "mock-google-key"
-    if "GEMINI_API_KEY" in os.environ:
-        del os.environ["GEMINI_API_KEY"]
+    monkeypatch.setenv("GOOGLE_API_KEY", "mock-google-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     client.switch_model(preset_key="agy-flash-3.7")
     assert client.config.api_key == "mock-google-key"
-    del os.environ["GOOGLE_API_KEY"]
+    monkeypatch.delenv("GOOGLE_API_KEY")
 
     # Test Native Subscription Presets (Zero API Key)
     msg = client.switch_model(
@@ -493,10 +499,6 @@ def test_harness_extended_tools(temp_workspace):
         "read_url_content",
         "search_web",
         "manage_subagents",
-        "send_message",
-        "define_subagent",
-        "manage_task",
-        "schedule",
         "ask_question",
         "generate_artifact",
         "read_project_memory",
@@ -523,43 +525,24 @@ def test_harness_extended_tools(temp_workspace):
     assert "ui_mockup.html" in res_art.output
     assert (temp_workspace / ".agnostic" / "artifacts" / "ui_mockup.html").exists()
 
-    # 3. Test Subagent Lifecycle & Messaging
-    res_def = registry.execute(
-        "define_subagent",
-        {
-            "name": "code_refactorer",
-            "description": "Refactors code cleanly",
-            "system_prompt": "You are a code refactorer.",
-        },
-    )
-    assert not res_def.is_error
-
+    # 3. Subagent listing still works; the stub tools that only pretended to
+    #    work (define_subagent, send_message, schedule, manage_task) were
+    #    removed, and manage_subagents 'kill' now honestly reports NOT
+    #    IMPLEMENTED instead of returning a fake success.
     from agent.tools.subagent import subagent_registry
 
     subagent_registry.register_active("sub_001", "researcher")
     res_list = registry.execute("manage_subagents", {"action": "list"})
     assert "sub_001" in res_list.output
 
-    res_msg = registry.execute(
-        "send_message", {"recipient": "sub_001", "message": "Focus on auth module."}
-    )
-    assert not res_msg.is_error
-    assert "Message delivered" in res_msg.output
+    registered = {t["function"]["name"] for t in registry.get_openai_tools()}
+    for removed in ("define_subagent", "send_message", "schedule", "manage_task"):
+        assert removed not in registered
 
     res_kill = registry.execute(
         "manage_subagents", {"action": "kill", "conversation_ids": ["sub_001"]}
     )
-    assert "sub_001" in res_kill.output
-
-    # 4. Test Background Task & Scheduler
-    res_sched = registry.execute(
-        "schedule", {"prompt": "Check database health", "duration_seconds": 1}
-    )
-    assert not res_sched.is_error
-    assert "Scheduled one-shot timer" in res_sched.output
-
-    res_task_list = registry.execute("manage_task", {"action": "list"})
-    assert not res_task_list.is_error
+    assert res_kill.is_error or "NOT IMPLEMENTED" in res_kill.output.upper()
 
     # 5. Test Interactive Ask Question
     res_q = registry.execute(
@@ -578,11 +561,14 @@ def test_harness_extended_tools(temp_workspace):
     assert "Which database engine should we configure?" in res_q.output
 
 
-def test_dynamic_context_limits_and_image_expansion(temp_workspace):
+def test_dynamic_context_limits_and_image_expansion(temp_workspace, monkeypatch):
     from agent.llm.client import LLMClient
     from agent.governance.context import context_manager
     from agent.cli import expand_prompt_references, get_ui_width
     from agent.tools.indexer import CodebaseIndexer
+
+    for env_var in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"):
+        monkeypatch.setenv(env_var, "placeholder-value")
 
     client = LLMClient()
 
@@ -626,6 +612,7 @@ def test_dynamic_context_limits_and_image_expansion(temp_workspace):
 
 def test_web_companion_server_and_telemetry(temp_workspace):
     import urllib.request
+    import urllib.error
     import json
     from agent.web.server import (
         start_companion_server,
@@ -680,8 +667,120 @@ def test_web_companion_server_and_telemetry(temp_workspace):
         assert "+new" in data["active_diff"]
         assert any(s["conversationId"] == "sub_live_01" for s in data["subagents"])
 
-    # 6. Test /api/clear_telemetry
-    req_clear = urllib.request.Request(f"{url}/api/clear_telemetry")
+    # 6. Test /api/clear_telemetry — now a token-gated, loopback-Origin POST
+    #    (bare GET mutation was the CSRF hole that got closed).
+    from agent.web import server as _companion_server
+
+    req_clear = urllib.request.Request(
+        f"{url}/api/clear_telemetry",
+        method="POST",
+        data=b"",
+        headers={
+            "X-Companion-Token": _companion_server.SESSION_TOKEN,
+            "Origin": url,
+        },
+    )
     with urllib.request.urlopen(req_clear, timeout=5) as response:
         assert response.status == 200
         assert len(companion_telemetry.get_logs()) == 0
+
+    # A bare unauthenticated GET must NOT clear telemetry anymore.
+    companion_telemetry.log_event("post-clear", "still here")
+    try:
+        urllib.request.urlopen(f"{url}/api/clear_telemetry", timeout=5)
+        rejected = False
+    except urllib.error.HTTPError as exc:
+        rejected = exc.code in (403, 405)
+    assert rejected
+    assert len(companion_telemetry.get_logs()) >= 1
+
+
+def test_setup_packaging_discovers_all_subpackages():
+    """Regression: pip install was only shipping agent/ (no __init__.py in
+    subpackages), so find_packages() silently dropped agent.tools,
+    agent.governance, agent.llm, agent.workflows, agent.web from the wheel."""
+    from setuptools import find_packages
+
+    discovered = set(find_packages())
+    expected = {
+        "agent",
+        "agent.tools",
+        "agent.governance",
+        "agent.llm",
+        "agent.workflows",
+        "agent.web",
+    }
+    missing = expected - discovered
+    assert not missing, f"find_packages() missed subpackages: {missing}"
+
+
+def test_launch_dashboard_starts_despite_failed_selftest(monkeypatch):
+    """Regression: launch.py used to sys.exit(1) on any self-test failure
+    before starting the dashboard, so a single flaky test blocked the
+    Command Center from launching at all."""
+    import importlib
+    import subprocess
+    from unittest.mock import MagicMock
+
+    launch = importlib.import_module("launch")
+
+    failing_run = MagicMock(return_value=MagicMock(returncode=1))
+    dashboard_popen = MagicMock()
+    monkeypatch.setattr(subprocess, "run", failing_run)
+    monkeypatch.setattr(subprocess, "Popen", dashboard_popen)
+    monkeypatch.setattr(dashboard_popen.return_value, "wait", MagicMock())
+
+    launch.main()
+
+    assert dashboard_popen.called, (
+        "Dashboard Popen was never reached — a failing self-test still "
+        "blocks the launcher."
+    )
+
+
+def test_indexer_only_purges_symbols_for_code_files(temp_workspace):
+    """Symbol purging is O(#symbols); it must not run for docs/data/binary files."""
+    (temp_workspace / "README.md").write_text("# docs\n", encoding="utf-8")
+    (temp_workspace / "data.json").write_text("{}\n", encoding="utf-8")
+    (temp_workspace / "logo.png").write_bytes(b"\x89PNG\r\n")
+
+    indexer = CodebaseIndexer(workspace_root=str(temp_workspace))
+    purged = []
+    original = indexer._remove_symbols_for_file
+
+    def _record(path):
+        purged.append(path)
+        return original(path)
+
+    indexer._remove_symbols_for_file = _record
+    indexer.index_workspace()
+
+    bad = [
+        p.name for p in purged if p.suffix not in (".py", ".js", ".ts", ".jsx", ".tsx")
+    ]
+    assert bad == [], f"symbol purge ran for non-code files: {bad}"
+
+
+def test_completer_caps_suggestions(temp_workspace):
+    for i in range(120):
+        (temp_workspace / f"mod_{i:03d}.py").write_text(
+            f"def fn_{i:03d}():\n    return {i}\n", encoding="utf-8"
+        )
+    indexer = CodebaseIndexer(workspace_root=str(temp_workspace))
+    indexer.index_workspace()
+    completer = AgnosticCompleter(["/plan"], indexer)
+
+    doc_file = Document("@mod_", cursor_position=5)
+    assert len(list(completer.get_completions(doc_file, None))) <= 50
+
+    doc_sym = Document("#fn_", cursor_position=4)
+    assert len(list(completer.get_completions(doc_sym, None))) <= 50
+
+
+def test_cli_main_accepts_an_argv_list():
+    """The TUI calls agent.cli.main(argv) with an explicit list."""
+    from agent import cli
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+    assert exc.value.code == 0

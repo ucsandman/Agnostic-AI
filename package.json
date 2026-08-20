@@ -1,6 +1,6 @@
 {
   "name": "agnostic-ai",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Model-agnostic AI agent harness with continuous self-maintenance, polyglot sync, and guardrails",
   "main": "launch.py",
   "scripts": {

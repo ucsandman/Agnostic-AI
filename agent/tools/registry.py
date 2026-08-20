@@ -5,6 +5,7 @@ Integrated with Audit Logger, Diff Viewer, and Undo Manager.
 """
 
 import os
+import json
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
@@ -22,11 +23,55 @@ class ToolResult:
         return {"output": self.output, "is_error": self.is_error}
 
 
+READ_ONLY_TOOLS = ("read_file", "grep_search", "find_files", "get_outline")
+
+
+def parse_tool_args(raw_args: Any):
+    """Parse tool-call arguments. Returns (args, error) — error is set when the
+    model emitted unusable JSON, in which case the tool must NOT be executed."""
+    if not isinstance(raw_args, str):
+        return (raw_args or {}), None
+    if not raw_args.strip():
+        return {}, None
+    try:
+        return json.loads(raw_args), None
+    except Exception as e:
+        return None, (
+            f"[Tool call rejected] The arguments you supplied were not valid JSON, "
+            f"so the tool was NOT executed. Parse error: {e}. "
+            f"Raw arguments received: {raw_args[:500]!r}. "
+            f"Re-issue the tool call with well-formed JSON arguments."
+        )
+
+
+def _line_anchored_offsets(haystack: str, needle: str) -> List[int]:
+    """Offsets where `needle` occupies whole lines of `haystack`.
+
+    Plain substring matching would let a hunk removing 'total = 1' rewrite the
+    middle of '    self.total = 1'.
+    """
+    offsets: List[int] = []
+    start = 0
+    while True:
+        i = haystack.find(needle, start)
+        if i < 0:
+            return offsets
+        end = i + len(needle)
+        if (i == 0 or haystack[i - 1] == "\n") and (
+            end == len(haystack) or haystack[end] == "\n"
+        ):
+            offsets.append(i)
+        start = i + 1
+
+
 class ToolRegistry:
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: Optional[str] = None, read_only: bool = False):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
+        self.read_only = read_only
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._register_default_tools()
+        if read_only:
+            self._tools = {n: t for n, t in self._tools.items() if n in READ_ONLY_TOOLS}
 
     def register(
         self, name: str, description: str, parameters: Dict[str, Any], func: Callable
@@ -326,19 +371,14 @@ class ToolRegistry:
         # 12. manage_subagents
         self.register(
             name="manage_subagents",
-            description="Manage background or active subagents: list active subagents, or kill specific/all subagents.",
+            description="List the subagents spawned during this session and their state.",
             parameters={
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["list", "kill", "kill_all"],
+                        "enum": ["list"],
                         "description": "Action to perform on subagents.",
-                    },
-                    "conversation_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Subagent IDs to kill when action is 'kill'.",
                     },
                 },
                 "required": ["action"],
@@ -346,104 +386,7 @@ class ToolRegistry:
             func=self._tool_manage_subagents,
         )
 
-        # 13. send_message
-        self.register(
-            name="send_message",
-            description="Send a message or follow-up instruction to an existing subagent by recipient/conversation ID.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "recipient": {
-                        "type": "string",
-                        "description": "Subagent ID or conversation ID.",
-                    },
-                    "message": {
-                        "type": "string",
-                        "description": "Instruction or feedback to send to the subagent.",
-                    },
-                },
-                "required": ["recipient", "message"],
-            },
-            func=self._tool_send_message,
-        )
-
-        # 14. define_subagent
-        self.register(
-            name="define_subagent",
-            description="Define and register a custom specialized subagent type with a custom system prompt and capabilities.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Unique role or type name of the subagent.",
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Brief description of what this subagent does.",
-                    },
-                    "system_prompt": {
-                        "type": "string",
-                        "description": "System prompt and instructions for this subagent type.",
-                    },
-                },
-                "required": ["name", "system_prompt"],
-            },
-            func=self._tool_define_subagent,
-        )
-
-        # 15. manage_task
-        self.register(
-            name="manage_task",
-            description="Manage asynchronous background tasks: list running tasks, check status, send input, or kill tasks.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": ["list", "status", "send_input", "kill"],
-                        "description": "Task management action.",
-                    },
-                    "task_id": {
-                        "type": "string",
-                        "description": "Target background task ID.",
-                    },
-                    "input": {
-                        "type": "string",
-                        "description": "Input text to send to the task stdin (for send_input).",
-                    },
-                },
-                "required": ["action"],
-            },
-            func=self._tool_manage_task,
-        )
-
-        # 16. schedule
-        self.register(
-            name="schedule",
-            description="Schedule a one-shot notification timer (duration_seconds) or recurring background job (cron_expression).",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "prompt": {
-                        "type": "string",
-                        "description": "Notification prompt or message when the timer triggers.",
-                    },
-                    "duration_seconds": {
-                        "type": "integer",
-                        "description": "Seconds to wait before firing one-shot reminder.",
-                    },
-                    "cron_expression": {
-                        "type": "string",
-                        "description": "Cron expression for recurring schedule (e.g. '*/5 * * * *').",
-                    },
-                },
-                "required": ["prompt"],
-            },
-            func=self._tool_schedule,
-        )
-
-        # 17. ask_question
+        # 13. ask_question
         self.register(
             name="ask_question",
             description="Prompt the human operator with structured interactive questions or multi-choice options to clarify requirements or resolve ambiguities.",
@@ -472,7 +415,7 @@ class ToolRegistry:
             func=self._tool_ask_question,
         )
 
-        # 18. generate_artifact
+        # 14. generate_artifact
         self.register(
             name="generate_artifact",
             description="Generate a visual UI card, HTML preview, or structured markdown artifact for human operator review.",
@@ -495,7 +438,7 @@ class ToolRegistry:
             func=self._tool_generate_artifact,
         )
 
-        # 19. read_project_memory
+        # 15. read_project_memory
         self.register(
             name="read_project_memory",
             description="Read persistent project memory, learned conventions, architecture notes, or deviations.",
@@ -511,7 +454,7 @@ class ToolRegistry:
             func=self._tool_read_project_memory,
         )
 
-        # 20. write_project_memory
+        # 16. write_project_memory
         self.register(
             name="write_project_memory",
             description="Persist learned conventions, deviations, architectural decisions, or state across sessions.",
@@ -556,11 +499,16 @@ class ToolRegistry:
             return ToolResult(f"BLOCKED by Safety Guard: {reason}", is_error=True)
 
         if req_approval:
-            approved = True
+            # Deny by default: a hard-stop that survived the trust-tier check
+            # requires an explicit approver. No wired callback means no human
+            # said yes, so it must NOT auto-approve.
             if confirm_callback:
                 approved = confirm_callback(
                     f"Command requires confirmation: {cmd}\nReason: {reason}"
                 )
+            else:
+                approved = False
+                reason = f"{reason} (no approver wired — denied by default)"
             audit_manager.record(
                 event_type="governance_hardstop",
                 description=f"Hard-Stop command: {cmd}",
@@ -663,9 +611,13 @@ class ToolRegistry:
 
             _con = Console()
             if prev_content is not None:
-                _con.print(
-                    DiffViewer.render_diff(target_file.name, prev_content, content)
-                )
+                # Presentation only — never fail the tool.
+                try:
+                    _con.print(
+                        DiffViewer.render_diff(target_file.name, prev_content, content)
+                    )
+                except Exception:
+                    pass
                 import difflib
 
                 raw_diff = "".join(
@@ -758,13 +710,16 @@ class ToolRegistry:
                     is_error=True,
                 )
 
-            # Render visual diff card
-            from agent.tools.diff_viewer import DiffViewer
-            from rich.console import Console
+            # Render visual diff card (presentation only — never fail the tool)
+            try:
+                from agent.tools.diff_viewer import DiffViewer
+                from rich.console import Console
 
-            Console().print(
-                DiffViewer.render_diff(target_file.name, content, new_content)
-            )
+                Console().print(
+                    DiffViewer.render_diff(target_file.name, content, new_content)
+                )
+            except Exception:
+                pass
             import difflib
 
             raw_diff = "".join(
@@ -897,63 +852,38 @@ class ToolRegistry:
         try:
             original_content = target_file.read_text(encoding="utf-8", errors="replace")
 
-            # Parse unified diff or search/replace block
-            # Handle <<<<<<< SEARCH / ======= / >>>>>>> REPLACE blocks or Unified Diff
-            if (
-                "<<<<<<< SEARCH" in patch
-                and "=======" in patch
-                and ">>>>>>> REPLACE" in patch
-            ):
-                import re
+            hunks = self._parse_patch_hunks(patch)
+            if isinstance(hunks, str):
+                return ToolResult(f"PATCH FAILED: {hunks}", is_error=True)
 
-                blocks = re.findall(
-                    r"<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE",
-                    patch,
-                    re.DOTALL,
-                )
-                if not blocks:
+            new_content = original_content
+            for idx, (old_block, new_block) in enumerate(hunks, 1):
+                offsets = _line_anchored_offsets(new_content, old_block)
+                count = len(offsets)
+                if count == 0:
                     return ToolResult(
-                        "Could not parse search/replace patch blocks.", is_error=True
-                    )
-
-                patched_text = original_content
-                for search_blk, replace_blk in blocks:
-                    if search_blk not in patched_text:
-                        return ToolResult(
-                            f"Patch hunk search block not found in {raw_path}",
-                            is_error=True,
-                        )
-                    patched_text = patched_text.replace(search_blk, replace_blk, 1)
-                new_content = patched_text
-            else:
-                # Fallback: line-by-line unified diff parser
-                diff_lines = patch.strip().splitlines()
-                removals = []
-                additions = []
-                for dl in diff_lines:
-                    if dl.startswith("-") and not dl.startswith("---"):
-                        removals.append(dl[1:].strip())
-                    elif dl.startswith("+") and not dl.startswith("+++"):
-                        additions.append(dl[1:].strip())
-
-                if removals:
-                    search_str = "\n".join(removals)
-                    replace_str = "\n".join(additions)
-                    if search_str in original_content:
-                        new_content = original_content.replace(
-                            search_str, replace_str, 1
-                        )
-                    else:
-                        # Fuzzy match: try single line matches
-                        new_content = original_content
-                        for rem, add in zip(removals, additions):
-                            if rem in new_content:
-                                new_content = new_content.replace(rem, add, 1)
-                else:
-                    return ToolResult(
-                        "Unrecognized patch format. Use unified diff or SEARCH/REPLACE blocks.",
+                        f"PATCH FAILED (no write): hunk {idx} of {len(hunks)} did not match {raw_path}. "
+                        "The removed block must match the file EXACTLY, including indentation. "
+                        f"Searched for:\n{old_block}",
                         is_error=True,
                     )
+                if count > 1:
+                    return ToolResult(
+                        f"PATCH FAILED (no write): hunk {idx} of {len(hunks)} matched {count} times in {raw_path} "
+                        "and is not unique. Include more surrounding context lines. "
+                        f"Searched for:\n{old_block}",
+                        is_error=True,
+                    )
+                at = offsets[0]
+                new_content = (
+                    new_content[:at] + new_block + new_content[at + len(old_block) :]
+                )
+
+            if new_content == original_content:
+                return ToolResult(
+                    f"PATCH FAILED (no write): patch produced no change to {raw_path}.",
+                    is_error=True,
+                )
 
             # Syntax interceptor
             from agent.governance.interceptor import CodeInterceptor
@@ -963,19 +893,113 @@ class ToolRegistry:
             )
             if not valid:
                 return ToolResult(
-                    f"Validation Error in patch: {syntax_err}", is_error=True
+                    f"PATCH FAILED (no write): {syntax_err}", is_error=True
                 )
+
+            # Render visual diff card (presentation only — never fail the tool)
+            try:
+                from agent.tools.diff_viewer import DiffViewer
+                from rich.console import Console
+
+                Console().print(
+                    DiffViewer.render_diff(
+                        target_file.name, original_content, new_content
+                    )
+                )
+            except Exception:
+                pass
+            import difflib
+
+            raw_diff = "".join(
+                difflib.unified_diff(
+                    original_content.splitlines(keepends=True),
+                    new_content.splitlines(keepends=True),
+                    fromfile=f"a/{target_file.name}",
+                    tofile=f"b/{target_file.name}",
+                    n=2,
+                )
+            )
+            if raw_diff:
+                try:
+                    from agent.web.server import companion_telemetry
+
+                    companion_telemetry.set_diff(raw_diff, target_file.name)
+                    companion_telemetry.log_event(
+                        "diff", f"Patched {target_file.name}:\n{raw_diff}"
+                    )
+                except Exception:
+                    pass
 
             from agent.governance.undo import undo_manager
 
             undo_manager.record_change(
                 target_file, original_content, new_content, "patch"
             )
+            audit_manager.record(
+                event_type="file_patch",
+                description=f"Applied patch to {raw_path}",
+                details={"file": raw_path, "hunks": len(hunks)},
+            )
+
             target_file.write_text(new_content, encoding="utf-8")
-            return ToolResult(f"Successfully applied patch to {raw_path}")
+            return ToolResult(
+                f"Successfully applied patch to {raw_path} ({len(hunks)} hunk(s))"
+            )
 
         except Exception as e:
             return ToolResult(f"Error applying patch: {str(e)}", is_error=True)
+
+    @staticmethod
+    def _parse_patch_hunks(patch: str):
+        """Parse a patch into [(old_block, new_block)]. Returns an error string on failure.
+
+        Text is preserved verbatim (indentation included); only the leading diff marker is stripped.
+        """
+        if (
+            "<<<<<<< SEARCH" in patch
+            and "=======" in patch
+            and ">>>>>>> REPLACE" in patch
+        ):
+            import re
+
+            blocks = re.findall(
+                r"<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE",
+                patch,
+                re.DOTALL,
+            )
+            if not blocks:
+                return "could not parse SEARCH/REPLACE patch blocks."
+            return blocks
+
+        hunks = []
+        removed, added = [], []
+
+        def _flush():
+            if removed or added:
+                hunks.append(("\n".join(removed), "\n".join(added)))
+            removed.clear()
+            added.clear()
+
+        for line in patch.strip("\n").splitlines():
+            if line.startswith("@@"):
+                _flush()
+            elif line.startswith(("---", "+++", "diff ", "index ")):
+                continue
+            elif line.startswith("-"):
+                removed.append(line[1:])
+            elif line.startswith("+"):
+                added.append(line[1:])
+            else:
+                # Context line (' ' prefixed or bare blank) belongs to both sides.
+                ctx = line[1:] if line.startswith(" ") else line
+                removed.append(ctx)
+                added.append(ctx)
+        _flush()
+
+        hunks = [h for h in hunks if h[0] != h[1]]
+        if not hunks:
+            return "unrecognized patch format. Use a unified diff or SEARCH/REPLACE blocks."
+        return hunks
 
     def _tool_get_outline(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         raw_path = args["file_path"]
@@ -1197,78 +1221,15 @@ class ToolRegistry:
             import json
 
             return ToolResult(json.dumps(subagents, indent=2))
-        elif action == "kill":
-            ids = args.get("conversation_ids", [])
-            if not ids:
-                return ToolResult(
-                    "Error: 'conversation_ids' parameter required for kill action.",
-                    is_error=True,
-                )
-            killed = subagent_registry.kill(ids)
-            return ToolResult(f"Terminated subagents: {killed}")
-        elif action == "kill_all":
-            count = subagent_registry.kill_all()
-            return ToolResult(f"Terminated all {count} active subagents.")
+        elif action in ("kill", "kill_all"):
+            # Subagents run synchronously inside the caller's turn; nothing polls a
+            # kill flag, so terminating one is not supported.
+            return ToolResult(
+                f"NOT IMPLEMENTED — no action taken. '{action}' cannot terminate a "
+                "subagent: subagents run to completion inside the spawning turn.",
+                is_error=True,
+            )
         return ToolResult(f"Unknown action '{action}'.", is_error=True)
-
-    def _tool_send_message(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        recipient = args["recipient"]
-        message = args["message"]
-        from agent.tools.subagent import subagent_registry
-
-        res = subagent_registry.send_message(recipient, message)
-        return ToolResult(res)
-
-    def _tool_define_subagent(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        name = args["name"]
-        description = args.get("description", "")
-        system_prompt = args["system_prompt"]
-        from agent.tools.subagent import subagent_registry
-
-        subagent_registry.define_type(name, description, system_prompt)
-        return ToolResult(
-            f"Successfully defined and registered custom subagent type '{name}'."
-        )
-
-    def _tool_manage_task(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        action = args["action"].lower().strip()
-        from agent.tools.diff_viewer import task_manager
-
-        if action == "list":
-            tasks = task_manager.list_tasks()
-            import json
-
-            return ToolResult(json.dumps(tasks, indent=2))
-        elif action == "status":
-            task_id = args.get("task_id")
-            if not task_id:
-                return ToolResult(
-                    "Error: 'task_id' required for status check.", is_error=True
-                )
-            return ToolResult(task_manager.get_status(task_id))
-        elif action == "send_input":
-            task_id = args.get("task_id")
-            inp = args.get("input", "")
-            if not task_id:
-                return ToolResult("Error: 'task_id' required.", is_error=True)
-            return ToolResult(task_manager.send_input(task_id, inp))
-        elif action == "kill":
-            task_id = args.get("task_id")
-            if not task_id:
-                return ToolResult("Error: 'task_id' required.", is_error=True)
-            return ToolResult(task_manager.kill_task(task_id))
-        return ToolResult(f"Unknown action '{action}'.", is_error=True)
-
-    def _tool_schedule(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        prompt = args["prompt"]
-        duration = args.get("duration_seconds")
-        cron = args.get("cron_expression")
-        from agent.tools.diff_viewer import task_manager
-
-        res = task_manager.schedule(
-            prompt=prompt, duration_seconds=duration, cron_expression=cron
-        )
-        return ToolResult(res)
 
     def _tool_ask_question(
         self,
@@ -1280,7 +1241,7 @@ class ToolRegistry:
         if not questions:
             return ToolResult("No questions provided.", is_error=True)
 
-        responses = []
+        asked = []
         for q in questions:
             q_text = q.get("question", "")
             opts = q.get("options", [])
@@ -1292,23 +1253,25 @@ class ToolRegistry:
             lines.append("   (Multi-select allowed)" if multi else "   (Single select)")
 
             formatted = "\n".join(lines)
-            from rich.console import Console
+            # Presentation only — never fail the tool.
+            try:
+                from rich.console import Console
 
-            Console().print(f"[bold cyan]{formatted}[/bold cyan]")
+                Console().print(f"[bold cyan]{formatted}[/bold cyan]")
+            except Exception:
+                print(formatted)
+            asked.append(q_text)
 
-            # In autonomous / headless mode or interactive callback
-            responses.append(
-                {
-                    "question": q_text,
-                    "selected": opts[0] if opts else "Acknowledged",
-                    "mode": "multi" if multi else "single",
-                }
-            )
-
-        import json
-
+        # The registry only receives a yes/no confirm_callback, which cannot carry a
+        # choice. Never invent one: tell the model no human answer exists.
+        listed = "\n".join(f"  - {q}" for q in asked)
         return ToolResult(
-            f"User responses captured:\n{json.dumps(responses, indent=2)}"
+            "Questions were displayed to the operator, but NO answer was captured "
+            "(this tool has no interactive input channel). The operator has not answered:\n"
+            f"{listed}\n"
+            "Do NOT assume any option was selected. Either proceed with your best "
+            "judgement and state your assumption in plain text, or ask these questions "
+            "in your text reply and stop."
         )
 
     def _tool_generate_artifact(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
