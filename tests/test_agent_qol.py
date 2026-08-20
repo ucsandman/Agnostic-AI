@@ -688,20 +688,21 @@ def test_web_companion_server_and_telemetry(temp_workspace):
 def test_setup_packaging_discovers_all_subpackages():
     """Regression: pip install was only shipping agent/ (no __init__.py in
     subpackages), so find_packages() silently dropped agent.tools,
-    agent.governance, agent.llm, agent.workflows, agent.web from the wheel."""
-    from setuptools import find_packages
+    agent.governance, agent.llm, agent.workflows, agent.web from the wheel.
+    Checked with pathlib so the test does not need setuptools at runtime."""
+    from pathlib import Path
 
-    discovered = set(find_packages())
-    expected = {
+    root = Path(__file__).resolve().parent.parent
+    expected = [
         "agent",
-        "agent.tools",
-        "agent.governance",
-        "agent.llm",
-        "agent.workflows",
-        "agent.web",
-    }
-    missing = expected - discovered
-    assert not missing, f"find_packages() missed subpackages: {missing}"
+        "agent/tools",
+        "agent/governance",
+        "agent/llm",
+        "agent/workflows",
+        "agent/web",
+    ]
+    missing = [p for p in expected if not (root / p / "__init__.py").is_file()]
+    assert not missing, f"subpackages without __init__.py (dropped from the wheel): {missing}"
 
 
 def test_launch_dashboard_starts_despite_failed_selftest(monkeypatch):
@@ -783,7 +784,7 @@ def test_rollback_to_clean_reports_failure(tmp_path, monkeypatch):
 
     calls = []
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd, **_kwargs):
         calls.append(cmd)
         rc = 0 if "restore" in cmd else 1
         return sp.CompletedProcess(cmd, rc, "", "fatal: cannot clean")
@@ -798,7 +799,7 @@ def test_rollback_to_clean_reports_success(tmp_path, monkeypatch):
 
     from agent.governance.watchdog import SandboxWatchdog
 
-    monkeypatch.setattr(sp, "run", lambda cmd, **kw: sp.CompletedProcess(cmd, 0, "", ""))
+    monkeypatch.setattr(sp, "run", lambda cmd, **_kw: sp.CompletedProcess(cmd, 0, "", ""))
     assert SandboxWatchdog(tmp_path).rollback_to_clean() is True
 
 
@@ -807,7 +808,7 @@ def test_rollback_to_clean_reports_a_crashed_git(tmp_path, monkeypatch):
 
     from agent.governance.watchdog import SandboxWatchdog
 
-    def boom(cmd, **kwargs):
+    def boom(cmd, **_kwargs):
         raise OSError("git not found")
 
     monkeypatch.setattr(sp, "run", boom)
