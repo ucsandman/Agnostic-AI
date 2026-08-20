@@ -4,13 +4,15 @@ Supports LM Studio (localhost:1234), Ollama (localhost:11434), OpenAI, vLLM, Dee
 """
 
 import os
+import re
 import json
 import time
+import uuid
 import subprocess
 import threading
 from functools import lru_cache
 from types import SimpleNamespace
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import httpx
 
 
@@ -28,12 +30,136 @@ def get_http_client(timeout: float) -> httpx.Client:
     return httpx.Client(timeout=httpx.Timeout(timeout, connect=min(10.0, timeout)))
 
 
+@lru_cache(maxsize=1)
+def _codex_exec_help() -> str:
+    """`codex exec --help`, read once per process (spawning it costs ~1s)."""
+    try:
+        proc = subprocess.run(
+            ["codex.cmd" if os.name == "nt" else "codex", "exec", "--help"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+        )
+        return (proc.stdout or "") + (proc.stderr or "")
+    except Exception:  # not installed, wedged, or too old to have a --help
+        return ""
+
+
+def _codex_supports_resume() -> bool:
+    """Only newer codex builds expose the `codex exec resume <session>` subcommand."""
+    return re.search(r"^\s*resume\b", _codex_exec_help(), re.MULTILINE) is not None
+
+
+# Codex renamed the approval bypass long ago; the name this file used until now
+# ('--dangerously-bypass-approvals') is a hard `error: unexpected argument` on
+# every current build, so openai-sub never got as far as reading its prompt.
+CODEX_BYPASS_FLAG = "--dangerously-bypass-approvals-and-sandbox"
+
+
+def _loads_lenient(text: str) -> Any:
+    """json.loads, retried on the outermost {...} so a CLI banner above the
+    payload does not lose us the structured result."""
+    candidates = [text]
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _usage_namespace(data: Dict[str, Any]) -> Optional[SimpleNamespace]:
+    """OpenAI-shaped usage from a CLI result JSON, or None when it reported none."""
+    raw = data.get("usage")
+    raw = raw if isinstance(raw, dict) else {}
+    prompt = raw.get("input_tokens", raw.get("prompt_tokens"))
+    completion = raw.get("output_tokens", raw.get("completion_tokens"))
+    cost = data.get("total_cost_usd", data.get("cost_usd"))
+    if prompt is None and completion is None and cost is None:
+        return None
+    usage = SimpleNamespace(
+        prompt_tokens=prompt or 0,
+        completion_tokens=completion or 0,
+        total_tokens=(prompt or 0) + (completion or 0),
+    )
+    if cost is not None:
+        usage.cost_usd = cost
+    return usage
+
+
+class BridgeSession:
+    """Continuity state for one LLMClient talking to a subscription CLI.
+
+    Holds the CLI's session id plus how much of the conversation it has already
+    been given, so a resumed turn only has to carry the new messages. It resets
+    itself — full transcript, fresh session — whenever the provider/model pin
+    changes or the history stops being an extension of what was delivered
+    (compaction and /rewind both rewrite or shorten it).
+    """
+
+    def __init__(self) -> None:
+        self.key: Optional[Tuple[str, Optional[str]]] = None
+        self.session_id: Optional[str] = None
+        self.delivered: int = 0
+        self.fingerprint: Optional[str] = None
+
+    @staticmethod
+    def _fingerprint(messages: List[Dict[str, Any]], count: int) -> Optional[str]:
+        if count <= 0 or count > len(messages):
+            return None
+        m = messages[count - 1]
+        return f"{m.get('role')}:{str(m.get('content'))[:200]}"
+
+    def reset(self, key: Optional[Tuple[str, Optional[str]]] = None) -> None:
+        self.key = key
+        self.session_id = None
+        self.delivered = 0
+        self.fingerprint = None
+
+    def delta(
+        self, key: Tuple[str, Optional[str]], messages: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """(messages to send, session id to resume). A None session id means
+        'send everything under a new session'."""
+        if (
+            self.key != key
+            or len(messages) < self.delivered
+            or self.fingerprint != self._fingerprint(messages, self.delivered)
+        ):
+            self.reset(key)
+        if self.session_id and self.delivered:
+            pending = list(messages[self.delivered :])
+            # The CLI wrote the assistant turn itself; echoing it back is noise.
+            while pending and pending[0].get("role") == "assistant":
+                pending.pop(0)
+            if pending:
+                return pending, self.session_id
+            self.reset(key)  # nothing new to say — replay the transcript instead
+        return list(messages), None
+
+    def record(self, messages: List[Dict[str, Any]], session_id: Optional[str]) -> None:
+        self.session_id = session_id
+        self.delivered = len(messages)
+        self.fingerprint = self._fingerprint(messages, self.delivered)
+
+
 class SubprocessSubscriptionBridge:
     """Dispatches chat completions to locally installed, authenticated CLI tools
 
     (Google Antigravity 'agy', Anthropic 'claude', OpenAI 'codex') using the user's
     active flat-rate monthly login session with zero API key requirement.
     """
+
+    RESUME_PREAMBLE = (
+        "(Continuing the same session: the workspace tools and the JSON tool-call "
+        "format from the first message still apply. Emit one ```json block per "
+        "tool call.)\n"
+    )
 
     @staticmethod
     def _format_conversation_prompt(
@@ -50,8 +176,9 @@ class SubprocessSubscriptionBridge:
             tools_spec = (
                 "You have access to the following tools in this workspace:\n"
                 + "\n".join(tool_signatures)
-                + "\n\nWhen you need to use a tool, output a single JSON block formatted exactly as:\n"
+                + "\n\nWhen you need to use a tool, output one JSON block per call, each formatted exactly as:\n"
                 '```json\n{"name": "<tool_name>", "arguments": {<args>}}\n```\n'
+                "Several blocks in one reply run as several tool calls, in order.\n"
                 "Otherwise, answer normally in markdown.\n"
             )
             prompt_parts.append(tools_spec)
@@ -72,6 +199,31 @@ class SubprocessSubscriptionBridge:
         prompt_parts.append("[ASSISTANT]:\n")
         return "\n\n".join(prompt_parts)
 
+    @staticmethod
+    def _parse_tool_calls(text: str) -> List[SimpleNamespace]:
+        """Every ```json {"name":..., "arguments":...} block in the reply, in order.
+
+        A CLI happily emits several calls plus prose around them; the old
+        single-block split() dropped everything after the first one."""
+        calls = []
+        for block in re.findall(r"```json\s*(.*?)```", text, re.DOTALL):
+            try:
+                parsed = json.loads(block.strip())
+            except (ValueError, TypeError):  # not a tool call; treat as prose
+                continue
+            if not (isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed):
+                continue
+            calls.append(
+                SimpleNamespace(
+                    id=f"call_sub_{os.getpid()}_{len(calls)}",
+                    function=SimpleNamespace(
+                        name=parsed["name"],
+                        arguments=json.dumps(parsed["arguments"]),
+                    ),
+                )
+            )
+        return calls
+
     @classmethod
     def execute_turn(
         cls,
@@ -82,10 +234,27 @@ class SubprocessSubscriptionBridge:
         stream_callback: Optional[Any] = None,
         timeout: int = 180,
         model: Optional[str] = None,
+        session: Optional[BridgeSession] = None,
     ) -> Any:
-        prompt_text = cls._format_conversation_prompt(messages, tools)
+        # No session object (a one-off caller) => a throwaway one, i.e. the old
+        # behaviour: full transcript, new CLI session, every turn.
+        session = session or BridgeSession()
+        pending, resume_id = session.delta((provider, model), messages)
+        if provider == "openai-sub" and resume_id and not _codex_supports_resume():
+            pending, resume_id = list(messages), None
+
+        prompt_text = (
+            cls.RESUME_PREAMBLE + cls._format_conversation_prompt(pending, None)
+            if resume_id
+            else cls._format_conversation_prompt(pending, tools)
+        )
+        new_session_id: Optional[str] = None
+        # claude -p can hand back a parseable result envelope; the others cannot.
+        json_mode = provider == "anthropic-sub"
 
         if provider == "google-sub":
+            # `agy --print` is one-shot — it exposes no session/resume flag — so
+            # every turn re-sends the whole transcript.
             cmd = [
                 "agy.exe" if os.name == "nt" else "agy",
                 "--print",
@@ -103,20 +272,29 @@ class SubprocessSubscriptionBridge:
                 "-p",
                 prompt_text,
                 "--dangerously-skip-permissions",
+                "--output-format",
+                "json",
             ]
+            if resume_id:
+                cmd.extend(["--resume", resume_id])
+            else:
+                new_session_id = str(uuid.uuid4())
+                cmd.extend(["--session-id", new_session_id])
             if model:
                 cmd.extend(["--model", model])
         elif provider == "openai-sub":
-            cmd = [
-                "codex.cmd" if os.name == "nt" else "codex",
-                "exec",
-                prompt_text,
-                "--dangerously-bypass-approvals",
-            ]
+            cmd = ["codex.cmd" if os.name == "nt" else "codex", "exec"]
+            if resume_id:
+                cmd.extend(["resume", resume_id])
+            cmd.extend([prompt_text, CODEX_BYPASS_FLAG])
             if model:
                 cmd.extend(["-m", model])
         else:
             raise ValueError(f"Unknown subscription provider: {provider}")
+
+        # In json mode the child streams one machine-readable blob, so the live
+        # channel gets the parsed answer once instead of a wall of JSON.
+        live_callback = None if json_mode else stream_callback
 
         try:
             proc = subprocess.Popen(
@@ -146,8 +324,8 @@ class SubprocessSubscriptionBridge:
                 if proc.stdout:
                     for line in proc.stdout:
                         raw_lines.append(line)
-                        if stream_callback:
-                            stream_callback(line)
+                        if live_callback:
+                            live_callback(line)
                 stdout_remainder, _ = proc.communicate()
             finally:
                 killer.cancel()
@@ -159,8 +337,8 @@ class SubprocessSubscriptionBridge:
                 )
             if stdout_remainder:
                 raw_lines.append(stdout_remainder)
-                if stream_callback:
-                    stream_callback(stdout_remainder)
+                if live_callback:
+                    live_callback(stdout_remainder)
 
             raw_output = "".join(raw_lines).strip()
             if proc.returncode != 0 and not raw_output:
@@ -173,30 +351,28 @@ class SubprocessSubscriptionBridge:
                 "Ensure it is installed or switch to API / Local mode via /model."
             )
 
-        # Parse potential tool calls from JSON block
-        tool_calls = []
         cleaned_content = raw_output
-
-        json_match = None
-        if "```json" in raw_output and "```" in raw_output.split("```json", 1)[1]:
-            raw_json_str = raw_output.split("```json", 1)[1].split("```", 1)[0].strip()
-            try:
-                parsed = json.loads(raw_json_str)
-                if isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed:
-                    json_match = parsed
-            except (ValueError, TypeError, json.JSONDecodeError):  # not a tool call; treat as prose
-                pass
-
-        if json_match:
-            tool_calls.append(
-                SimpleNamespace(
-                    id="call_sub_" + str(int(subprocess.os.getpid())),
-                    function=SimpleNamespace(
-                        name=json_match["name"],
-                        arguments=json.dumps(json_match["arguments"]),
-                    ),
-                )
+        usage = None
+        if json_mode:
+            data = _loads_lenient(raw_output)
+            if isinstance(data, dict) and "result" in data:
+                cleaned_content = data.get("result") or ""
+                new_session_id = data.get("session_id") or new_session_id
+                usage = _usage_namespace(data)
+            # else: an unparseable banner/plain text — keep the raw output.
+            if stream_callback and cleaned_content:
+                stream_callback(cleaned_content)
+        elif provider == "openai-sub":
+            found = re.search(
+                r"session[ _-]?id\D{0,3}([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})",
+                raw_output,
+                re.IGNORECASE,
             )
+            new_session_id = found.group(1) if found else None
+
+        session.record(messages, new_session_id)
+
+        tool_calls = cls._parse_tool_calls(cleaned_content)
 
         # Format into OpenAI-compatible response namespace
         msg_obj = SimpleNamespace(
@@ -204,7 +380,7 @@ class SubprocessSubscriptionBridge:
             tool_calls=tool_calls if tool_calls else None,
         )
         choice_obj = SimpleNamespace(message=msg_obj)
-        return SimpleNamespace(choices=[choice_obj])
+        return SimpleNamespace(choices=[choice_obj], usage=usage)
 
 
 class LLMConfig:
@@ -442,6 +618,9 @@ class LLMClient:
 
     def __init__(self, config: Optional[LLMConfig] = None):
         self.config = config or LLMConfig()
+        # Continuity for subscription CLIs; it re-keys itself on provider/model
+        # changes, so /model switches need no explicit reset here.
+        self.bridge_session = BridgeSession()
         self._init_client()
 
     def _init_client(self):
@@ -607,6 +786,7 @@ class LLMClient:
                 reasoning_effort=self.config.reasoning_effort,
                 model=self.config.sub_model,
                 stream_callback=stream_callback,
+                session=self.bridge_session,
             )
 
         kwargs: Dict[str, Any] = {

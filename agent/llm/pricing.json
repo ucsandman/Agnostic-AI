@@ -1,0 +1,145 @@
+{
+  "_note": "Prices are NOT shipped filled in — every API model below is null on purpose, because a wrong price is worse than no price. Fill in input_per_mtok / output_per_mtok (USD per 1,000,000 tokens) from your provider's pricing page, set source + as_of so you know when to recheck, and /usage will start reporting real money. A null price means cost_usd is null for that call and the summary is flagged cost_unknown. Per-user overrides go in ~/.agnostic/pricing.json (same shape, merged over this file) so an update to the repo never clobbers your numbers.",
+  "_schema": {
+    "input_per_mtok": "USD per 1M prompt tokens, or null when unknown",
+    "output_per_mtok": "USD per 1M completion tokens, or null when unknown",
+    "currency": "always USD",
+    "source": "where the number came from, or 'subscription' / 'local'",
+    "as_of": "YYYY-MM-DD the price was checked, or null"
+  },
+  "models": {
+    "google-antigravity-subscription": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "currency": "USD",
+      "source": "subscription",
+      "as_of": null
+    },
+    "claude-code-subscription": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "currency": "USD",
+      "source": "subscription",
+      "as_of": null
+    },
+    "openai-codex-subscription": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "currency": "USD",
+      "source": "subscription",
+      "as_of": null
+    },
+    "local-model": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "currency": "USD",
+      "source": "local",
+      "as_of": null
+    },
+    "gemini-3.7-flash": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "gemini-3.6-flash": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "gemini-3.1-pro": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "claude-sonnet-5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "claude-opus-5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "claude-fable-5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "claude-haiku-4.5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "gpt-5.6-sol": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "gpt-5.6-terra": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "gpt-5.6-luna": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "o3-pro": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "o4-mini": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "deepseek-v4-pro": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "deepseek-v4-flash": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    },
+    "deepseek-reasoner": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "currency": "USD",
+      "source": null,
+      "as_of": null
+    }
+  }
+}

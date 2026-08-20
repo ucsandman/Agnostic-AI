@@ -105,3 +105,13 @@ OptionList.highlighted
 # test stubs in tests/test_loop_client.py: read by the code under test, not the test
 AgentLoop.turn_lock
 SubagentWorker.build_registry
+# Called from cli.py/tui*.py — dead only when those files are not staged.
+LLMConfig.sub_models  # noqa: F821
+LLMConfig.display_model  # noqa: F821
+LLMClient.switch_model  # noqa: F821
+AgentLoop.is_busy
+AgentLoop.run_turn
+# pytest autouse fixtures in tests/test_bridge.py, test_mcp.py, test_usage.py
+_forget_codex_help  # noqa: F821
+isolated_home  # noqa: F821
+no_user_pricing  # noqa: F821

@@ -7,6 +7,20 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Persistent auto-memory: workspace store in .agnostic/memory/ (MEMORY.md index +
+  one markdown file per memory), injected into the system prompt as
+  "## Memory (auto-recalled)", with save_memory / recall_memory tools (agent/governance/memory.py).
+- MCP client (zero-dependency, stdio JSON-RPC): servers from .agnostic/mcp.json,
+  .mcp.json (Claude Code format) or ~/.agnostic/mcp.json register as
+  mcp__<server>__<tool> and run through the governed execute() path;
+  registry.mcp_status() reports state (agent/tools/mcp.py).
+- Subscription bridges rewritten: every fenced tool call parsed (not just one),
+  claude -p session continuity via --session-id/--resume with delta sends,
+  --output-format json preferred, codex resume when supported, usage surfaced
+  for cost tracking (docs/subscriptions.md).
+- Usage / cost / latency log: .agnostic/usage.jsonl with p50/p95 and cost
+  summaries; agent/llm/pricing.json ships with explicit nulls for the user to
+  fill in — costs are never invented (agent/llm/usage.py, docs/usage.md).
 - A bare `/session` in the TUI opens an arrow-key resume picker of this
   workspace's saved sessions (newest first, with turn count, timestamp and
   notes) and loads the chosen one; `/session save|load|list <name>` is

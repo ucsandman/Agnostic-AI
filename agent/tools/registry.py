@@ -5,6 +5,7 @@ Integrated with Audit Logger, Diff Viewer, and Undo Manager.
 """
 
 import fnmatch
+import logging
 import os
 import json
 import subprocess
@@ -32,6 +33,8 @@ READ_ONLY_TOOLS = ("read_file", "grep_search", "find_files", "get_outline", "fin
 
 # Honest identification — this is a coding agent, not a browser.
 USER_AGENT = f"AgnosticAI/{__version__} (+https://github.com/ucsandman/agnostic-harness)"
+
+log = logging.getLogger(__name__)
 
 
 def _truncate(text: str, limit: int = 120) -> str:
@@ -103,6 +106,7 @@ class ToolRegistry:
         read_only: bool = False,
         cancel_event: Optional[threading.Event] = None,
         on_output: Optional[Callable[[str], None]] = None,
+        load_mcp: bool = True,
     ):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.read_only = read_only
@@ -111,9 +115,15 @@ class ToolRegistry:
         # Called once per run_command output line, live, from the reader thread.
         self.on_output = on_output
         self._tools: Dict[str, Dict[str, Any]] = {}
+        self._mcp_servers: Dict[str, Any] = {}
+        self._mcp_status: List[Dict[str, Any]] = []
         self._register_default_tools()
         if read_only:
             self._tools = {n: t for n, t in self._tools.items() if n in READ_ONLY_TOOLS}
+        # A read-only registry (reviewer subagents) must not gain third-party tools
+        # that can write; MCP servers are opt-in for full registries only.
+        if load_mcp and not read_only:
+            self.attach_mcp()
 
     def register(self, name: str, description: str, parameters: Dict[str, Any], func: Callable):
         """Register a new tool callable with OpenAI-compatible function definition."""
@@ -181,6 +191,87 @@ class ToolRegistry:
             return res
         except Exception as e:
             return ToolResult(f"Error executing {name}: {str(e)}", is_error=True)
+
+    # --- MCP (Model Context Protocol) ---
+
+    def attach_mcp(self, workspace_root: Optional[str] = None):
+        """Register every tool of every configured MCP server as mcp__<server>__<tool>.
+
+        Servers are discovered from .agnostic/mcp.json, .mcp.json and ~/.agnostic/mcp.json.
+        A missing, malformed or dead server is recorded in mcp_status() and skipped —
+        it must never break registry construction.
+        """
+        from agent.tools.mcp import load_servers, register_atexit
+
+        root = str(workspace_root or self.workspace_root)
+        try:
+            servers, notes = load_servers(root)
+        except Exception as e:  # unreadable config dir, bad permissions, …
+            log.warning("MCP config discovery failed: %s", e)
+            self._mcp_status.append(
+                {"server": "(config)", "state": "error", "tool_count": 0, "error": str(e)}
+            )
+            return
+
+        for name, message in notes:
+            log.warning("MCP %s: %s", name, message)
+            self._mcp_status.append(
+                {"server": name, "state": "skipped", "tool_count": 0, "error": message}
+            )
+
+        started = []
+        for server in servers:
+            entry = {"server": server.name, "state": "stopped", "tool_count": 0, "error": None}
+            self._mcp_status.append(entry)
+            self._mcp_servers[server.name] = server
+            try:
+                tools = server.list_tools()
+            except Exception as e:  # one broken server must not cost the user the others
+                log.warning("MCP server '%s' unavailable: %s", server.name, e)
+                entry["state"] = "error"
+                entry["error"] = str(e)
+                server.stop()
+                continue
+            started.append(server)
+            for tool in tools:
+                tool_name = tool.get("name")
+                if not tool_name:
+                    continue
+                schema = tool.get("inputSchema")
+                self.register(
+                    name=f"mcp__{server.name}__{tool_name}",
+                    description=tool.get("description")
+                    or f"MCP tool '{tool_name}' from server '{server.name}'.",
+                    parameters=schema if isinstance(schema, dict) else {"type": "object"},
+                    func=self._make_mcp_func(server, tool_name),
+                )
+                entry["tool_count"] += 1
+
+        if started:
+            register_atexit(started)
+
+    def _make_mcp_func(self, server, tool_name: str) -> Callable:
+        """Bind one remote tool. Calls still land in execute(), so governance applies."""
+
+        def _call(args: Dict[str, Any], **_kwargs) -> ToolResult:
+            try:
+                text, is_error = server.call_tool(tool_name, args or {})
+            except Exception as e:
+                return ToolResult(f"MCP server '{server.name}' error: {e}", is_error=True)
+            return ToolResult(_truncate(text) or "[no content returned]", is_error=is_error)
+
+        return _call
+
+    def mcp_status(self) -> List[Dict[str, Any]]:
+        """Per-server MCP state for the /mcp command: server, state, tool_count, error."""
+        rows = []
+        for entry in self._mcp_status:
+            row = dict(entry)
+            server = self._mcp_servers.get(row["server"])
+            if server is not None and row["state"] != "error":
+                row["state"] = server.state
+            rows.append(row)
+        return rows
 
     def _register_default_tools(self):
         # 1. run_command

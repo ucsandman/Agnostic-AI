@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 from agent import __version__
+from agent.governance.memory import MEMORY_TYPES, MemoryStore
 from agent.llm.client import LLMClient, LLMConfig
 from agent.tools.registry import (
     READ_ONLY_TOOLS,
@@ -51,6 +52,7 @@ class AgentLoop:
             # Delegate, not the value: the TUI replaces output_callback after construction.
             on_output=lambda line: self.output_callback("tool_chunk", line),
         )
+        self._register_memory_tools()
         self.confirm_callback = confirm_callback or self._default_confirm
         # Delegate, not the value: the TUI replaces confirm_callback after
         # construction and subagents must honour the replacement.
@@ -127,6 +129,85 @@ class AgentLoop:
             func=self._tool_invoke_subagent,
         )
 
+    def _register_memory_tools(self):
+        self.registry.register(
+            name="save_memory",
+            description=(
+                "Save a durable memory to this workspace so future sessions start knowing it. "
+                "Save when the user states a preference or a way they want things done, corrects "
+                "you, or reveals a durable fact about the project (a port, a convention, a "
+                "gotcha that cost you a debugging round). Do NOT save transient task state, and "
+                "NEVER store secrets, tokens, passwords or keys. Re-saving the same name updates "
+                "that memory in place."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Short title, unique per memory — re-using it overwrites that memory.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "One line explaining what this memory is; it is what future sessions see in the index.",
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The memory itself: the durable fact and why it matters (max 8 KB).",
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": list(MEMORY_TYPES),
+                        "description": "'user' (preference), 'feedback' (correction), 'project' (durable project fact), 'reference' (lookup note).",
+                    },
+                },
+                "required": ["name", "description", "body"],
+            },
+            func=self._tool_save_memory,
+        )
+        self.registry.register(
+            name="recall_memory",
+            description=(
+                "Search saved memories by keyword and return the full text of the best matches. "
+                "Use it when the memory index line looks relevant but you need the details, or "
+                "before assuming how this user or project wants something done."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keywords to match against memory names, descriptions and bodies.",
+                    },
+                },
+                "required": ["query"],
+            },
+            func=self._tool_recall_memory,
+        )
+
+    def _tool_save_memory(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        try:
+            memory = MemoryStore(self.workspace_root).save(
+                name=args["name"],
+                description=args.get("description", ""),
+                body=args.get("body", ""),
+                type=args.get("type", "project"),
+            )
+        except (ValueError, OSError) as e:
+            return ToolResult(f"Error saving memory: {e}", is_error=True)
+        return ToolResult(f"Saved memory '{memory.name}' ({memory.type}) as {memory.slug}.md")
+
+    def _tool_recall_memory(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        query = args["query"]
+        hits = MemoryStore(self.workspace_root).recall(query)
+        if not hits:
+            return ToolResult(f"No stored memory matches '{query}'.")
+        blocks = [
+            f"### [{m.name}] ({m.type}, saved {m.created})\n{m.description}\n\n{m.body}"
+            for m in hits
+        ]
+        return ToolResult(f"### [Memory recall: '{query}']\n\n" + "\n\n".join(blocks))
+
     def _tool_invoke_subagent(self, args: Dict[str, Any], **kwargs) -> ToolResult:
         role = args["role"]
         prompt = args["task_prompt"]
@@ -198,6 +279,11 @@ class AgentLoop:
         # In compact mode the agreement only rides along if the prompt stays small.
         if agreement and not (compact and len(system_prompt) + len(agreement) > 8192):
             system_prompt += agreement
+
+        # What earlier sessions learned. Index lines only — recall_memory fetches bodies.
+        memories = MemoryStore(self.workspace_root).index_text()
+        if memories and not (compact and len(system_prompt) + len(memories) > 8192):
+            system_prompt += "\n\n## Memory (auto-recalled)\n" + memories
 
         self.history = [{"role": "system", "content": system_prompt}]
 
