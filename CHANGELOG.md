@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `agent/tui.py` (1352 lines) split: the slash-command dispatcher and `/commit`
+  workflow moved verbatim into `agent/tui_commands.py` as `SlashCommandMixin`
+  (~450 lines). No behaviour change; `AgnosticTUI` inherits the mixin. The
+  background-dispatch test now parses the method's own source file.
+
 ## [1.3.0] - 2026-08-20
 
 ### Security

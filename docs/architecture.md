@@ -114,7 +114,7 @@ never reuses an occupied port unless it can confirm the occupant is itself.
 ## Coding agent (`agent/`)
 
 ```
-agent/tui.py (Textual)  ──┐
+agent/tui.py (Textual)  ──┐   /commands: agent/tui_commands.py (mixin)
 agent/cli.py (prompt_toolkit, legacy) ──┤→ agent/loop.py AgentLoop → agent/llm/client.py
                            │                   │                       ├─ OpenAI-compatible HTTP (LM Studio, Ollama, hosted)
 ui_common.py: arg parser,  │                   │                       └─ subscription bridge (agy / claude / codex CLIs)

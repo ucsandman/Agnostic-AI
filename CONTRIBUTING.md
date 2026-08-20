@@ -42,7 +42,7 @@ All four must pass on every leg.
 
 - Keep the diff to the request. Do not reformat or refactor adjacent code.
 - A bug fix comes with a regression test that was seen failing before the fix.
-- A new slash command gets a handler in `agent/tui.py` (and `agent/cli.py` if
+- A new slash command gets a handler in `agent/tui_commands.py` (and `agent/cli.py` if
   it should work in the legacy shell), an entry in `SLASH_COMMANDS`
   (`agent/ui_common.py`), a line in `/help`, and a row in `docs/slash-commands.md`.
 - A new env var goes in `.env.example` with a comment.

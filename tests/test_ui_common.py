@@ -18,6 +18,7 @@ from rich.errors import MarkupError
 
 import agent.cli as cli
 import agent.tui as tui
+import agent.tui_commands as tui_commands
 from agent.ui_common import (
     SLASH_COMMANDS,
     expand_prompt_references,
@@ -245,14 +246,15 @@ DISPATCHERS = frozenset({"_dispatch_background", "_run_agent_turn"})
 
 
 def _slash_command_branches():
-    """Parses agent/tui.py and yields (commands, names) for every branch of the
-    if/elif chain in AgnosticTUI._handle_slash_command: the slash commands the
-    branch matches, and every identifier its body (nested functions included)
-    references."""
+    """Parses the module that defines AgnosticTUI._handle_slash_command
+    (agent/tui_commands.py) and yields (commands, names) for every branch of
+    its if/elif chain: the slash commands the branch matches, and every
+    identifier its body (nested functions included) references."""
     import ast
     from pathlib import Path
 
-    tree = ast.parse(Path(tui.__file__).read_text(encoding="utf-8"))
+    src_file = inspect.getsourcefile(tui.AgnosticTUI._handle_slash_command)
+    tree = ast.parse(Path(src_file).read_text(encoding="utf-8"))
     fn = next(
         n
         for n in ast.walk(tree)
@@ -388,7 +390,7 @@ def test_web_companion_does_not_open_a_browser_when_it_failed_to_start(monkeypat
     from agent.web import server as web
 
     opened = []
-    monkeypatch.setattr(web, "start_companion_server", lambda port: (False, "port in use"))
+    monkeypatch.setattr(web, "start_companion_server", lambda _port: (False, "port in use"))
     monkeypatch.setattr(web.companion_telemetry, "bind_agent", lambda a: None)
     monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
 
@@ -402,9 +404,10 @@ def test_harvest_shells_out_to_the_one_node_harvester_in_both_uis():
     """There used to be two harvesters: engine/harvest/harvest.cjs and a 45-line
     Python one whose ~/.gemini path could never match its own filename guard. Both
     UIs must drive the node engine, like /distill does."""
-    for mod in (cli, tui):
+    for mod in (cli, tui, tui_commands):
         src = inspect.getsource(mod)
-        assert "engine/harvest/harvest.cjs" in src, f"{mod.__name__} does not run the harvester"
+        if mod is not tui:  # tui.py delegates its /commands to tui_commands.py
+            assert "engine/harvest/harvest.cjs" in src, f"{mod.__name__} does not run the harvester"
         assert "governance.harvester" not in src, f"{mod.__name__} still uses the dead harvester"
 
     with pytest.raises(ImportError):
@@ -637,7 +640,7 @@ def test_both_help_screens_render_from_the_table():
     body = help_text()
     for cmd, hint in SLASH_COMMANDS.items():
         assert cmd in body and hint in body
-    for mod in (cli, tui):
+    for mod in (cli, tui_commands):
         assert "help_text()" in inspect.getsource(mod), (
             f"{mod.__name__} still hand-maintains its own /help text"
         )

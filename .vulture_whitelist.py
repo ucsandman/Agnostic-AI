@@ -12,6 +12,7 @@ from agent.governance.session_manager import SessionManager
 from agent.governance.state import StateManager
 from agent.governance.undo import ThemeManager, UndoManager
 from agent.governance.watchdog import SandboxWatchdog, watchdog
+from agent.loop import AgentLoop
 from agent.tools.indexer import SymbolInfo
 from agent.tools.registry import ToolRegistry, ToolResult
 from agent.tools.subagent import SubagentManager
@@ -73,6 +74,8 @@ _CompanionServer.daemon_threads
 # Shared UI entry points: cli.py and tui.py use these, but the staged-files-only
 # vulture pass calls them dead when only ui_common.py is staged.
 ui_common.SLASH_COMMANDS
+# tui.py assigns it; loop.py/registry read it — dead only when loop.py is not staged.
+AgentLoop.confirm_callback
 ui_common.parse_slash_command
 ui_common.safe_text
 ui_common.format_user_display
