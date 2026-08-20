@@ -55,7 +55,10 @@ class Learner:
                     try:
                         item = json.loads(line)
                         existing_entries[item.get("id")] = item
-                    except Exception:
+                    except (
+                        json.JSONDecodeError,
+                        AttributeError,
+                    ):  # drop one corrupt candidate line
                         pass
 
         if fp in existing_entries:

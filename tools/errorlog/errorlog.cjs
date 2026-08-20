@@ -13,17 +13,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
-const { exec } = require('child_process');
+const assert = require('assert');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML_FILE = path.join(__dirname, 'errorlog.html');
 const DIGEST_FILE = path.join(ROOT, 'storage', 'distill-digest.json');
 const CANDIDATES_FILE = path.join(ROOT, 'storage', 'candidates.jsonl');
 
 const OPEN_FLAG = process.argv.includes('--open');
 const SELFTEST_FLAG = process.argv.includes('--selftest');
-const PORT = process.env.PORT || 7842;
 
 function getErrorData() {
   let digest = {
@@ -58,10 +55,12 @@ function serveDashboard() {
 function runSelfTest() {
   console.log('[ErrorLog] Running selftests...');
   const data = getErrorData();
-  console.log('  ✓ Data structure valid:', typeof data === 'object');
-  console.log('  ✓ Stats present:', data.stats !== undefined);
-  console.log('  ✓ All checks passed.');
-  process.exit(0);
+  // assert, not console.log: a printed "✓ false" is a pass that reports a failure.
+  assert(data && typeof data === 'object', 'getErrorData should return an object');
+  assert(data.stats !== undefined, 'digest should carry a stats block');
+  assert(typeof data.stats.candidatesTotal === 'number', 'stats.candidatesTotal should be a number');
+  const loaded = Array.isArray(data.allCandidates) ? data.allCandidates.length : 0;
+  console.log(`[ErrorLog] selftest OK: 3 checks, ${loaded} candidates loaded`);
 }
 
 if (SELFTEST_FLAG) {

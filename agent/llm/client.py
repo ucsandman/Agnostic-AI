@@ -10,7 +10,6 @@ import subprocess
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
 import httpx
-from openai import OpenAI
 
 
 class SubprocessSubscriptionBridge:
@@ -119,9 +118,7 @@ class SubprocessSubscriptionBridge:
 
             raw_output = "".join(raw_lines).strip()
             if proc.returncode != 0 and not raw_output:
-                err_text = (
-                    stderr.strip() or f"Process exited with code {proc.returncode}"
-                )
+                err_text = stderr.strip() or f"Process exited with code {proc.returncode}"
                 raise RuntimeError(f"Subscription CLI execution failed: {err_text}")
         except FileNotFoundError:
             raise RuntimeError(
@@ -138,13 +135,9 @@ class SubprocessSubscriptionBridge:
             raw_json_str = raw_output.split("```json", 1)[1].split("```", 1)[0].strip()
             try:
                 parsed = json.loads(raw_json_str)
-                if (
-                    isinstance(parsed, dict)
-                    and "name" in parsed
-                    and "arguments" in parsed
-                ):
+                if isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed:
                     json_match = parsed
-            except Exception:
+            except (ValueError, TypeError, json.JSONDecodeError):  # not a tool call; treat as prose
                 pass
 
         if json_match:
@@ -366,9 +359,7 @@ class LLMConfig:
         max_retries: int = 3,
         retry_backoff: float = 0.5,
     ):
-        self.base_url = base_url or os.getenv(
-            "LLM_BASE_URL", "http://localhost:1234/v1"
-        )
+        self.base_url = base_url or os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
         self.api_key = api_key or os.getenv("LLM_API_KEY", "lm-studio")
         self.model = model or os.getenv("LLM_MODEL", "local-model")
         self.temperature = temperature
@@ -391,6 +382,11 @@ class LLMClient:
         self._init_client()
 
     def _init_client(self):
+        # Imported lazily: pulling in the openai SDK costs ~400ms, which every
+        # `--help`/`--version` run and every subscription-provider session would
+        # otherwise pay for a client it never builds.
+        from openai import OpenAI
+
         if not self.config.provider.endswith("-sub"):
             self.client = OpenAI(
                 base_url=self.config.base_url,
@@ -519,9 +515,7 @@ class LLMClient:
         if reasoning_effort:
             self.config.reasoning_effort = reasoning_effort
         self._init_client()
-        return (
-            f"Updated model configuration: {self.config.model} ({self._effort_note()})"
-        )
+        return f"Updated model configuration: {self.config.model} ({self._effort_note()})"
 
     def chat_completion(  # noqa: vulture
         self,
@@ -586,17 +580,13 @@ class LLMClient:
                             tool_calls_dict[idx] = {
                                 "id": tc.id or f"call_{idx}",
                                 "name": tc.function.name if tc.function else "",
-                                "arguments": tc.function.arguments or ""
-                                if tc.function
-                                else "",
+                                "arguments": tc.function.arguments or "" if tc.function else "",
                             }
                         else:
                             if tc.function and tc.function.name:
                                 tool_calls_dict[idx]["name"] += tc.function.name
                             if tc.function and tc.function.arguments:
-                                tool_calls_dict[idx]["arguments"] += (
-                                    tc.function.arguments
-                                )
+                                tool_calls_dict[idx]["arguments"] += tc.function.arguments
 
             full_content = "".join(collected_chunks)
             tool_calls_list = []
@@ -620,6 +610,4 @@ class LLMClient:
                 choices=[SimpleNamespace(message=msg_obj, finish_reason=finish_reason)]
             )
         else:
-            return self._with_retry(
-                lambda: self.client.chat.completions.create(**kwargs)
-            )
+            return self._with_retry(lambda: self.client.chat.completions.create(**kwargs))

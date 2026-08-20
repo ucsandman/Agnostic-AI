@@ -251,9 +251,7 @@ def test_syntax_interceptor_and_pre_save_validation(temp_workspace):
     assert valid is True
     assert err is None
 
-    invalid, err = CodeInterceptor.validate_syntax(
-        temp_workspace / "broken.py", "def foo(\n"
-    )
+    invalid, err = CodeInterceptor.validate_syntax(temp_workspace / "broken.py", "def foo(\n")
     assert invalid is False
     assert "SyntaxError" in err
 
@@ -261,9 +259,7 @@ def test_syntax_interceptor_and_pre_save_validation(temp_workspace):
     reg = ToolRegistry(workspace_root=str(temp_workspace))
 
     # Attempting to write invalid python
-    res = reg.execute(
-        "write_file", {"file_path": "broken.py", "content": "def bad_func("}
-    )
+    res = reg.execute("write_file", {"file_path": "broken.py", "content": "def bad_func("})
     assert res.is_error is True
     assert "Validation Error (Intercepted before write)" in res.output
     assert not (temp_workspace / "broken.py").exists()
@@ -352,9 +348,7 @@ def test_apply_patch_tool(temp_workspace):
     target = temp_workspace / "patched.py"
     target.write_text("def calculate():\n    return 10\n", encoding="utf-8")
 
-    search_replace_patch = (
-        "<<<<<<< SEARCH\n    return 10\n=======\n    return 20\n>>>>>>> REPLACE"
-    )
+    search_replace_patch = "<<<<<<< SEARCH\n    return 10\n=======\n    return 20\n>>>>>>> REPLACE"
     res = reg.execute(
         "apply_patch",
         {
@@ -434,9 +428,7 @@ def test_model_switching_and_presets(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY")
 
     # Test Native Subscription Presets (Zero API Key)
-    msg = client.switch_model(
-        preset_key="sub-google-antigravity", reasoning_effort="high"
-    )
+    msg = client.switch_model(preset_key="sub-google-antigravity", reasoning_effort="high")
     assert "Google Antigravity (Logged-In Monthly Subscription)" in msg
     assert client.config.provider == "google-sub"
     assert client.config.reasoning_effort == "high"
@@ -471,9 +463,7 @@ def test_subscription_bridge_prompt_formatting():
             }
         }
     ]
-    formatted = SubprocessSubscriptionBridge._format_conversation_prompt(
-        messages, tools
-    )
+    formatted = SubprocessSubscriptionBridge._format_conversation_prompt(messages, tools)
     assert "Calculator" in formatted
     assert "Tool Call [calc]" in formatted
     assert "[ASSISTANT]:" in formatted
@@ -733,8 +723,7 @@ def test_launch_dashboard_starts_despite_failed_selftest(monkeypatch):
     launch.main()
 
     assert dashboard_popen.called, (
-        "Dashboard Popen was never reached — a failing self-test still "
-        "blocks the launcher."
+        "Dashboard Popen was never reached — a failing self-test still blocks the launcher."
     )
 
 
@@ -755,9 +744,7 @@ def test_indexer_only_purges_symbols_for_code_files(temp_workspace):
     indexer._remove_symbols_for_file = _record
     indexer.index_workspace()
 
-    bad = [
-        p.name for p in purged if p.suffix not in (".py", ".js", ".ts", ".jsx", ".tsx")
-    ]
+    bad = [p.name for p in purged if p.suffix not in (".py", ".js", ".ts", ".jsx", ".tsx")]
     assert bad == [], f"symbol purge ran for non-code files: {bad}"
 
 
@@ -784,3 +771,44 @@ def test_cli_main_accepts_an_argv_list():
     with pytest.raises(SystemExit) as exc:
         cli.main(["--help"])
     assert exc.value.code == 0
+
+
+# --- rollback_to_clean must report a failed rollback, not swallow it ---------------
+
+
+def test_rollback_to_clean_reports_failure(tmp_path, monkeypatch):
+    import subprocess as sp
+
+    from agent.governance.watchdog import SandboxWatchdog
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        rc = 0 if "restore" in cmd else 1
+        return sp.CompletedProcess(cmd, rc, "", "fatal: cannot clean")
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    assert SandboxWatchdog(tmp_path).rollback_to_clean() is False
+    assert len(calls) == 2
+
+
+def test_rollback_to_clean_reports_success(tmp_path, monkeypatch):
+    import subprocess as sp
+
+    from agent.governance.watchdog import SandboxWatchdog
+
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: sp.CompletedProcess(cmd, 0, "", ""))
+    assert SandboxWatchdog(tmp_path).rollback_to_clean() is True
+
+
+def test_rollback_to_clean_reports_a_crashed_git(tmp_path, monkeypatch):
+    import subprocess as sp
+
+    from agent.governance.watchdog import SandboxWatchdog
+
+    def boom(cmd, **kwargs):
+        raise OSError("git not found")
+
+    monkeypatch.setattr(sp, "run", boom)
+    assert SandboxWatchdog(tmp_path).rollback_to_clean() is False

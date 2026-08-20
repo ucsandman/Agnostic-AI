@@ -15,6 +15,7 @@ from typing import Optional, Tuple
 
 from rich.text import Text
 
+from agent import __version__
 from agent.llm.detector import ModelDoctor
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 
@@ -138,17 +139,13 @@ def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
         res = indexer.resolve_file(f)
         if res:
             rel, content = res
-            injected_context.append(
-                f"### [Context Reference: @{rel}]:\n```\n{content[:2500]}\n```"
-            )
+            injected_context.append(f"### [Context Reference: @{rel}]:\n```\n{content[:2500]}\n```")
 
     for s in symbol_refs:
         res = indexer.resolve_symbol(s)
         if res:
             loc, snippet = res
-            injected_context.append(
-                f"### [Symbol Reference: #{s} ({loc})]:\n```\n{snippet}\n```"
-            )
+            injected_context.append(f"### [Symbol Reference: #{s} ({loc})]:\n```\n{snippet}\n```")
 
     if injected_context:
         return user_prompt + "\n\n" + "\n\n".join(injected_context)
@@ -158,6 +155,7 @@ def expand_prompt_references(user_prompt: str, indexer: CodebaseIndexer) -> str:
 def build_arg_parser() -> argparse.ArgumentParser:
     """Shared argparse setup for both UI entrypoints."""
     parser = argparse.ArgumentParser(description="Agnostic AI Autonomous Coding Agent")
+    parser.add_argument("--version", action="version", version=f"agnostic {__version__}")
     parser.add_argument(
         "--url",
         default="http://localhost:1234/v1",
@@ -221,6 +219,6 @@ def maybe_start_web_companion(agent, open_browser: bool = True):
 
         try:
             webbrowser.open(web_url)
-        except Exception:
+        except (OSError, webbrowser.Error):  # no browser available; the URL is still reported
             pass
     return ok, web_url

@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agnostic-agent"
+version = "1.2.0"
+description = "Model-agnostic terminal coding agent with subagents, safety guards, and an 18-target rules harness"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "Wes Sander" }]
+keywords = ["ai", "agent", "coding-agent", "harness", "lm-studio", "ollama", "claude", "codex"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+]
+# Keep in sync with requirements.txt.
+dependencies = [
+  "openai>=1.0.0,<3.0.0",
+  "rich>=13.0.0,<16.0.0",
+  "httpx>=0.25.0,<1.0.0",
+  "prompt_toolkit>=3.0.0,<4.0.0",
+  "textual>=0.40.0,<9.0.0",
+  "questionary>=2.0.0,<3.0.0",
+  "pillow>=10.0.0,<13.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/ucsandman/agnostic-harness"
+Issues = "https://github.com/ucsandman/agnostic-harness/issues"
+Changelog = "https://github.com/ucsandman/agnostic-harness/blob/master/CHANGELOG.md"
+
+[project.scripts]
+agnostic = "agent.tui:main"
+agnostic-agent = "agent.tui:main"
+agnostic-legacy = "agent.cli:main"
+
+[tool.setuptools]
+py-modules = ["launch"]
+
+[tool.setuptools.packages.find]
+include = ["agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+extend-exclude = ["skills", "storage", "scratchpad_verify"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]

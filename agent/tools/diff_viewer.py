@@ -60,15 +60,11 @@ class DiffViewer:
                 style="dim italic",
             )
 
-        return Panel(
-            diff_text, title=f"📝 Diff Preview: {file_name}", border_style="cyan"
-        )
+        return Panel(diff_text, title=f"📝 Diff Preview: {file_name}", border_style="cyan")
 
 
 class BackgroundTask:
-    def __init__(
-        self, task_id: str, command: Optional[str] = None, prompt: Optional[str] = None
-    ):
+    def __init__(self, task_id: str, command: Optional[str] = None, prompt: Optional[str] = None):
         self.task_id = task_id
         self.command = command
         self.prompt = prompt
@@ -101,9 +97,7 @@ class TaskManager:
             return f"Error: Task '{task_id}' not found."
         t = self._tasks[task_id]
         recent_output = (
-            "\n".join(t.output_buffer[-20:])
-            if t.output_buffer
-            else "[No output recorded]"
+            "\n".join(t.output_buffer[-20:]) if t.output_buffer else "[No output recorded]"
         )
         return (
             f"### [Task Status: {task_id}]\n"
@@ -134,7 +128,7 @@ class TaskManager:
         if t.process:
             try:
                 t.process.terminate()
-            except Exception:
+            except OSError:  # already exited; it is dead either way
                 pass
         return f"Task '{task_id}' terminated."
 

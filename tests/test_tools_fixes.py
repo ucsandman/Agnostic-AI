@@ -7,6 +7,7 @@ removed stub tool registrations, and read-only subagent tool subsets.
 import pytest
 
 from agent.tools.indexer import CodebaseIndexer
+from agent.tools import registry as registry_mod
 from agent.tools.registry import ToolRegistry
 
 
@@ -145,9 +146,7 @@ REMOVED_STUBS = {
 def test_stub_tools_are_not_registered(workspace):
     reg = ToolRegistry(workspace_root=str(workspace))
     names = {t["function"]["name"] for t in reg.get_openai_tools()}
-    assert REMOVED_STUBS.isdisjoint(names), (
-        f"stubs still registered: {REMOVED_STUBS & names}"
-    )
+    assert REMOVED_STUBS.isdisjoint(names), f"stubs still registered: {REMOVED_STUBS & names}"
     assert "read_file" in names and "apply_patch" in names
 
 
@@ -248,9 +247,7 @@ def _break_console(monkeypatch):
     import rich.console
 
     def _boom(self, *_args, **_kwargs):
-        raise UnicodeEncodeError(
-            "charmap", "\u2705", 0, 1, "character maps to <undefined>"
-        )
+        raise UnicodeEncodeError("charmap", "\u2705", 0, 1, "character maps to <undefined>")
 
     monkeypatch.setattr(rich.console.Console, "print", _boom)
 
@@ -269,9 +266,7 @@ def test_write_and_edit_survive_console_encoding_error(workspace, monkeypatch):
     reg.execute("write_file", {"file_path": "mod.py", "content": ORIGINAL})
     _break_console(monkeypatch)
 
-    res = reg.execute(
-        "write_file", {"file_path": "mod.py", "content": "def f():\n    return 3\n"}
-    )
+    res = reg.execute("write_file", {"file_path": "mod.py", "content": "def f():\n    return 3\n"})
     assert res.is_error is False, res.output
 
     res = reg.execute(
@@ -283,9 +278,7 @@ def test_write_and_edit_survive_console_encoding_error(workspace, monkeypatch):
         },
     )
     assert res.is_error is False, res.output
-    assert (workspace / "mod.py").read_text(
-        encoding="utf-8"
-    ) == "def f():\n    return 4\n"
+    assert (workspace / "mod.py").read_text(encoding="utf-8") == "def f():\n    return 4\n"
 
 
 def test_ask_question_survives_console_encoding_error(workspace, monkeypatch):
@@ -359,3 +352,48 @@ def test_swarm_worktree_manager_inherits_the_confirm_callback(tmp_path, monkeypa
 
     coord.dispatch_swarm("do a thing", use_worktrees=True)
     assert created == [_confirm, _confirm, _confirm]
+
+
+# --- 6. grep/find must not walk vendored dependency trees ---
+
+
+def _ignored_dir_workspace(tmp_path):
+    ws = tmp_path / "ws"
+    (ws / "node_modules").mkdir(parents=True)
+    (ws / "node_modules" / "x.js").write_text("needle_pattern\n", encoding="utf-8")
+    (ws / "src").mkdir()
+    (ws / "src" / "app.js").write_text("needle_pattern\n", encoding="utf-8")
+    return ws
+
+
+def test_grep_search_skips_ignored_dirs(tmp_path, monkeypatch):
+    ws = _ignored_dir_workspace(tmp_path)
+    monkeypatch.setattr(registry_mod.guard, "workspace_root", ws.resolve())
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("grep_search", {"query": "needle_pattern"}).output
+    assert "app.js" in out
+    assert "node_modules" not in out
+
+
+def test_find_files_skips_ignored_dirs(tmp_path, monkeypatch):
+    ws = _ignored_dir_workspace(tmp_path)
+    monkeypatch.setattr(registry_mod.guard, "workspace_root", ws.resolve())
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("find_files", {"pattern": "**/*.js"}).output
+    assert "app.js" in out
+    assert "node_modules" not in out
+
+
+# --- 7. indexer reuses one SafetyGuard per workspace root ---
+
+
+def test_indexer_guard_is_cached_per_root(tmp_path, workspace):
+    from agent.tools.indexer import _guard_for_root
+
+    a1 = _guard_for_root(str(workspace))
+    a2 = _guard_for_root(str(workspace))
+    other = tmp_path / "other"
+    other.mkdir()
+    b1 = _guard_for_root(str(other))
+    assert a1 is a2
+    assert a1 is not b1

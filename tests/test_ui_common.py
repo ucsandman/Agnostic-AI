@@ -248,9 +248,7 @@ def _slash_command_branches():
                     names.add(sub.attr)
         yield commands, names
         node = (
-            node.orelse[0]
-            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If)
-            else None
+            node.orelse[0] if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If) else None
         )
 
 
@@ -364,9 +362,7 @@ def test_web_companion_does_not_open_a_browser_when_it_failed_to_start(monkeypat
     from agent.web import server as web
 
     opened = []
-    monkeypatch.setattr(
-        web, "start_companion_server", lambda port: (False, "port in use")
-    )
+    monkeypatch.setattr(web, "start_companion_server", lambda port: (False, "port in use"))
     monkeypatch.setattr(web.companion_telemetry, "bind_agent", lambda a: None)
     monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
 
@@ -382,3 +378,55 @@ def test_web_slash_command_reports_the_failure_instead_of_claiming_success():
         "/web must not claim the server is active when start returned ok=False"
     )
     assert "Companion server failed to start" in src
+
+
+# --- Version is single-sourced from agent.__version__ ------------------------------
+
+
+def test_version_flag_prints_the_package_version(capsys):
+    from agent import __version__
+    from agent.ui_common import build_arg_parser
+
+    with pytest.raises(SystemExit) as exc:
+        build_arg_parser().parse_args(["--version"])
+    assert exc.value.code == 0
+    assert __version__ in capsys.readouterr().out
+
+
+def test_banners_do_not_hardcode_a_version_string():
+    from agent import __version__
+
+    for mod in (cli, tui):
+        src = inspect.getsource(mod)
+        assert f"v{__version__} (" not in src, (
+            f"{mod.__name__} still hardcodes the version in its banner"
+        )
+    assert "__version__" in inspect.getsource(cli.print_banner)
+    assert "__version__" in inspect.getsource(tui.AgnosticTUI._print_banner)
+
+
+# --- Every advertised slash command is dispatched by at least one UI ---------------
+
+# /help, /exit and /clear are matched by literal-string branches inside the loops.
+_SPECIAL_CASED = {"/help", "/exit", "/clear"}
+
+
+def _handles(src: str, cmd: str) -> bool:
+    name = cmd.lstrip("/")
+    return f'"{cmd}"' in src or f'cmd == "{name}"' in src
+
+
+def test_every_slash_command_has_a_dispatch_branch():
+    cli_src = inspect.getsource(cli)
+    tui_src = inspect.getsource(tui)
+    missing = [
+        c
+        for c in SLASH_COMMANDS
+        if c not in _SPECIAL_CASED and not (_handles(cli_src, c) or _handles(tui_src, c))
+    ]
+    assert not missing, f"advertised but unhandled slash commands: {missing}"
+
+
+def test_tui_handles_multiline_instead_of_sending_it_to_the_model():
+    src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
+    assert _handles(src, "/multiline"), "/multiline falls through to the LLM in the TUI"

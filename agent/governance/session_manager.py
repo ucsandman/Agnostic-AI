@@ -24,9 +24,7 @@ class SessionManager:
         """Saves current conversation history and state into a named session snapshot."""
         try:
             self.sessions_dir.mkdir(parents=True, exist_ok=True)
-            clean_name = "".join(
-                c if c.isalnum() or c in ("-", "_") else "_" for c in name
-            )
+            clean_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name)
             session_file = self.sessions_dir / f"{clean_name}.json"
 
             data = {
@@ -79,22 +77,18 @@ class SessionManager:
             return []
 
         results = []
-        for file in sorted(
-            self.sessions_dir.glob("*.json"), key=os.path.getmtime, reverse=True
-        ):
+        for file in sorted(self.sessions_dir.glob("*.json"), key=os.path.getmtime, reverse=True):
             try:
                 data = json.loads(file.read_text(encoding="utf-8"))
                 results.append(
                     {
                         "name": file.stem,
                         "saved_at": data.get("saved_at", "Unknown"),
-                        "turn_count": data.get(
-                            "turn_count", len(data.get("history", []))
-                        ),
+                        "turn_count": data.get("turn_count", len(data.get("history", []))),
                         "notes": data.get("notes", ""),
                     }
                 )
-            except Exception:
+            except (OSError, json.JSONDecodeError):  # a corrupt session file is skipped, not fatal
                 pass
         return results
 

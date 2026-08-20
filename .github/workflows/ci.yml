@@ -7,29 +7,40 @@ on:
 
 jobs:
   test:
+    name: test (py${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install Python package
-        run: pip install -e . pytest
+      - name: Install Python package with dev extras
+        run: pip install -e ".[dev]"
 
-      - name: Run Python tests
-        run: pytest tests/ -q
+      - name: Lint (ruff)
+        run: ruff check .
 
-      - name: Run engine test suite
+      - name: Python tests
+        run: python -m pytest tests/ -q
+
+      - name: Engine test suite
         run: node engine/tests/run-all.cjs
 
-      - name: Run sync regression tests
+      - name: Sync regression tests
         run: node engine/tests/reg-sync.cjs
 
-      - name: Run security-hook regression tests
+      - name: Security-hook regression tests
         run: node engine/tests/reg-hooks.cjs
+
+      - name: Generated docs are current
+        run: node engine/docs/targets-doc.cjs --check

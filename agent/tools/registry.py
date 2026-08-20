@@ -9,9 +9,11 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
+from agent import __version__
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
 from agent.governance.interceptor import interceptor
+from agent.tools.indexer import DEFAULT_IGNORED_DIRS
 
 
 class ToolResult:
@@ -24,6 +26,18 @@ class ToolResult:
 
 
 READ_ONLY_TOOLS = ("read_file", "grep_search", "find_files", "get_outline")
+
+# Honest identification — this is a coding agent, not a browser.
+USER_AGENT = f"AgnosticAI/{__version__} (+https://github.com/ucsandman/agnostic-harness)"
+
+
+def _is_search_skipped(path: Path) -> bool:
+    """True for dot-paths and vendored dependency trees (node_modules, dist, .venv...).
+
+    Checked before the guard so search never pays the policy cost for the tens of
+    thousands of files it would discard anyway.
+    """
+    return any(part.startswith(".") or part in DEFAULT_IGNORED_DIRS for part in path.parts)
 
 
 def parse_tool_args(raw_args: Any):
@@ -57,9 +71,7 @@ def _line_anchored_offsets(haystack: str, needle: str) -> List[int]:
         if i < 0:
             return offsets
         end = i + len(needle)
-        if (i == 0 or haystack[i - 1] == "\n") and (
-            end == len(haystack) or haystack[end] == "\n"
-        ):
+        if (i == 0 or haystack[i - 1] == "\n") and (end == len(haystack) or haystack[end] == "\n"):
             offsets.append(i)
         start = i + 1
 
@@ -73,9 +85,7 @@ class ToolRegistry:
         if read_only:
             self._tools = {n: t for n, t in self._tools.items() if n in READ_ONLY_TOOLS}
 
-    def register(
-        self, name: str, description: str, parameters: Dict[str, Any], func: Callable
-    ):
+    def register(self, name: str, description: str, parameters: Dict[str, Any], func: Callable):
         """Register a new tool callable with OpenAI-compatible function definition."""
         self._tools[name] = {
             "name": name,
@@ -484,9 +494,7 @@ class ToolRegistry:
     ) -> ToolResult:
         cmd = args["command"]
         cwd = args.get("cwd")
-        target_dir = (
-            (self.workspace_root / cwd).resolve() if cwd else self.workspace_root
-        )
+        target_dir = (self.workspace_root / cwd).resolve() if cwd else self.workspace_root
 
         is_blocked, req_approval, reason = guard.check_command_safety(cmd)
         if is_blocked:
@@ -516,9 +524,7 @@ class ToolRegistry:
                 approved=approved,
             )
             if not approved:
-                return ToolResult(
-                    "Command execution was rejected by user.", is_error=True
-                )
+                return ToolResult("Command execution was rejected by user.", is_error=True)
 
         try:
             res = subprocess.run(
@@ -545,9 +551,7 @@ class ToolRegistry:
 
             return ToolResult(output, is_error=(res.returncode != 0))
         except subprocess.TimeoutExpired:
-            return ToolResult(
-                "Error: Command execution timed out after 120s.", is_error=True
-            )
+            return ToolResult("Error: Command execution timed out after 120s.", is_error=True)
         except Exception as e:
             return ToolResult(f"Error running command: {str(e)}", is_error=True)
 
@@ -590,7 +594,7 @@ class ToolRegistry:
         if target_file.exists() and target_file.is_file():
             try:
                 prev_content = target_file.read_text(encoding="utf-8", errors="replace")
-            except Exception:
+            except OSError:  # no undo snapshot for an unreadable file; the write still proceeds
                 pass
 
         # Post-edit syntax interceptor validation
@@ -613,10 +617,8 @@ class ToolRegistry:
             if prev_content is not None:
                 # Presentation only — never fail the tool.
                 try:
-                    _con.print(
-                        DiffViewer.render_diff(target_file.name, prev_content, content)
-                    )
-                except Exception:
+                    _con.print(DiffViewer.render_diff(target_file.name, prev_content, content))
+                except Exception:  # presentation only: a render failure must never fail the write
                     pass
                 import difflib
 
@@ -637,7 +639,7 @@ class ToolRegistry:
                         companion_telemetry.log_event(
                             "diff", f"Wrote {target_file.name}:\n{raw_diff}"
                         )
-                    except Exception:
+                    except ImportError:  # web companion is optional
                         pass
 
             undo_manager.record_change(
@@ -653,9 +655,7 @@ class ToolRegistry:
             )
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(content)
-            return ToolResult(
-                f"Successfully wrote {len(content)} characters to {raw_path}"
-            )
+            return ToolResult(f"Successfully wrote {len(content)} characters to {raw_path}")
         except Exception as e:
             return ToolResult(f"Error writing file: {str(e)}", is_error=True)
 
@@ -675,9 +675,7 @@ class ToolRegistry:
 
         target_file = (self.workspace_root / raw_path).resolve()
         if not target_file.exists():
-            return ToolResult(
-                f"Error: Target file {raw_path} does not exist.", is_error=True
-            )
+            return ToolResult(f"Error: Target file {raw_path} does not exist.", is_error=True)
 
         try:
             with open(target_file, "r", encoding="utf-8", errors="replace") as f:
@@ -701,9 +699,7 @@ class ToolRegistry:
             # Post-edit syntax interceptor validation
             from agent.governance.interceptor import CodeInterceptor
 
-            valid, syntax_err = CodeInterceptor.validate_syntax(
-                target_file, new_content
-            )
+            valid, syntax_err = CodeInterceptor.validate_syntax(target_file, new_content)
             if not valid:
                 return ToolResult(
                     f"Validation Error (Intercepted before save): {syntax_err}. File edit was reverted.",
@@ -715,10 +711,8 @@ class ToolRegistry:
                 from agent.tools.diff_viewer import DiffViewer
                 from rich.console import Console
 
-                Console().print(
-                    DiffViewer.render_diff(target_file.name, content, new_content)
-                )
-            except Exception:
+                Console().print(DiffViewer.render_diff(target_file.name, content, new_content))
+            except Exception:  # presentation only: a render failure must never fail the edit
                 pass
             import difflib
 
@@ -736,10 +730,8 @@ class ToolRegistry:
                     from agent.web.server import companion_telemetry
 
                     companion_telemetry.set_diff(raw_diff, target_file.name)
-                    companion_telemetry.log_event(
-                        "diff", f"Edited {target_file.name}:\n{raw_diff}"
-                    )
-                except Exception:
+                    companion_telemetry.log_event("diff", f"Edited {target_file.name}:\n{raw_diff}")
+                except ImportError:  # web companion is optional
                     pass
 
             # Record in undo history & audit
@@ -778,26 +770,22 @@ class ToolRegistry:
             pattern = f"**/{file_pattern}" if file_pattern else "**/*"
             for file_path in target_dir.glob(pattern):
                 if file_path.is_file():
+                    if _is_search_skipped(file_path):
+                        continue
                     safe, _ = guard.check_path_access(str(file_path))
-                    if not safe or any(
-                        part.startswith(".") for part in file_path.parts
-                    ):
+                    if not safe:
                         continue
                     try:
-                        with open(
-                            file_path, "r", encoding="utf-8", errors="ignore"
-                        ) as f:
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                             for idx, line in enumerate(f, 1):
                                 if query.lower() in line.lower():
-                                    rel_path = file_path.relative_to(
-                                        self.workspace_root
-                                    )
-                                    results.append(
-                                        f"{rel_path}:{idx}: {line.strip()[:160]}"
-                                    )
+                                    rel_path = file_path.relative_to(self.workspace_root)
+                                    results.append(f"{rel_path}:{idx}: {line.strip()[:160]}")
                                     if len(results) >= 40:
                                         break
-                    except Exception:
+                    except (
+                        OSError
+                    ):  # unreadable file (permissions/race); skip it and keep searching
                         pass
                 if len(results) >= 40:
                     break
@@ -816,8 +804,10 @@ class ToolRegistry:
         try:
             matches = []
             for p in target_dir.glob(pattern):
+                if _is_search_skipped(p):
+                    continue
                 safe, _ = guard.check_path_access(str(p))
-                if safe and not any(part.startswith(".git") for part in p.parts):
+                if safe:
                     try:
                         rel = p.relative_to(self.workspace_root)
                         matches.append(str(rel))
@@ -875,9 +865,7 @@ class ToolRegistry:
                         is_error=True,
                     )
                 at = offsets[0]
-                new_content = (
-                    new_content[:at] + new_block + new_content[at + len(old_block) :]
-                )
+                new_content = new_content[:at] + new_block + new_content[at + len(old_block) :]
 
             if new_content == original_content:
                 return ToolResult(
@@ -888,13 +876,9 @@ class ToolRegistry:
             # Syntax interceptor
             from agent.governance.interceptor import CodeInterceptor
 
-            valid, syntax_err = CodeInterceptor.validate_syntax(
-                target_file, new_content
-            )
+            valid, syntax_err = CodeInterceptor.validate_syntax(target_file, new_content)
             if not valid:
-                return ToolResult(
-                    f"PATCH FAILED (no write): {syntax_err}", is_error=True
-                )
+                return ToolResult(f"PATCH FAILED (no write): {syntax_err}", is_error=True)
 
             # Render visual diff card (presentation only — never fail the tool)
             try:
@@ -902,11 +886,9 @@ class ToolRegistry:
                 from rich.console import Console
 
                 Console().print(
-                    DiffViewer.render_diff(
-                        target_file.name, original_content, new_content
-                    )
+                    DiffViewer.render_diff(target_file.name, original_content, new_content)
                 )
-            except Exception:
+            except Exception:  # presentation only: a render failure must never fail the patch
                 pass
             import difflib
 
@@ -927,14 +909,12 @@ class ToolRegistry:
                     companion_telemetry.log_event(
                         "diff", f"Patched {target_file.name}:\n{raw_diff}"
                     )
-                except Exception:
+                except ImportError:  # web companion is optional
                     pass
 
             from agent.governance.undo import undo_manager
 
-            undo_manager.record_change(
-                target_file, original_content, new_content, "patch"
-            )
+            undo_manager.record_change(target_file, original_content, new_content, "patch")
             audit_manager.record(
                 event_type="file_patch",
                 description=f"Applied patch to {raw_path}",
@@ -942,9 +922,7 @@ class ToolRegistry:
             )
 
             target_file.write_text(new_content, encoding="utf-8")
-            return ToolResult(
-                f"Successfully applied patch to {raw_path} ({len(hunks)} hunk(s))"
-            )
+            return ToolResult(f"Successfully applied patch to {raw_path} ({len(hunks)} hunk(s))")
 
         except Exception as e:
             return ToolResult(f"Error applying patch: {str(e)}", is_error=True)
@@ -955,11 +933,7 @@ class ToolRegistry:
 
         Text is preserved verbatim (indentation included); only the leading diff marker is stripped.
         """
-        if (
-            "<<<<<<< SEARCH" in patch
-            and "=======" in patch
-            and ">>>>>>> REPLACE" in patch
-        ):
+        if "<<<<<<< SEARCH" in patch and "=======" in patch and ">>>>>>> REPLACE" in patch:
             import re
 
             blocks = re.findall(
@@ -1022,9 +996,7 @@ class ToolRegistry:
                     if isinstance(node, ast.ClassDef):
                         doc = ast.get_docstring(node)
                         doc_str = f' — "{doc.splitlines()[0]}"' if doc else ""
-                        outline.append(
-                            f"• class {node.name} (Line {node.lineno}){doc_str}"
-                        )
+                        outline.append(f"• class {node.name} (Line {node.lineno}){doc_str}")
                     elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         args_list = [a.arg for a in node.args.args]
                         doc = ast.get_docstring(node)
@@ -1034,16 +1006,10 @@ class ToolRegistry:
                         )
 
                 if not outline:
-                    return ToolResult(
-                        f"No classes or top-level functions found in {raw_path}"
-                    )
-                return ToolResult(
-                    f"### [AST Outline: {raw_path}]\n" + "\n".join(outline)
-                )
+                    return ToolResult(f"No classes or top-level functions found in {raw_path}")
+                return ToolResult(f"### [AST Outline: {raw_path}]\n" + "\n".join(outline))
             except Exception as e:
-                return ToolResult(
-                    f"Error generating Python AST outline: {str(e)}", is_error=True
-                )
+                return ToolResult(f"Error generating Python AST outline: {str(e)}", is_error=True)
 
         # Fallback for JS/TS/Other files: Regex signature scanner
         try:
@@ -1060,8 +1026,7 @@ class ToolRegistry:
                     sig_matches.append(f"Line {idx:3d}: {clean[:100]}")
             if sig_matches:
                 return ToolResult(
-                    f"### [Symbol Signatures: {raw_path}]\n"
-                    + "\n".join(sig_matches[:40])
+                    f"### [Symbol Signatures: {raw_path}]\n" + "\n".join(sig_matches[:40])
                 )
             return ToolResult(f"No symbols extracted from {raw_path}")
         except Exception as e:
@@ -1081,9 +1046,7 @@ class ToolRegistry:
         import re
 
         if re.search(r"\b(curl|wget|fetch|git push|ssh|scp|nc|ping)\b", cmd):
-            sim_report.append(
-                "• **Network Activity:** 🌐 Outbound network request detected."
-            )
+            sim_report.append("• **Network Activity:** 🌐 Outbound network request detected.")
         else:
             sim_report.append(
                 "• **Network Activity:** 🔒 Local operation (no outbound network detected)."
@@ -1091,13 +1054,9 @@ class ToolRegistry:
 
         # Check filesystem mutation indicators
         if re.search(r"\b(rm|del|rmdir|mkdir|touch|mv|cp|git clean|git reset)\b", cmd):
-            sim_report.append(
-                "• **Filesystem Impact:** ⚠️ Modifies or removes files on disk."
-            )
+            sim_report.append("• **Filesystem Impact:** ⚠️ Modifies or removes files on disk.")
         else:
-            sim_report.append(
-                "• **Filesystem Impact:** 📄 Read-only or process execution."
-            )
+            sim_report.append("• **Filesystem Impact:** 📄 Read-only or process execution.")
 
         return ToolResult("\n".join(sim_report))
 
@@ -1109,9 +1068,7 @@ class ToolRegistry:
 
             req = urllib.request.Request(
                 url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgnosticAI/1.2.0"
-                },
+                headers={"User-Agent": USER_AGENT},
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 raw_bytes = resp.read()
@@ -1128,17 +1085,13 @@ class ToolRegistry:
                     flags=re.DOTALL | re.IGNORECASE,
                 )
                 # Replace tags with spaces or line breaks
-                text = re.sub(
-                    r"<br\s*/?>|</p>|</div>|</li>", "\n", text, flags=re.IGNORECASE
-                )
+                text = re.sub(r"<br\s*/?>|</p>|</div>|</li>", "\n", text, flags=re.IGNORECASE)
                 text = re.sub(r"<[^>]+>", " ", text)
                 text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
 
             clipped = text[:8000]
             if len(text) > 8000:
-                clipped += (
-                    f"\n\n... [Content truncated, total {len(text)} characters] ..."
-                )
+                clipped += f"\n\n... [Content truncated, total {len(text)} characters] ..."
 
             return ToolResult(f"### [URL Content: {url}]\n\n{clipped}")
         except Exception as e:
@@ -1156,10 +1109,10 @@ class ToolRegistry:
 
             # Query DuckDuckGo instant answer / html API
             encoded = urllib.parse.quote_plus(full_query)
-            api_url = f"https://api.duckduckgo.com/?q={encoded}&format=json&no_html=1&skip_disambig=1"
-            req = urllib.request.Request(
-                api_url, headers={"User-Agent": "AgnosticAI/1.2.0"}
+            api_url = (
+                f"https://api.duckduckgo.com/?q={encoded}&format=json&no_html=1&skip_disambig=1"
             )
+            req = urllib.request.Request(api_url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
 
@@ -1170,18 +1123,14 @@ class ToolRegistry:
                 )
             for topic in data.get("RelatedTopics", [])[:5]:
                 if isinstance(topic, dict) and "Text" in topic:
-                    results.append(
-                        f"• {topic['Text']}\n  URL: {topic.get('FirstURL', '')}"
-                    )
+                    results.append(f"• {topic['Text']}\n  URL: {topic.get('FirstURL', '')}")
 
             if not results:
                 # Direct DuckDuckGo HTML Lite search parse
                 lite_url = f"https://html.duckduckgo.com/html/?q={encoded}"
                 lite_req = urllib.request.Request(
                     lite_url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgnosticAI/1.2.0"
-                    },
+                    headers={"User-Agent": USER_AGENT},
                 )
                 with urllib.request.urlopen(lite_req, timeout=10) as resp:
                     html_content = resp.read().decode("utf-8", errors="replace")
@@ -1199,12 +1148,8 @@ class ToolRegistry:
                     results.append(f"• {clean_snip}\n  Link: {url_match}")
 
             if not results:
-                return ToolResult(
-                    f"Search completed for '{query}'. No immediate results found."
-                )
-            return ToolResult(
-                f"### [Web Search Results: '{query}']\n" + "\n\n".join(results)
-            )
+                return ToolResult(f"Search completed for '{query}'. No immediate results found.")
+            return ToolResult(f"### [Web Search Results: '{query}']\n" + "\n\n".join(results))
         except Exception as e:
             return ToolResult(f"Error performing web search: {str(e)}", is_error=True)
 
@@ -1215,9 +1160,7 @@ class ToolRegistry:
         if action == "list":
             subagents = subagent_registry.list_subagents()
             if not subagents:
-                return ToolResult(
-                    "No active or background subagents currently registered."
-                )
+                return ToolResult("No active or background subagents currently registered.")
             import json
 
             return ToolResult(json.dumps(subagents, indent=2))

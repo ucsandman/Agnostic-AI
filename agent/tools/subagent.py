@@ -46,13 +46,8 @@ class SubagentWorker:
         """
         from agent.tools.registry import ToolRegistry
 
-        read_only = (
-            self.role.lower().strip() in READ_ONLY_ROLES
-            or self.confirm_callback is None
-        )
-        return ToolRegistry(
-            workspace_root=str(self.active_workspace), read_only=read_only
-        )
+        read_only = self.role.lower().strip() in READ_ONLY_ROLES or self.confirm_callback is None
+        return ToolRegistry(workspace_root=str(self.active_workspace), read_only=read_only)
 
     def _prepare_workspace(self) -> Path:
         """Provisions workspace based on selected isolation mode."""
@@ -60,9 +55,7 @@ class SubagentWorker:
             return self.workspace_root
 
         subagent_id = str(uuid.uuid4())[:8]
-        scratch_dir = (
-            self.workspace_root.parent / f".agnostic_scratch_{self.role}_{subagent_id}"
-        )
+        scratch_dir = self.workspace_root.parent / f".agnostic_scratch_{self.role}_{subagent_id}"
 
         if self.workspace_mode == "branch":
             try:
@@ -77,7 +70,10 @@ class SubagentWorker:
                 )
                 if res.returncode == 0 and scratch_dir.exists():
                     return scratch_dir
-            except Exception:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+            ):  # no worktree support; caller uses a plain dir
                 pass
 
         # Fallback for 'share' or if git worktree fails: copy or shallow sandbox
@@ -99,7 +95,10 @@ class SubagentWorker:
                         capture_output=True,
                         timeout=15,
                     )
-                except Exception:
+                except (
+                    OSError,
+                    subprocess.SubprocessError,
+                ):  # worktree already gone; rmtree below still runs
                     pass
             if self.active_workspace.exists():
                 shutil.rmtree(self.active_workspace, ignore_errors=True)
@@ -225,7 +224,7 @@ class SubagentManager:
                 "subagent_start",
                 f"Spawned Subagent '{role}' ({subagent_id}, mode: {workspace_mode}): {prompt[:80]}",
             )
-        except Exception:
+        except ImportError:  # web companion is optional
             pass
 
         role_key = role.lower().strip()
@@ -256,7 +255,7 @@ class SubagentManager:
                     "subagent_end",
                     f"Subagent '{role}' ({subagent_id}) finished task successfully.",
                 )
-            except Exception:
+            except ImportError:  # web companion is optional
                 pass
             # Distill response header
             return f"### [Subagent Report: {role.upper()}]\n{result}\n"
@@ -276,9 +275,7 @@ class SubagentManager:
                 workspace_mode=task_def.get("workspace_mode", "inherit"),
             )
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(6, len(tasks))
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(tasks))) as executor:
             return list(executor.map(_run_single, tasks))
 
 
@@ -288,18 +285,14 @@ class SubagentRegistry:
     def __init__(self):
         self._subagents: dict[str, dict[str, Any]] = {}
 
-    def register_active(
-        self, subagent_id: str, role: str, mode: str = "inherit"
-    ) -> dict[str, Any]:
+    def register_active(self, subagent_id: str, role: str, mode: str = "inherit") -> dict[str, Any]:
         info = {
             "conversationId": subagent_id,
             "role": role,
             "type": role,
             "state": "running",
             "workspace_mode": mode,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            if "time" in globals()
-            else "",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S") if "time" in globals() else "",
         }
         self._subagents[subagent_id] = info
         return info

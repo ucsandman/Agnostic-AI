@@ -30,12 +30,13 @@ class CrossAgentHarvester:
                             data = json.loads(line)
                             txt = data.get("text") or data.get("correction")
                             if txt:
-                                ok, _ = learner.record_lesson(
-                                    txt, category="cross_agent_harvest"
-                                )
+                                ok, _ = learner.record_lesson(txt, category="cross_agent_harvest")
                                 if ok:
                                     harvested_count += 1
-                except Exception:
+                except (
+                    OSError,
+                    ValueError,
+                ):  # skip one unreadable/corrupt peer log, keep harvesting
                     pass
 
         return harvested_count

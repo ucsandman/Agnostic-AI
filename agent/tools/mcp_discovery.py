@@ -36,7 +36,7 @@ class MCPAutoDiscovery:
                     servers = data.get("mcpServers", {})
                     for s_name, s_cfg in servers.items():
                         discovered[s_name] = s_cfg
-                except Exception:
+                except (OSError, ValueError, AttributeError):  # skip one malformed mcp config
                     pass
 
         return discovered

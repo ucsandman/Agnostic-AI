@@ -35,24 +35,18 @@ class ArchitectureDiagrammer:
                     try:
                         content = p.read_text(encoding="utf-8", errors="ignore")
                         # Python imports: from agent.tools import x
-                        for match in re.finditer(
-                            r"(?:from|import)\s+([a-zA-Z0-9_.]+)", content
-                        ):
+                        for match in re.finditer(r"(?:from|import)\s+([a-zA-Z0-9_.]+)", content):
                             imported = match.group(1).replace(".", "/")
                             target_module = (
-                                Path(imported).parent.as_posix()
-                                if "/" in imported
-                                else imported
+                                Path(imported).parent.as_posix() if "/" in imported else imported
                             )
                             if (
                                 target_module
                                 and target_module != source_module
                                 and (self.workspace_root / target_module).exists()
                             ):
-                                edges.append(
-                                    f'  "{source_module}" --> "{target_module}"'
-                                )
-                    except Exception:
+                                edges.append(f'  "{source_module}" --> "{target_module}"')
+                    except (SyntaxError, ValueError, OSError):  # unparseable file; skip its edges
                         pass
 
         # Deduplicate edges

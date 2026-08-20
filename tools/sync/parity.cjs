@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 const { compileTarget, loadSource, expandPath } = require('../../engine/sync/sync.cjs');
 
@@ -21,6 +22,29 @@ const HTML_FILE = path.join(__dirname, 'parity.html');
 
 const OPEN_FLAG = process.argv.includes('--open');
 const PORT = process.env.PARITY_PORT || 7845;
+
+// POST /api/sync rewrites 18 config files under the home directory. Loopback
+// binding alone does not stop a page on any site from triggering it, so it
+// needs the per-process token this server injects into parity.html.
+const SESSION_TOKEN = crypto.randomBytes(24).toString('hex');
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+function authorized(req) {
+  const headers = (req && req.headers) || {};
+  const supplied = Buffer.from(String(headers['x-parity-token'] || ''));
+  const expected = Buffer.from(SESSION_TOKEN);
+  if (supplied.length !== expected.length) return false;
+  if (!crypto.timingSafeEqual(supplied, expected)) return false;
+  const source = headers.origin || headers.referer;
+  if (source) {
+    try {
+      if (!LOOPBACK_HOSTS.has(new URL(source).hostname.replace(/^\[|\]$/g, ''))) return false;
+    } catch (_) {
+      return false;
+    }
+  }
+  return true;
+}
 
 function getParityStatus() {
   const source = loadSource();
@@ -95,16 +119,27 @@ function serve() {
     }
 
     if (req.url === '/api/sync' && req.method === 'POST') {
-      const { run } = require('../../engine/sync/sync.cjs');
-      const syncResult = run();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, result: syncResult }));
+      if (!authorized(req)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Forbidden' }));
+      }
+      try {
+        const { run } = require('../../engine/sync/sync.cjs');
+        const syncResult = run();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, result: syncResult }));
+      } catch (err) {
+        // A half-written target must surface as a failed sync, not a dead server.
+        console.error('[Parity] Sync failed:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
     }
 
     if (req.url === '/' || req.url === '/index.html') {
       if (fs.existsSync(HTML_FILE)) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        return res.end(fs.readFileSync(HTML_FILE, 'utf8'));
+        return res.end(fs.readFileSync(HTML_FILE, 'utf8').replace('__PARITY_TOKEN__', SESSION_TOKEN));
       }
     }
 
@@ -134,4 +169,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { getParityStatus };
+module.exports = { getParityStatus, authorized, SESSION_TOKEN };

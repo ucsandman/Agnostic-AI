@@ -41,7 +41,7 @@ class SwarmCoordinator:
             )
             if res.returncode == 0 and wt_dir.exists():
                 return wt_dir
-        except Exception:
+        except (OSError, subprocess.SubprocessError):  # no worktree support; caller runs in-place
             pass
         return None
 
@@ -53,18 +53,14 @@ class SwarmCoordinator:
                 shell=True,
                 capture_output=True,
             )
-        except Exception:
+        except (OSError, subprocess.SubprocessError):  # worktree already removed
             pass
 
     def dispatch_swarm(self, objective: str, use_worktrees: bool = False) -> str:
         console.print(
             Panel(
                 f"🐝 [bold cyan]Initiating Parallel Swarm Mode (3 Workers)[/bold cyan]\nObjective: {objective}"
-                + (
-                    "\n[dim](Git Worktree Branch Isolation Active)[/dim]"
-                    if use_worktrees
-                    else ""
-                ),
+                + ("\n[dim](Git Worktree Branch Isolation Active)[/dim]" if use_worktrees else ""),
                 border_style="cyan",
             )
         )
@@ -104,8 +100,7 @@ class SwarmCoordinator:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             future_to_role = {
-                executor.submit(_run_worker, role, prompt): role
-                for role, prompt in worker_tasks
+                executor.submit(_run_worker, role, prompt): role for role, prompt in worker_tasks
             }
             for future in concurrent.futures.as_completed(future_to_role):
                 role = future_to_role[future]

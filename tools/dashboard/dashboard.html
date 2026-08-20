@@ -1723,6 +1723,18 @@ dashclaw install claude --trial</code></pre>
   <div id="toast-container"></div>
 
   <script>
+    // Injected by dashboard.cjs when it serves this page. Wrapped once here so
+    // every same-origin fetch below carries it without per-call plumbing.
+    const DASHBOARD_TOKEN = '__DASHBOARD_TOKEN__';
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, opts = {}) => {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (/^https?:\/\//i.test(url) && !url.startsWith(location.origin)) return nativeFetch(input, opts);
+      const headers = new Headers(opts.headers || {});
+      headers.set('X-Dashboard-Token', DASHBOARD_TOKEN);
+      return nativeFetch(input, { ...opts, headers });
+    };
+
     let overviewData = null;
     let allSkills = {};
     let allSkillsConfig = { globalEnabled: {}, projectOverrides: {} };
@@ -2288,7 +2300,9 @@ dashclaw install claude --trial</code></pre>
       }
 
       if (events.length === 0) {
-        container.innerHTML = '<div class="empty-state">No governance events match the active filter.</div>';
+        container.innerHTML = currentDecisions.length === 0
+          ? '<div class="empty-state">0 governance events recorded this session. Run a guard simulation below to record one.</div>'
+          : '<div class="empty-state">No governance events match the active filter.</div>';
         return;
       }
 

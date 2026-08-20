@@ -22,7 +22,9 @@ const MANIFEST_FILE = path.join(STORAGE, 'skills-manifest.json');
 const CONFIG_FILE = path.join(STORAGE, 'skills-config.json');
 const CANDIDATES_FILE = path.join(STORAGE, 'candidates.jsonl');
 
-const PROJECTS_DIR = 'C:\\Projects';
+// Root scanned by `listAllProjectsWithRecommendations` / the dashboard Projects tab.
+const PROJECTS_DIR = process.env.AGNOSTIC_PROJECTS_DIR
+  || (process.platform === 'win32' ? 'C:\\Projects' : path.join(os.homedir(), 'Projects'));
 
 function loadSkillsManifest() {
   if (!fs.existsSync(MANIFEST_FILE)) return {};
@@ -42,12 +44,21 @@ function loadSkillsConfig() {
   }
 }
 
+function loadCandidates() {
+  if (!fs.existsSync(CANDIDATES_FILE)) return [];
+  try {
+    return fs.readFileSync(CANDIDATES_FILE, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  } catch (_) {
+    return [];
+  }
+}
+
 function saveSkillsConfig(config) {
   if (!fs.existsSync(STORAGE)) fs.mkdirSync(STORAGE, { recursive: true });
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
 }
 
-function analyzeProjectTechStack(projectPath) {
+function analyzeProjectTechStack(projectPath, candidates = null) {
   const info = {
     path: projectPath,
     name: path.basename(projectPath),
@@ -175,16 +186,10 @@ function analyzeProjectTechStack(projectPath) {
   }
 
   // Error count from candidates
-  if (fs.existsSync(CANDIDATES_FILE)) {
-    try {
-      const lines = fs.readFileSync(CANDIDATES_FILE, 'utf8').trim().split('\n').filter(Boolean);
-      for (const l of lines) {
-        const c = JSON.parse(l);
-        if (c.repo && (c.repo.toLowerCase().includes(info.name.toLowerCase()) || info.name.toLowerCase().includes(c.repo.toLowerCase()))) {
-          info.errorCount++;
-        }
-      }
-    } catch (_) {}
+  for (const c of candidates || loadCandidates()) {
+    if (c.repo && (c.repo.toLowerCase().includes(info.name.toLowerCase()) || info.name.toLowerCase().includes(c.repo.toLowerCase()))) {
+      info.errorCount++;
+    }
   }
 
   return {
@@ -196,10 +201,12 @@ function analyzeProjectTechStack(projectPath) {
   };
 }
 
-function recommendSkillsForProject(projectPath) {
-  const tech = analyzeProjectTechStack(projectPath);
-  const manifest = loadSkillsManifest();
-  const config = loadSkillsConfig();
+// `shared` lets callers that loop over many projects load the manifest, config
+// and candidates once instead of re-reading ~375 KB per project.
+function recommendSkillsForProject(projectPath, shared = {}) {
+  const tech = analyzeProjectTechStack(projectPath, shared.candidates || null);
+  const manifest = shared.manifest || loadSkillsManifest();
+  const config = shared.config || loadSkillsConfig();
   const overrides = config.projectOverrides[projectPath] || {};
 
   const recommendations = [];
@@ -312,6 +319,7 @@ function listAllProjectsWithRecommendations() {
   const results = [];
   if (!fs.existsSync(PROJECTS_DIR)) return results;
 
+  const shared = { manifest: loadSkillsManifest(), config: loadSkillsConfig(), candidates: loadCandidates() };
   const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -319,7 +327,7 @@ function listAllProjectsWithRecommendations() {
 
     const fullPath = path.join(PROJECTS_DIR, entry.name);
     try {
-      const rec = recommendSkillsForProject(fullPath);
+      const rec = recommendSkillsForProject(fullPath, shared);
       results.push({
         name: entry.name,
         path: fullPath,

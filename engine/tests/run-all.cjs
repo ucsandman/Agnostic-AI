@@ -492,6 +492,52 @@ async function run() {
     assert(Array.isArray(audit.recommendations) && audit.recommendations.length > 0, 'Should produce actionable recommendations');
   });
 
+  // 16-18. Dashboard server hardening. Requiring dashboard.cjs must not bind a
+  // port — it only serves under require.main === module.
+  const dashboard = require('../../tools/dashboard/dashboard.cjs');
+  const fakeReq = (headers) => ({ headers });
+
+  await test('Dashboard Auth: rejects missing/foreign-origin tokens, accepts loopback', () => {
+    const token = dashboard.SESSION_TOKEN;
+    assert(typeof token === 'string' && token.length === 48, 'SESSION_TOKEN should be a 24-byte hex string');
+    assert.strictEqual(dashboard.authorized(fakeReq({})), false, 'No token should be rejected');
+    assert.strictEqual(dashboard.authorized(fakeReq({ 'x-dashboard-token': 'nope' })), false, 'Wrong token should be rejected');
+    assert.strictEqual(
+      dashboard.authorized(fakeReq({ 'x-dashboard-token': token, origin: 'https://evil.example' })),
+      false,
+      'Correct token from a non-loopback origin should be rejected'
+    );
+    assert.strictEqual(
+      dashboard.authorized(fakeReq({ 'x-dashboard-token': token, origin: 'http://127.0.0.1:7842' })),
+      true,
+      'Correct token from a loopback origin should be accepted'
+    );
+    assert.strictEqual(
+      dashboard.authorized(fakeReq({ 'x-dashboard-token': token })),
+      true,
+      'Correct token with no Origin/Referer should be accepted'
+    );
+  });
+
+  await test('Dashboard Guard Simulator: verdicts come from core/safety/guards.json', () => {
+    const destructive = dashboard.simulateGuard('rm -rf /', 'run_command');
+    assert.strictEqual(destructive.verdict, 'REQUIRE_APPROVAL', 'rm -rf / must require human approval');
+    assert(/guards\.json/.test(destructive.reason), 'Reason should name the guard source');
+    const safe = dashboard.simulateGuard('ls', 'run_command');
+    assert.strictEqual(safe.verdict, 'APPROVED', 'ls should be approved');
+    assert.strictEqual(typeof safe.riskScore, 'number', 'riskScore should be a number');
+  });
+
+  await test('Dashboard Decisions: audit stream carries no fabricated bootstrap events', () => {
+    const decisions = dashboard.getDecisionsData();
+    assert(Array.isArray(decisions.recentEvents), 'recentEvents should be an array');
+    assert.strictEqual(decisions.eventCount, decisions.recentEvents.length, 'eventCount should match recentEvents');
+    const fabricated = ['SAFETY_SCAN', 'ENDPOINT_SYNC', 'GOVERNANCE_ACTIVE'];
+    for (const evt of decisions.recentEvents) {
+      assert(!fabricated.includes(evt.type), `Event type ${evt.type} asserts work that never ran`);
+    }
+  });
+
   console.log(`\n=== Tests Complete: ${passed} passed / ${failed} failed ===`);
   if (failed > 0) process.exit(1);
 }

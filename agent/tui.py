@@ -28,6 +28,7 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich import box
 
+from agent import __version__
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
 from agent.llm.detector import ModelDoctor
@@ -53,12 +54,12 @@ from agent.ui_common import (
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (ValueError, OSError):  # stream already detached/redirected; keep its default encoding
         pass
 if hasattr(sys.stderr, "reconfigure"):
     try:
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (ValueError, OSError):  # stream already detached/redirected; keep its default encoding
         pass
 
 # ─── Textual TUI Application ────────────────────────────────────────────────────
@@ -181,14 +182,10 @@ class AgnosticTUI(App):
 
     def compose(self) -> ComposeResult:  # noqa: vulture
         yield Static(id="status-bar")
-        yield RichLog(
-            id="output-log", highlight=True, markup=True, wrap=True, max_lines=5000
-        )
+        yield RichLog(id="output-log", highlight=True, markup=True, wrap=True, max_lines=5000)
         with Horizontal(id="input-container"):
             yield Static("❯ ", id="prompt-label")
-            yield Input(
-                placeholder="Type a message... (Enter to send)", id="prompt-input"
-            )
+            yield Input(placeholder="Type a message... (Enter to send)", id="prompt-input")
             yield Static("", id="queue-indicator")
 
     def on_mount(self) -> None:  # noqa: vulture
@@ -219,7 +216,7 @@ class AgnosticTUI(App):
         log = self.query_one("#output-log", RichLog)
         banner_text = Text()
         banner_text.append(
-            "🛡️  AGNOSTIC AI CODING AGENT v1.2.0 (10 Champions Active)\n",
+            f"🛡️  AGNOSTIC AI CODING AGENT v{__version__}\n",
             style="bold cyan",
         )
         banner_text.append(
@@ -246,9 +243,7 @@ class AgnosticTUI(App):
             git_str = self._git_status
 
             curr_model = self.agent.llm_client.config.model
-            curr_effort = (
-                self.agent.llm_client.config.reasoning_effort or "med"
-            ).upper()
+            curr_effort = (self.agent.llm_client.config.reasoning_effort or "med").upper()
             disp_model = curr_model
             for p in LLMConfig.PRESETS.values():
                 if p["model"] == curr_model:
@@ -269,7 +264,7 @@ class AgnosticTUI(App):
                 f"  │  📊 {used:,}/{total:,} tok ({pct:.1f}%){queue_str}{busy_str}"
             )
             self.query_one("#status-bar", Static).update(status_text)
-        except Exception:
+        except (NoMatches, KeyError, AttributeError):  # widget torn down, or agent not wired yet
             pass
 
     @work(thread=True, exclusive=True, group="statusbar")
@@ -293,12 +288,10 @@ class AgnosticTUI(App):
                     timeout=0.3,
                 )
                 dirty_count = (
-                    len(st_res.stdout.strip().splitlines())
-                    if st_res.stdout.strip()
-                    else 0
+                    len(st_res.stdout.strip().splitlines()) if st_res.stdout.strip() else 0
                 )
                 git_str = f" | 🌿 {branch}{'*' if dirty_count else ''}"
-        except Exception:
+        except (OSError, subprocess.SubprocessError):  # no git / not a repo; status line omits it
             pass
         if git_str != self._git_status:
             self._git_status = git_str
@@ -328,7 +321,7 @@ class AgnosticTUI(App):
 
             if msg_type != "assistant_chunk":
                 companion_telemetry.log_event(msg_type, content)
-        except Exception:
+        except ImportError:  # web companion is optional; the TUI is the real UI
             pass
 
         if msg_type == "assistant_chunk":
@@ -342,9 +335,7 @@ class AgnosticTUI(App):
         elif msg_type == "assistant":
             # Check if we had streamed content before flushing
             with self._lock:
-                had_streamed = len(self._stream_buffer) > 0 or getattr(
-                    self, "_did_stream", False
-                )
+                had_streamed = len(self._stream_buffer) > 0 or getattr(self, "_did_stream", False)
             self._flush_stream()
             if not had_streamed and content:
                 # Non-streamed final response — show as panel
@@ -383,9 +374,7 @@ class AgnosticTUI(App):
             )
 
         elif msg_type == "subagent":
-            label = Text.from_markup(
-                "[bold green]🐝 Subagent Notification:[/bold green] "
-            )
+            label = Text.from_markup("[bold green]🐝 Subagent Notification:[/bold green] ")
             label.append(content)
             self._post_output(label)
 
@@ -472,9 +461,7 @@ class AgnosticTUI(App):
             # Queue the prompt for later
             self._prompt_queue.append(user_input)
             self._write_output(
-                Text.from_markup(
-                    f"[dim yellow]📬 Queued (agent busy): {user_input}[/dim yellow]"
-                )
+                Text.from_markup(f"[dim yellow]📬 Queued (agent busy): {user_input}[/dim yellow]")
             )
             self._update_queue_indicator()
             self._update_status_bar()
@@ -604,9 +591,7 @@ class AgnosticTUI(App):
             next_prompt = self._prompt_queue.popleft()
             self._update_queue_indicator()
             self._write_output(
-                Text.from_markup(
-                    f"[dim cyan]📬 Processing queued prompt: {next_prompt}[/dim cyan]"
-                )
+                Text.from_markup(f"[dim cyan]📬 Processing queued prompt: {next_prompt}[/dim cyan]")
             )
             self._process_input(next_prompt)
 
@@ -637,6 +622,18 @@ class AgnosticTUI(App):
                 )
             return True
 
+        elif user_input == "/multiline":
+            # Textual's Input is single-line and collapses a pasted newline, so there
+            # is nothing to toggle here — be honest instead of silently doing nothing.
+            self._write_output(
+                Text(
+                    "The TUI prompt is a single-line input and cannot accept multi-line "
+                    "text. Run `agnostic-legacy` and use /multiline there.",
+                    style="yellow",
+                )
+            )
+            return True
+
         elif user_input == "/compact":
             self.agent.history, ok, msg = context_manager.compact_messages(
                 self.agent.history, force=True
@@ -646,9 +643,7 @@ class AgnosticTUI(App):
 
         elif cmd == "fix":
             custom_cmd = args or None
-            self._dispatch_background(
-                lambda: self.test_runner.quick_fix(custom_command=custom_cmd)
-            )
+            self._dispatch_background(lambda: self.test_runner.quick_fix(custom_command=custom_cmd))
             return True
 
         elif cmd == "trust":
@@ -733,9 +728,7 @@ class AgnosticTUI(App):
                         )
                     )
                 else:
-                    self._write_output(
-                        Text("Available Checkpoints:", style="bold cyan")
-                    )
+                    self._write_output(Text("Available Checkpoints:", style="bold cyan"))
                     for name, history in undo_manager.checkpoints.items():
                         self._write_output(
                             Text(
@@ -816,17 +809,13 @@ class AgnosticTUI(App):
 
             def _do_research():
                 report = self.agent.subagents.spawn("researcher", topic)
-                return Panel(
-                    Markdown(report), title="Research Results", border_style="cyan"
-                )
+                return Panel(Markdown(report), title="Research Results", border_style="cyan")
 
             self._dispatch_background(_do_research)
             return True
 
         elif cmd == "review":
-            self._write_output(
-                Text("Subagent reviewing workspace diffs...", style="cyan")
-            )
+            self._write_output(Text("Subagent reviewing workspace diffs...", style="cyan"))
 
             def _do_review():
                 report = self.agent.subagents.spawn(
@@ -841,9 +830,7 @@ class AgnosticTUI(App):
         elif cmd == "swarm":
             task = args
             if not task:
-                self._write_output(
-                    Text("Usage: /swarm <complex task or feature>", style="yellow")
-                )
+                self._write_output(Text("Usage: /swarm <complex task or feature>", style="yellow"))
                 return True
 
             def _do_swarm():
@@ -904,9 +891,7 @@ class AgnosticTUI(App):
         elif cmd == "learn":
             lesson = args
             if not lesson:
-                self._write_output(
-                    Text("Usage: /learn <lesson or constraint>", style="yellow")
-                )
+                self._write_output(Text("Usage: /learn <lesson or constraint>", style="yellow"))
                 return True
             from agent.governance.learn import learner
 
@@ -945,9 +930,7 @@ class AgnosticTUI(App):
             return True
 
         elif user_input == "/distill":
-            self._write_output(
-                Text("Triggering Harness Distillation Engine...", style="cyan")
-            )
+            self._write_output(Text("Triggering Harness Distillation Engine...", style="cyan"))
 
             def _do_distill():
                 res = subprocess.run(
@@ -1023,17 +1006,13 @@ class AgnosticTUI(App):
     def _handle_commit(self) -> Optional[Panel]:
         """Autonomous Git Commit generator workflow. Runs on a background worker
         (see _dispatch_background) — writes go through _post_output()."""
-        self._post_output(
-            Text("Inspecting staged changes and git status...", style="cyan")
-        )
+        self._post_output(Text("Inspecting staged changes and git status...", style="cyan"))
         try:
             st = subprocess.run(
                 "git status --short", shell=True, capture_output=True, text=True
             ).stdout.strip()
             if not st:
-                self._post_output(
-                    Text("No changes detected in git working tree.", style="dim")
-                )
+                self._post_output(Text("No changes detected in git working tree.", style="dim"))
                 return None
 
             diff = subprocess.run(
@@ -1044,9 +1023,7 @@ class AgnosticTUI(App):
                     "git diff", shell=True, capture_output=True, text=True
                 ).stdout.strip()
 
-            self._post_output(
-                Panel(safe_text(st), title="Git Status", border_style="yellow")
-            )
+            self._post_output(Panel(safe_text(st), title="Git Status", border_style="yellow"))
 
             commit_prompt = (
                 f"Based on the following git changes:\n```\n{st}\n```\nDiff preview:\n```\n{diff[:1500]}\n```\n"

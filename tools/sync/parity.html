@@ -245,6 +245,8 @@
   </div>
 
   <script>
+    // Injected by parity.cjs when it serves this page; gates POST /api/sync.
+    const PARITY_TOKEN = '__PARITY_TOKEN__';
     let rawData = null;
     let currentCategory = 'all';
 
@@ -335,7 +337,7 @@
       btn.textContent = 'Syncing...';
       btn.disabled = true;
       try {
-        await fetch('/api/sync', { method: 'POST' });
+        await fetch('/api/sync', { method: 'POST', headers: { 'X-Parity-Token': PARITY_TOKEN } });
         await loadStatus();
       } finally {
         btn.textContent = 'Sync All Targets';

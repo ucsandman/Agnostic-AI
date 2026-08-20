@@ -51,7 +51,7 @@ class AgentLoop:
             from agent.web.server import companion_telemetry
 
             companion_telemetry.bind_agent(self)
-        except Exception:
+        except ImportError:  # web companion is optional
             pass
 
     def _default_confirm(self, prompt: str) -> bool:
@@ -64,15 +64,13 @@ class AgentLoop:
             from agent.web.server import companion_telemetry
 
             companion_telemetry.log_event(msg_type, content)
-        except Exception:
+        except ImportError:  # web companion is optional
             pass
 
         if msg_type == "tool_start":
             print(f"\n⚙️  [Tool: {content}]")
         elif msg_type == "tool_end":
-            print(
-                f"✔️  [Tool Output]:\n{content[:500]}{'...' if len(content) > 500 else ''}"
-            )
+            print(f"✔️  [Tool Output]:\n{content[:500]}{'...' if len(content) > 500 else ''}")
         elif msg_type == "assistant":
             print(f"\n🤖 [Agent]:\n{content}")
         elif msg_type == "subagent":
@@ -136,10 +134,7 @@ class AgentLoop:
         # Check workspace storage first, then fall back to the agnostic-ai repository root
         prompt_candidates = [
             self.workspace_root / "storage" / "compiled" / "system_prompt.md",
-            Path(__file__).resolve().parent.parent
-            / "storage"
-            / "compiled"
-            / "system_prompt.md",
+            Path(__file__).resolve().parent.parent / "storage" / "compiled" / "system_prompt.md",
         ]
 
         full_prompt = None
@@ -148,7 +143,7 @@ class AgentLoop:
                 try:
                     full_prompt = candidate.read_text(encoding="utf-8")
                     break
-                except Exception:
+                except OSError:  # unreadable candidate; fall through to the next path
                     pass
 
         if full_prompt:
@@ -187,9 +182,7 @@ class AgentLoop:
         # 1. Check and trigger auto-compaction if context threshold is near
         from agent.governance.context import context_manager
 
-        self.history, compacted, compact_msg = context_manager.auto_compact(
-            self.history
-        )
+        self.history, compacted, compact_msg = context_manager.auto_compact(self.history)
         if compacted:
             self.output_callback("system", compact_msg)
 
@@ -204,9 +197,7 @@ class AgentLoop:
                     tools=tools,
                     tool_choice="auto",
                     stream=True,
-                    stream_callback=lambda chunk: self.output_callback(
-                        "assistant_chunk", chunk
-                    ),
+                    stream_callback=lambda chunk: self.output_callback("assistant_chunk", chunk),
                 )
                 msg = response.choices[0].message
 
@@ -339,9 +330,7 @@ class AgentLoop:
 
             except Exception as e:
                 err_str = str(e)
-                if "400" in err_str and (
-                    "API key" in err_str or "INVALID_ARGUMENT" in err_str
-                ):
+                if "400" in err_str and ("API key" in err_str or "INVALID_ARGUMENT" in err_str):
                     err_msg = (
                         f"Turn execution error: {err_str}\n"
                         f"💡 [Tip]: Ensure GEMINI_API_KEY (or GOOGLE_API_KEY) is set in your environment, "

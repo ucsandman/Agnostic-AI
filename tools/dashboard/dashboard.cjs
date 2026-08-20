@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -25,6 +26,29 @@ const STORAGE = path.join(ROOT, 'storage');
 
 const PORT = parseInt(process.env.PORT || '7842', 10);
 const OPEN_FLAG = process.argv.includes('--open');
+
+// Binding to 127.0.0.1 does not stop any web page the operator visits from
+// POSTing to this port. Same defence as agent/web/server.py: a per-process
+// token the served HTML carries, plus a loopback Origin/Referer check.
+const SESSION_TOKEN = crypto.randomBytes(24).toString('hex');
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+function authorized(req) {
+  const headers = (req && req.headers) || {};
+  const supplied = Buffer.from(String(headers['x-dashboard-token'] || ''));
+  const expected = Buffer.from(SESSION_TOKEN);
+  if (supplied.length !== expected.length) return false;
+  if (!crypto.timingSafeEqual(supplied, expected)) return false;
+  const source = headers.origin || headers.referer;
+  if (source) {
+    try {
+      if (!LOOPBACK_HOSTS.has(new URL(source).hostname.replace(/^\[|\]$/g, ''))) return false;
+    } catch (_) {
+      return false;
+    }
+  }
+  return true;
+}
 
 // Dependencies from engine
 const { runHarvest, getCandidate, updateCandidate, deleteCandidate } = require('../../engine/harvest/harvest.cjs');
@@ -40,6 +64,7 @@ const {
 const { run: runSync, loadSource, expandPath } = require('../../engine/sync/sync.cjs');
 const { getStoredDashClawConfig, autoConfigureDashClaw, checkEndpointHealth } = require('../../engine/hooks/dashclaw-setup.cjs');
 const { runDistillation, approveCandidate } = require('../../engine/distill/distill.cjs');
+const { calculateLocalRisk, riskThresholds } = require('../../engine/hooks/dashclaw-guard.cjs');
 const { auditHarnessBloat, applyBloatOptimizations } = require('../../engine/audit/bloat-audit.cjs');
 const { getParityStatus } = require('../sync/parity.cjs');
 
@@ -400,31 +425,20 @@ function saveDashClawConnections(connectionsList) {
 }
 
 function simulateGuard(command = '', toolName = '') {
-  const cmd = (command || toolName).toLowerCase();
-  let verdict = 'APPROVED';
-  let riskScore = 5;
-  let reason = 'Safe execution within standard parameters.';
+  // Scores through the real hook so the simulator can never diverge from what
+  // core/safety/guards.json actually enforces at PreToolUse time.
+  const { hardBlock, query } = riskThresholds();
+  const riskScore = calculateLocalRisk({ command, toolName, targetFile: '' });
 
-  if (cmd.includes('drop table') || cmd.includes('rmdir /s') || cmd.includes('rm -rf /') || cmd.includes('git push --force') || cmd.includes('git push -f') || cmd.includes('git reset --hard')) {
+  let verdict = 'APPROVED';
+  let reason = `risk ${riskScore} < warn threshold ${query} (core/safety/guards.json)`;
+  if (riskScore >= hardBlock) {
+    // The local fallback treats hard stops as a block that only a human clears.
     verdict = 'REQUIRE_APPROVAL';
-    riskScore = 90;
-    reason = 'Destructive operation detected: command violates non-destructive workspace agreement.';
-  } else if (cmd.includes('npm publish') || cmd.includes('vercel --prod') || cmd.includes('railway up') || cmd.includes('render deploy')) {
-    verdict = 'REQUIRE_APPROVAL';
-    riskScore = 75;
-    reason = 'Production deployment gateway: external environment release requested.';
-  } else if (cmd.includes('.env') || cmd.includes('sk_live_') || cmd.includes('ghp_') || cmd.includes('secret')) {
-    verdict = 'BLOCKED';
-    riskScore = 100;
-    reason = 'Secret scan guardrail violation: secret tokens or .env target accessed.';
-  } else if (cmd.includes('taskkill') || cmd.includes('format')) {
-    verdict = 'BLOCKED';
-    riskScore = 95;
-    reason = 'Protected process control: command attempts to terminate protected system processes.';
-  } else if (cmd.includes('migrate') || cmd.includes('delete') || cmd.includes('stripe')) {
+    reason = `risk ${riskScore} >= hardBlock threshold ${hardBlock} (core/safety/guards.json)`;
+  } else if (riskScore >= query) {
     verdict = 'WARN';
-    riskScore = 45;
-    reason = 'Sensitive state modification: operation audited under DashClaw telemetry.';
+    reason = `risk ${riskScore} >= warn threshold ${query} (core/safety/guards.json)`;
   }
 
   return {
@@ -437,35 +451,9 @@ function simulateGuard(command = '', toolName = '') {
   };
 }
 
-let storedAuditEvents = [
-  {
-    id: 'evt_1',
-    ts: new Date().toISOString(),
-    type: 'GOVERNANCE_ACTIVE',
-    tool: 'system.bootstrap',
-    verdict: 'APPROVED',
-    riskScore: 0,
-    detail: '18 agent target agreements unified under Agnostic AI Single Source of Truth.'
-  },
-  {
-    id: 'evt_2',
-    ts: new Date(Date.now() - 35000).toISOString(),
-    type: 'ENDPOINT_SYNC',
-    tool: 'dashclaw.connect',
-    verdict: 'APPROVED',
-    riskScore: 0,
-    detail: 'Synchronized with remote DashClaw base https://my-dashclaw.vercel.app.'
-  },
-  {
-    id: 'evt_3',
-    ts: new Date(Date.now() - 120000).toISOString(),
-    type: 'SAFETY_SCAN',
-    tool: 'secretScan',
-    verdict: 'APPROVED',
-    riskScore: 0,
-    detail: 'Zero secret leaks detected in working directory.'
-  }
-];
+// Real events only. Nothing is seeded here: a dashboard that ships with
+// "zero secret leaks detected" is asserting a scan that never ran.
+let storedAuditEvents = [];
 
 function getDecisionsData() {
   const dashclaw = getStoredDashClawConfig();
@@ -474,7 +462,8 @@ function getDecisionsData() {
     agentId: dashclaw ? dashclaw.agentId : 'agnostic-harness',
     baseUrl: dashclaw ? dashclaw.baseUrl : 'https://my-dashclaw.vercel.app',
     mode: dashclaw && dashclaw.active ? 'DashClaw Governed Autonomy' : 'Fail-Closed Local Hard Stops',
-    recentEvents: storedAuditEvents
+    recentEvents: storedAuditEvents,
+    eventCount: storedAuditEvents.length
   };
 }
 
@@ -492,14 +481,33 @@ function serveDashboard() {
 
     const readBody = () => new Promise((resolve, reject) => {
       let body = '';
-      req.on('data', chunk => { body += chunk; });
+      req.on('data', chunk => {
+        body += chunk;
+        if (body.length > 1048576) {
+          const tooBig = new Error('Request body exceeds 1 MB limit');
+          tooBig.statusCode = 413;
+          req.destroy();
+          reject(tooBig);
+        }
+      });
       req.on('end', () => {
-        try { resolve(body ? JSON.parse(body) : {}); } catch (e) { reject(e); }
+        try {
+          resolve(body ? JSON.parse(body) : {});
+        } catch (e) {
+          e.statusCode = 400;
+          reject(e);
+        }
       });
       req.on('error', reject);
     });
 
     try {
+      // Every mutating route is gated here rather than per-handler, so a new
+      // POST route cannot be added unprotected.
+      if (req.method === 'POST' && !authorized(req)) {
+        return sendJson({ error: 'Forbidden' }, 403);
+      }
+
       if (req.method === 'GET' && pathname === '/api/overview') {
         return sendJson(getOverviewData());
       }
@@ -656,8 +664,12 @@ function serveDashboard() {
       if (pathname === '/' || pathname === '/index.html' || pathname === '/dashboard') {
         if (fs.existsSync(HTML_FILE)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          return res.end(fs.readFileSync(HTML_FILE, 'utf8'));
+          return res.end(fs.readFileSync(HTML_FILE, 'utf8').replace('__DASHBOARD_TOKEN__', SESSION_TOKEN));
         }
+      }
+      if (pathname === '/favicon.ico') {
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+        return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#1f2a3a"/><text x="16" y="22" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#f2f2f2" text-anchor="middle">AG</text></svg>');
       }
 
       // Backward compatibility for parity & errorlog endpoints
@@ -674,7 +686,7 @@ function serveDashboard() {
       res.end('Not Found');
     } catch (err) {
       console.error('[Dashboard Error]', err);
-      sendJson({ error: err.message }, 500);
+      sendJson({ error: err.message }, err.statusCode || 500);
     }
   });
 
@@ -708,4 +720,4 @@ if (require.main === module) {
   serveDashboard();
 }
 
-module.exports = { serveDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData, getDashClawFullConfig, saveDashClawConfig };
+module.exports = { serveDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData, getDashClawFullConfig, saveDashClawConfig, simulateGuard, getDecisionsData, authorized, SESSION_TOKEN };

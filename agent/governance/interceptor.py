@@ -25,9 +25,7 @@ class CodeInterceptor:
         return True, None
 
     @staticmethod
-    def run_quick_lint(
-        file_path: Path, workspace_root: Path
-    ) -> Tuple[bool, Optional[str]]:
+    def run_quick_lint(file_path: Path, workspace_root: Path) -> Tuple[bool, Optional[str]]:
         """Optionally runs quick ruff or eslint check if tools exist."""
         if file_path.suffix == ".py":
             try:
@@ -41,7 +39,10 @@ class CodeInterceptor:
                 )
                 if res.returncode != 0 and res.stdout:
                     return False, res.stdout.strip()
-            except Exception:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+            ):  # ruff missing or timed out; lint is advisory
                 pass
         return True, None
 
@@ -144,7 +145,7 @@ class CodeInterceptor:
                     if proc is not None and proc.poll() is None:
                         try:
                             proc.kill()
-                        except Exception:
+                        except OSError:  # hook exited between poll() and kill()
                             pass
 
         # 3. Post-tool correction tracker hook
@@ -163,7 +164,9 @@ class CodeInterceptor:
                     )
                     proc.stdin.write(json.dumps(payload))
                     proc.stdin.close()
-                except Exception:
+                except (
+                    OSError
+                ):  # tracker missing or stdin already closed; fire-and-forget by design
                     pass
 
         return True, None

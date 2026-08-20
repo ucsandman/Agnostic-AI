@@ -499,9 +499,7 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
 
         if self.path in MUTATING_ROUTES:
             # State-changing routes are POST-only, so a bare <img>/GET cannot fire them.
-            self._send_json(
-                {"success": False, "message": "Method not allowed. Use POST."}, 405
-            )
+            self._send_json({"success": False, "message": "Method not allowed. Use POST."}, 405)
             return
 
         # API Endpoints
@@ -574,9 +572,7 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
                 return
             history = companion_telemetry.get_history()
             if history:
-                compacted, ok, msg = context_manager.compact_messages(
-                    history, force=True
-                )
+                compacted, ok, msg = context_manager.compact_messages(history, force=True)
                 if ok and companion_telemetry._agent_instance:
                     companion_telemetry._agent_instance.history = compacted
                 companion_telemetry.log_event("system", f"Compaction triggered: {msg}")
@@ -651,9 +647,7 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
 
     def _authorized(self) -> bool:
         """Mutating routes need the session token AND a loopback Origin/Referer."""
-        if not secrets.compare_digest(
-            self.headers.get("X-Companion-Token", ""), SESSION_TOKEN
-        ):
+        if not secrets.compare_digest(self.headers.get("X-Companion-Token", ""), SESSION_TOKEN):
             return False
         source = self.headers.get("Origin") or self.headers.get("Referer")
         if source and urlparse(source).hostname not in LOOPBACK_HOSTS:
@@ -690,7 +684,10 @@ def start_companion_server(port: int = 7843):
         _server_instance = _CompanionServer(("127.0.0.1", port), CompanionHandler)
         bound_port = _server_instance.server_address[1]
         _server_thread = threading.Thread(
-            target=_server_instance.serve_forever, daemon=True
+            # Short poll so shutdown() returns promptly instead of waiting out the
+            # default 0.5s tick.
+            target=lambda: _server_instance.serve_forever(poll_interval=0.05),
+            daemon=True,
         )
         _server_thread.start()
         print(f"🔑 Companion session token: {SESSION_TOKEN}")

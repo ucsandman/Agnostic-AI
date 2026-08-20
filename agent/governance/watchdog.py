@@ -22,15 +22,31 @@ class SandboxWatchdog:
                 text=True,
             )
             return res.stdout.strip() if res.returncode == 0 else None
-        except Exception:
+        except (OSError, subprocess.SubprocessError):  # no git on PATH; caller sees None
             return None
 
-    def rollback_to_clean(self):
+    def rollback_to_clean(self) -> bool:
+        """Restores the workspace to HEAD. Returns False if either git step failed —
+        a rollback that silently did nothing would leave the agent's edits in place
+        while the caller believes the turn was undone."""
         try:
-            subprocess.run("git restore .", cwd=self.workspace_root, shell=True)
-            subprocess.run("git clean -fd", cwd=self.workspace_root, shell=True)
-        except Exception:
-            pass
+            restore = subprocess.run(
+                "git restore .",
+                cwd=self.workspace_root,
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
+            clean = subprocess.run(
+                "git clean -fd",
+                cwd=self.workspace_root,
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return restore.returncode == 0 and clean.returncode == 0
 
 
 watchdog = SandboxWatchdog(Path("."))  # noqa: vulture

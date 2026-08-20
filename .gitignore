@@ -40,3 +40,8 @@ agnostic_agent.egg-info/
 __pycache__/
 storage/backups/
 storage/sync-state.json
+
+# Generated runtime state (rebuilt by consolidate/harvest/prune on this machine)
+storage/skills-manifest.json
+storage/prune-report.json
+storage/deleted-candidates.json

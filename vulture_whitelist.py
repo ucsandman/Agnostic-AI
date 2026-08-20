@@ -3,7 +3,8 @@ from agent.tools.registry import ToolRegistry, ToolResult
 from agent.governance.audit import AuditRecord
 from agent.governance.context import ContextManager
 from agent.tools.indexer import SymbolInfo
-from agent.web.server import CompanionHandler, CompanionTelemetry
+from agent.web.server import CompanionHandler, CompanionTelemetry, _CompanionServer
+from agent.tools.diff_viewer import TaskManager, task_manager
 from agent.cli import (
     AgnosticCompleter,
     _handle_alt_v,
@@ -13,24 +14,14 @@ from agent.cli import (
 from agent.governance.interceptor import CodeInterceptor
 from agent.governance.undo import ThemeManager, UndoManager
 from agent.governance.session_manager import SessionManager
-from agent.governance.state import SessionState
+from agent.governance.state import StateManager
 from agent.governance.watchdog import SandboxWatchdog
-from agent.governance.learn import Learner
+from agent.governance.learn import learner
 from agent.tools.mcp_discovery import MCPAutoDiscovery
 from agent.tools.subagent import SubagentManager
-from agent.workflows.planner import ExecutionPlanner
-from agent.workflows.pr_pilot import PRPilot
+from agent.workflows.planner import ExecutionPlan
+from agent.workflows.pr_pilot import PRAutoPilot
 from agent.workflows.scheduler import TaskScheduler
-from skills.definitions.alphagenome_single_variant_analysis.scripts.visualize_variant_effects import (
-    VariantEffectPlotter,
-    deduplicate_tracks,
-)
-from skills.definitions.embl_ebi_ols.scripts import ols_utils
-from skills.definitions.gcs_security_assessment.scripts import (
-    evaluate_project_security_posture,
-)
-from skills.definitions.literature_search_openalex.scripts import openalex_cli
-from skills.definitions.ncbi_sequence_fetch.scripts import ncbi_fetch
 
 # Whitelist methods
 AuditRecord.to_dict
@@ -50,31 +41,27 @@ AgnosticCompleter.get_completions
 _handle_alt_v
 _handle_enter
 _handle_ctrl_enter
-Learner.corrections_file
+learner.corrections_file
 CodeInterceptor.run_quick_lint
 ThemeManager.format_badge
 UndoManager.get_history_summary
 SessionManager.delete_session
-SessionState.update_whiteboard
+StateManager.update_whiteboard
 SandboxWatchdog.get_clean_snapshot_hash
 SandboxWatchdog.rollback_to_clean
 MCPAutoDiscovery.discover_mcp_servers
 SubagentManager.spawn_parallel
-ExecutionPlanner.add_step
-ExecutionPlanner.update_status
-ExecutionPlanner.record_deviation
-ExecutionPlanner.render_markdown
-PRPilot.create_feature_branch
+ExecutionPlan.add_step
+ExecutionPlan.update_status
+ExecutionPlan.record_deviation
+ExecutionPlan.render_markdown
+PRAutoPilot.create_feature_branch
 TaskScheduler.cancel_all
-
-VariantEffectPlotter.plot_ax
-deduplicate_tracks
-ols_utils.RATE_LIMIT_DELAY
-evaluate_project_security_posture.allowedValues
-evaluate_project_security_posture.deniedValues
-evaluate_project_security_posture.allowAll
-evaluate_project_security_posture.denyAll
-evaluate_project_security_posture.enforce
-openalex_cli.DEFAULT_TIMEOUT_SECS
-ncbi_fetch.esummary
-ncbi_fetch.esummary
+# socketserver reads this class attribute; vulture cannot see that.
+_CompanionServer.daemon_threads
+# Background-task API kept for the TUI/web companion; not wired to a slash command yet.
+TaskManager.list_tasks
+TaskManager.send_input
+TaskManager.kill_task
+TaskManager.schedule
+task_manager

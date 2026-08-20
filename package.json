@@ -1,13 +1,24 @@
 {
   "name": "agnostic-ai",
   "version": "1.2.0",
-  "description": "Model-agnostic AI agent harness with continuous self-maintenance, polyglot sync, and guardrails",
-  "main": "launch.py",
+  "private": true,
+  "description": "Model-agnostic AI agent harness: one rules file compiled to 18 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ucsandman/agnostic-harness.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "sync": "node engine/sync/sync.cjs",
     "sync:check": "node engine/sync/sync.cjs --check",
     "distill": "node engine/distill/distill.cjs",
-    "test": "node engine/tests/run-all.cjs",
+    "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs",
+    "test:py": "python -m pytest tests/ -q",
+    "lint": "ruff check .",
+    "docs:targets": "node engine/docs/targets-doc.cjs",
+    "docs:check": "node engine/docs/targets-doc.cjs --check",
     "errorlog": "node tools/errorlog/errorlog.cjs",
     "errorlog:ui": "node tools/errorlog/errorlog.cjs --open",
     "merge": "node engine/ingest/merge.cjs",
@@ -23,10 +34,11 @@
     "dashclaw:status": "node engine/hooks/dashclaw-setup.cjs --status",
     "recall": "node tools/recall/recall.cjs",
     "parity": "node tools/sync/parity.cjs --open",
-    "agent": "python -m agent.cli",
-    "agent:lmstudio": "python -m agent.cli --url http://localhost:1234/v1"
+    "agent": "python -m agent.tui",
+    "agent:legacy": "python -m agent.cli",
+    "agent:lmstudio": "python -m agent.tui --url http://localhost:1234/v1"
   },
   "keywords": ["ai", "harness", "agent", "agnostic", "claude", "gemini", "codex", "hermes", "openclaw"],
-  "author": "Wes",
+  "author": "Wes Sander",
   "license": "MIT"
 }

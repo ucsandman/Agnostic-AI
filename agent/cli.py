@@ -27,6 +27,7 @@ from rich import box
 from PIL import ImageGrab
 from datetime import datetime
 
+from agent import __version__
 from agent.loop import AgentLoop
 from agent.llm.client import LLMConfig
 from agent.governance.undo import undo_manager, theme_manager
@@ -51,12 +52,12 @@ from agent.ui_common import (
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (ValueError, OSError):  # stream already detached/redirected; keep its default encoding
         pass
 if hasattr(sys.stderr, "reconfigure"):
     try:
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (ValueError, OSError):  # stream already detached/redirected; keep its default encoding
         pass
 
 console = Console()
@@ -94,9 +95,7 @@ class AgnosticCompleter(Completer):
             shown = 0
             for f in files:
                 if not query or query in f.lower():
-                    yield Completion(
-                        f"@{f}", start_position=-len(word), display=f"@{f}"
-                    )
+                    yield Completion(f"@{f}", start_position=-len(word), display=f"@{f}")
                     shown += 1
                     if shown >= MAX_COMPLETIONS:
                         return
@@ -107,9 +106,7 @@ class AgnosticCompleter(Completer):
             shown = 0
             for s in symbols:
                 if not query or query in s.lower():
-                    yield Completion(
-                        f"#{s}", start_position=-len(word), display=f"#{s}"
-                    )
+                    yield Completion(f"#{s}", start_position=-len(word), display=f"#{s}")
                     shown += 1
                     if shown >= MAX_COMPLETIONS:
                         return
@@ -172,9 +169,7 @@ def _handle_alt_v(event):  # noqa: vulture
 
 def print_banner():
     banner_text = Text()
-    banner_text.append(
-        "🛡️  AGNOSTIC AI CODING AGENT v1.2.0 (10 Champions Active)\n", style="bold cyan"
-    )
+    banner_text.append(f"🛡️  AGNOSTIC AI CODING AGENT v{__version__}\n", style="bold cyan")
     banner_text.append(
         "AST Symbol Indexer | Swarm Engine | Web Companion | DashClaw Governed\n",
         style="dim white",
@@ -183,9 +178,7 @@ def print_banner():
         "Commands: /plan, /fix, /swarm, /test, /compact, /session, /trust, /audit, /undo, /commit, /exit",
         style="yellow",
     )
-    console.print(
-        Panel(banner_text, border_style="cyan", box=box.ROUNDED, width=get_ui_width())
-    )
+    console.print(Panel(banner_text, border_style="cyan", box=box.ROUNDED, width=get_ui_width()))
 
 
 current_stream_buffer: List[str] = []
@@ -200,7 +193,7 @@ def rich_output_callback(msg_type: str, content: str):
 
         if msg_type != "assistant_chunk":
             companion_telemetry.log_event(msg_type, content)
-    except Exception:
+    except ImportError:  # web companion is optional; the terminal is the real UI
         pass
 
     if msg_type == "assistant_chunk":
@@ -224,9 +217,7 @@ def rich_output_callback(msg_type: str, content: str):
                 box=box.ROUNDED,
                 width=w,
                 padding=(0, 1),
-                style="on #0c151c"
-                if console.color_system in ("truecolor", "256")
-                else None,
+                style="on #0c151c" if console.color_system in ("truecolor", "256") else None,
             )
             console.print(panel)
 
@@ -354,9 +345,7 @@ def main(argv: Optional[List[str]] = None):
         llm_config=config,
         # Default DENIES hard-stops (safe for non-interactive `-p` runs); pass
         # --ask-permissions to get an interactive y/n prompt instead of a block.
-        confirm_callback=rich_confirm_callback
-        if require_confirmation
-        else (lambda _: False),
+        confirm_callback=rich_confirm_callback if require_confirmation else (lambda _: False),
         output_callback=rich_output_callback,
     )
     if use_compact:
@@ -372,9 +361,7 @@ def main(argv: Optional[List[str]] = None):
     if args.web:
         ok, web_url = maybe_start_web_companion(agent)
         if ok:
-            console.print(
-                f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
-            )
+            console.print(f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]")
 
     if args.prompt:
         expanded_prompt = expand_prompt_references(args.prompt, code_indexer)
@@ -386,9 +373,7 @@ def main(argv: Optional[List[str]] = None):
 
     print_banner()
     if detection["status"] == "online":
-        console.print(
-            f"[dim green]✓ Connected to {args.url} (Model: {detected_model})[/dim green]"
-        )
+        console.print(f"[dim green]✓ Connected to {args.url} (Model: {detected_model})[/dim green]")
     else:
         console.print(
             f"[dim yellow]⚠️ Local endpoint offline at {args.url} (Run LM Studio/Ollama)[/dim yellow]"
@@ -423,15 +408,13 @@ def main(argv: Optional[List[str]] = None):
                     timeout=0.3,
                 )
                 dirty_count = (
-                    len(st_res.stdout.strip().splitlines())
-                    if st_res.stdout.strip()
-                    else 0
+                    len(st_res.stdout.strip().splitlines()) if st_res.stdout.strip() else 0
                 )
                 if dirty_count > 0:
                     git_str = f" | 🌿 {branch}* ({dirty_count} changed)"
                 else:
                     git_str = f" | 🌿 {branch}"
-        except Exception:
+        except (OSError, subprocess.SubprocessError):  # no git / not a repo; status line omits it
             pass
 
         curr_model = agent.llm_client.config.model
@@ -492,9 +475,7 @@ def main(argv: Optional[List[str]] = None):
                     box=box.ROUNDED,
                     width=get_ui_width(),
                     padding=(0, 1),
-                    style="on #0f1824"
-                    if console.color_system in ("truecolor", "256")
-                    else None,
+                    style="on #0f1824" if console.color_system in ("truecolor", "256") else None,
                 )
                 console.print(user_panel)
 
@@ -523,9 +504,7 @@ def main(argv: Optional[List[str]] = None):
                     continue
 
             elif user_input == "/compact":
-                agent.history, ok, msg = context_manager.compact_messages(
-                    agent.history, force=True
-                )
+                agent.history, ok, msg = context_manager.compact_messages(agent.history, force=True)
                 console.print(f"[bold green]{msg}[/bold green]")
                 continue
 
@@ -563,9 +542,7 @@ def main(argv: Optional[List[str]] = None):
                 elif subcmd == "list":
                     sessions = session_manager.list_sessions()
                     if not sessions:
-                        console.print(
-                            "[dim]No saved sessions found in .agnostic/sessions/[/dim]"
-                        )
+                        console.print("[dim]No saved sessions found in .agnostic/sessions/[/dim]")
                     else:
                         console.print("[bold cyan]Saved Sessions:[/bold cyan]")
                         for s in sessions:
@@ -616,9 +593,7 @@ def main(argv: Optional[List[str]] = None):
                         f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]"
                     )
                 else:
-                    console.print(
-                        f"[red]Companion server failed to start: {web_url}[/red]"
-                    )
+                    console.print(f"[red]Companion server failed to start: {web_url}[/red]")
                 continue
 
             elif user_input == "/doctor":
@@ -670,8 +645,7 @@ def main(argv: Optional[List[str]] = None):
                     selected_provider = questionary.select(
                         "🏢 Select Provider / Platform:",
                         choices=[
-                            questionary.Choice(title=p["name"], value=p["value"])
-                            for p in providers
+                            questionary.Choice(title=p["name"], value=p["value"]) for p in providers
                         ],
                     ).ask()
 
@@ -689,9 +663,7 @@ def main(argv: Optional[List[str]] = None):
                     model_choices = []
                     for k, p in matching_presets:
                         active_tag = (
-                            " (ACTIVE)"
-                            if agent.llm_client.config.model == p["model"]
-                            else ""
+                            " (ACTIVE)" if agent.llm_client.config.model == p["model"] else ""
                         )
                         model_choices.append(
                             questionary.Choice(
@@ -842,9 +814,7 @@ def main(argv: Optional[List[str]] = None):
 
             elif cmd == "plan":
                 task = cmd_args or "General Task Plan"
-                console.print(
-                    f"[cyan]Initiating Dynamic Planning Workflow for: {task}[/cyan]"
-                )
+                console.print(f"[cyan]Initiating Dynamic Planning Workflow for: {task}[/cyan]")
                 plan_prompt = (
                     f"Create a deterministic execution plan for the following objective:\n'{task}'\n"
                     "State ASSUMPTIONS, then a numbered step-by-step PLAN with specific verification criteria for each step."
@@ -859,9 +829,7 @@ def main(argv: Optional[List[str]] = None):
             elif cmd == "learn":
                 lesson = cmd_args
                 if not lesson:
-                    console.print(
-                        "[yellow]Usage: /learn <lesson or constraint>[/yellow]"
-                    )
+                    console.print("[yellow]Usage: /learn <lesson or constraint>[/yellow]")
                     continue
                 from agent.governance.learn import learner
 
@@ -938,9 +906,7 @@ def main(argv: Optional[List[str]] = None):
             elif cmd == "swarm":
                 task = cmd_args
                 if not task:
-                    console.print(
-                        "[yellow]Usage: /swarm <complex task or feature>[/yellow]"
-                    )
+                    console.print("[yellow]Usage: /swarm <complex task or feature>[/yellow]")
                     continue
                 from agent.workflows.swarm import SwarmCoordinator
 

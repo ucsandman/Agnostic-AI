@@ -6,6 +6,7 @@ Supports .agentignore exclusion rules to preserve token context windows.
 
 import ast
 import fnmatch
+from functools import lru_cache
 import os
 import re
 from pathlib import Path
@@ -50,6 +51,15 @@ DEFAULT_IGNORED_EXTS = {
     ".gif",
     ".svg",
 }
+
+
+@lru_cache(maxsize=8)
+def _guard_for_root(workspace_root: str):
+    """One SafetyGuard per workspace root — building it re-reads guards.json and
+    recompiles every policy regex, which is far too expensive to redo per path check."""
+    from agent.governance.guard import SafetyGuard
+
+    return SafetyGuard(workspace_root=workspace_root)
 
 
 class SymbolInfo:
@@ -98,7 +108,7 @@ class CodebaseIndexer:
                     clean = line.strip()
                     if clean and not clean.startswith("#"):
                         self._ignore_patterns.add(clean)
-            except Exception:
+            except OSError:  # unreadable .agentignore; fall back to the default ignore set
                 pass
 
     def is_ignored(self, path: Path) -> bool:
@@ -147,9 +157,7 @@ class CodebaseIndexer:
                     continue
 
                 try:
-                    rel_path = str(p.relative_to(self.workspace_root)).replace(
-                        "\\", "/"
-                    )
+                    rel_path = str(p.relative_to(self.workspace_root)).replace("\\", "/")
                     current_files.append(rel_path)
                     found_files_set.add(rel_path)
                 except ValueError:
@@ -187,9 +195,7 @@ class CodebaseIndexer:
     def _remove_symbols_for_file(self, file_path: Path):
         self._sorted_symbols = None
         for name in list(self.symbols.keys()):
-            self.symbols[name] = [
-                sym for sym in self.symbols[name] if sym.file_path != file_path
-            ]
+            self.symbols[name] = [sym for sym in self.symbols[name] if sym.file_path != file_path]
             if not self.symbols[name]:
                 del self.symbols[name]
 
@@ -227,7 +233,7 @@ class CodebaseIndexer:
                         getattr(node, "end_lineno", node.lineno),
                     )
                     self._add_symbol(node.name, sym)
-        except Exception:
+        except (OSError, SyntaxError, ValueError):  # unparseable source contributes no symbols
             pass
 
     def _index_js_file(self, file_path: Path):
@@ -241,11 +247,9 @@ class CodebaseIndexer:
                 if fn_match:
                     name = fn_match.group(1)
                     if name and not name.startswith("_"):
-                        sym = SymbolInfo(
-                            name, "symbol", file_path, idx, min(len(lines), idx + 40)
-                        )
+                        sym = SymbolInfo(name, "symbol", file_path, idx, min(len(lines), idx + 40))
                         self._add_symbol(name, sym)
-        except Exception:
+        except (OSError, re.error):  # unreadable source contributes no symbols
             pass
 
     def _add_symbol(self, name: str, sym: SymbolInfo):
@@ -280,23 +284,17 @@ class CodebaseIndexer:
 
         sym = matches[0]
         try:
-            lines = sym.file_path.read_text(
-                encoding="utf-8", errors="replace"
-            ).splitlines()
+            lines = sym.file_path.read_text(encoding="utf-8", errors="replace").splitlines()
             snippet = "\n".join(lines[sym.start_line - 1 : sym.end_line])
-            rel_path = str(sym.file_path.relative_to(self.workspace_root)).replace(
-                "\\", "/"
-            )
+            rel_path = str(sym.file_path.relative_to(self.workspace_root)).replace("\\", "/")
             return (f"{rel_path}:{sym.start_line}-{sym.end_line}", snippet)
         except Exception:
             return None
 
     def _check_access(self, clean_path: str, target: Path) -> Optional[str]:
         """Returns a refusal reason if the path is a protected secret or outside the workspace."""
-        from agent.governance.guard import SafetyGuard
-
-        # Guard is built per-call because workspace_root is re-pointed at runtime.
-        active_guard = SafetyGuard(workspace_root=str(self.workspace_root))
+        # Guard is keyed on workspace_root because that is re-pointed at runtime.
+        active_guard = _guard_for_root(str(self.workspace_root))
         for candidate in (clean_path, str(target)):
             safe, reason = active_guard.check_path_access(candidate)
             if not safe:
