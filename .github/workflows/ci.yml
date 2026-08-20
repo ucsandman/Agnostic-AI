@@ -20,7 +20,7 @@ jobs:
           node-version: "20"
 
       - name: Install Python package
-        run: pip install -e .
+        run: pip install -e . pytest
 
       - name: Run Python tests
         run: pytest tests/ -q
