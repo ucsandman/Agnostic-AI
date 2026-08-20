@@ -82,12 +82,30 @@ async function runFirstRunSetup() {
             const cfg = JSON.parse(raw);
             if (!cfg.hooks) cfg.hooks = {};
             
-            // Point preToolUse to agnostic dashclaw-guard
+            // Claude Code wants PreToolUse as an array of {matcher, hooks[]} groups,
+            // not the flat string Codex/Antigravity take. A lowercase key is silently
+            // ignored here and breaks PowerShell ConvertFrom-Json via case collision.
             const hookScript = path.join(ROOT, 'engine', 'hooks', 'dashclaw-guard.cjs').replace(/\\/g, '/');
-            cfg.hooks.preToolUse = `node "${hookScript}"`;
+            const command = `node "${hookScript}"`;
+
+            delete cfg.hooks.preToolUse; // stale invalid key from older installs
+            if (!Array.isArray(cfg.hooks.PreToolUse)) cfg.hooks.PreToolUse = [];
+
+            // Skip if a DashClaw guard already gates tool calls (ours or a native one).
+            const guarded = cfg.hooks.PreToolUse.some(g =>
+              (g.hooks || []).some(h => /dashclaw/i.test(h.command || '')));
+            if (!guarded) {
+              cfg.hooks.PreToolUse.push({
+                matcher: 'Bash|PowerShell|Edit|Write|MultiEdit',
+                hooks: [{ type: 'command', command, timeout: 10, statusMessage: 'DashClaw guard check...' }]
+              });
+            }
+
             fs.writeFileSync(claudeSettings, JSON.stringify(cfg, null, 2), 'utf8');
-            console.log(`  ✓ Claude Code preToolUse hook registered in ~/.claude/settings.json`);
-          } catch (_) {}
+            console.log(`  ✓ Claude Code PreToolUse hook ${guarded ? 'already present' : 'registered'} in ~/.claude/settings.json`);
+          } catch (err) {
+            console.warn(`  ! Could not wire Claude Code hook in ${claudeSettings}: ${err.message}`);
+          }
         }
 
         // Wire Codex hooks.json if directory exists

@@ -137,7 +137,7 @@ Optional integration with DashClaw for remote approval of high-risk actions (for
 
 | Client / Agent | Synchronized File Target | Hook Dialect | Skill Linking |
 |---|---|---|---|
-| **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (camelCase) | Junction (`~/.claude/skills`) |
+| **Claude Code** | `~/.claude/CLAUDE.md` + `SOUL.md` | `settings.json` (PascalCase events, array form) | Junction (`~/.claude/skills`) |
 | **Codex CLI** | `~/.codex/AGENTS.md` | `hooks.json` (snake_case) | Junction (`~/.codex/skills`) |
 | **Antigravity CLI (`agy`)** | `~/.gemini/GEMINI.md` | `config/hooks.json` (protojson) | Junction (`~/.gemini/config/skills`) |
 | **Cursor IDE** | `~/.cursor/rules/global-rules.mdc` | `~/.cursor/mcp.json` (MCP) | Junction (`~/.cursor/rules`) |
