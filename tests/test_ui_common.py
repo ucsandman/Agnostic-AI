@@ -22,6 +22,7 @@ import agent.tui_commands as tui_commands
 from agent.ui_common import (
     SLASH_COMMANDS,
     expand_prompt_references,
+    fold_summary,
     parse_slash_command,
     safe_text,
 )
@@ -170,7 +171,7 @@ def test_tui_confirm_callback_blocks_until_answered():
         def _set_confirm_mode(self, on):
             self.confirm_mode = on
 
-        def call_from_thread(self, fn, *a, **kw):
+        def _post(self, fn, *a, **kw):
             fn(*a, **kw)
 
         def _write_output(self, *a, **kw):
@@ -202,24 +203,82 @@ def test_tui_confirm_callback_blocks_until_answered():
 
 
 def test_parse_confirm_answer_denies_but_flags_an_unrecognized_answer():
-    """A typed prompt submitted while a hard-stop confirmation is pending used to be
-    swallowed as a silent denial. It must still deny — but say so, so the caller can
-    put the text back in the input box."""
+    """A typed prompt submitted while a hard-stop confirmation is pending must NOT
+    read as an answer at all — the caller queues it. A verdict may carry a reason."""
     from agent.ui_common import parse_confirm_answer
 
-    assert parse_confirm_answer("y") == (True, False)
-    assert parse_confirm_answer("YES") == (True, False)
-    assert parse_confirm_answer("n") == (False, False)
-    assert parse_confirm_answer(" No ") == (False, False)
-    assert parse_confirm_answer("write a test for parse_slash_command") == (False, True)
+    assert parse_confirm_answer("y") == (True, False, "")
+    assert parse_confirm_answer("YES") == (True, False, "")
+    assert parse_confirm_answer("n") == (False, False, "")
+    assert parse_confirm_answer(" No ") == (False, False, "")
+    assert parse_confirm_answer("n: too risky") == (False, False, "too risky")
+    assert parse_confirm_answer("y run it, it is a scratch repo") == (
+        True,
+        False,
+        "run it, it is a scratch repo",
+    )
+    assert parse_confirm_answer("write a test for parse_slash_command") == (False, True, "")
+    assert parse_confirm_answer("now fix the parser") == (False, True, "")
 
 
-def test_unrecognized_confirm_answer_is_echoed_back_into_the_input():
+def test_unrecognized_confirm_answer_is_queued_not_denied():
+    """The old contract (echo the text back into the input box) is gone: an
+    unrecognised submission is a prompt, it gets queued, and the confirm stays
+    pending so the safety decision survives a mistimed keystroke."""
     src = inspect.getsource(tui.AgnosticTUI.on_input_submitted)
     assert "parse_confirm_answer" in src
-    assert "event.input.value = user_input" in src, (
-        "a non-y/n answer must be restored to the input box, not discarded"
+    assert "event.input.value = user_input" not in src, (
+        "a non-y/n answer must no longer be echoed back — it is queued as a prompt"
     )
+    unrecognized_path = src.split("if unrecognized:", 1)[1].split("return", 1)[0]
+    assert "self._prompt_queue.append(user_input)" in unrecognized_path
+    assert "self._confirm_event.set()" not in unrecognized_path, (
+        "a typo must never release the blocked worker"
+    )
+
+
+def test_typing_ahead_during_a_confirm_queues_instead_of_answering():
+    import threading
+    from types import SimpleNamespace
+
+    app = _make_tui(
+        SimpleNamespace(confirm_callback=None, output_callback=None, cancel_event=threading.Event())
+    )
+    # The app is never mounted here, so there is no #output-log / #queue-indicator.
+    app._write_output = [].append
+    app._update_queue_indicator = lambda: None
+    app._awaiting_confirm = True
+    app._confirm_event.clear()
+    app.on_input_submitted(SimpleNamespace(value="now fix the parser", input=SimpleNamespace()))
+
+    assert app._confirm_event.is_set() is False, "the worker must stay blocked"
+    assert app._confirm_response is False
+    assert list(app._prompt_queue) == ["now fix the parser"]
+
+
+def test_esc_during_a_confirm_denies_so_the_worker_can_never_hang():
+    import threading
+    from types import SimpleNamespace
+
+    app = _make_tui(
+        SimpleNamespace(confirm_callback=None, output_callback=None, cancel_event=threading.Event())
+    )
+    app._write_output = [].append
+    app._awaiting_confirm = True
+    app._confirm_event.clear()
+    app._confirm_reason = "stale"
+    app.action_cancel_turn()
+
+    assert app._confirm_event.is_set() is True
+    assert app._confirm_response is False
+    assert app._confirm_reason == ""
+    assert app.agent.cancel_event.is_set() is False, "Esc denies the confirm, it does not cancel"
+
+
+def test_confirm_reason_is_prepended_to_the_next_prompt_exactly_once():
+    src = inspect.getsource(tui.AgnosticTUI._process_input)
+    assert "Operator note on the last approval" in src
+    assert 'self._confirm_reason = ""' in src, "the reason must be consumed, not replayed"
 
 
 # --- Bug 3: expensive slash commands run in background workers (structural) ------
@@ -355,6 +414,74 @@ def test_run_agent_turn_does_not_swap_the_output_callback():
     turn_src = inspect.getsource(tui.AgnosticTUI._run_agent_turn)
     assert "output_callback" not in turn_src, (
         "_run_agent_turn must not swap/restore agent.output_callback"
+    )
+
+
+# --- One double-tap timer serves every destructive key (Ctrl+C, Ctrl+L) ----------
+
+
+def test_double_tap_fires_only_on_the_second_press_and_then_resets():
+    """One helper, one timer per name. A consumed double-tap must reset, or a third
+    press would immediately count as another one."""
+    import threading
+    from types import SimpleNamespace
+
+    app = _make_tui(
+        SimpleNamespace(confirm_callback=None, output_callback=None, cancel_event=threading.Event())
+    )
+    assert app._double_tap("quit") is False
+    assert app._double_tap("quit") is True
+    assert app._double_tap("quit") is False
+    # Independent timers: Ctrl+C then Ctrl+L is never a double-tap.
+    assert app._double_tap("clear") is False
+    # A zero window can never fire, however fast the presses arrive.
+    for _ in range(5):
+        assert app._double_tap("x", window=0.0) is False
+
+
+def test_ctrl_c_cancels_the_turn_before_it_force_exits():
+    src = inspect.getsource(tui.AgnosticTUI.action_quit_safe)
+    assert "cancel_event.set()" in src, "Ctrl+C while busy must cancel, not scold"
+    assert "_double_tap" in src, "the second press is the escalation"
+    assert "_double_tap" in inspect.getsource(tui.AgnosticTUI.action_clear_output), (
+        "Ctrl+L must ask twice before clearing the log"
+    )
+
+
+# --- Shift+Tab cycles the trust tier, and the bar reads it live from the guard ---
+
+
+def test_trust_cycle_walks_the_documented_order_and_wraps():
+    """Shift+Tab must step strict → trust-reads → trust-tests → trust-all → strict,
+    and the tier must live in SafetyGuard, never in a copy on the app."""
+    import threading
+    from types import SimpleNamespace
+
+    from agent.governance.guard import guard
+
+    guard.set_trust_tier("strict")
+    app = _make_tui(
+        SimpleNamespace(confirm_callback=None, output_callback=None, cancel_event=threading.Event())
+    )
+    # The app is never mounted here, so there is no #output-log to write to.
+    written = []
+    app._write_output = written.append
+    app.action_cycle_trust()
+    assert guard.get_trust_tier() == "trust-reads"
+    assert "trust-reads" in written[-1].plain
+    app.action_cycle_trust()
+    assert guard.get_trust_tier() == "trust-tests"
+    guard.set_trust_tier("trust-all")
+    app.action_cycle_trust()
+    assert guard.get_trust_tier() == "strict"
+
+
+def test_trust_cycle_badge_is_read_from_the_guard_and_never_cached():
+    """The Codex #33702 failure class: a cached label drifts from the policy the
+    guard actually enforces. The status bar must re-read it on every repaint."""
+    assert "get_trust_tier()" in inspect.getsource(tui.AgnosticTUI._update_status_bar)
+    assert "self._trust" not in inspect.getsource(tui), (
+        "the trust tier must never be stored on the app"
     )
 
 
@@ -794,3 +921,647 @@ def test_model_picker_walks_preset_sub_model_and_effort_with_the_keyboard():
     # Number 4 (an API-key Gemini preset) skips the sub-model step, asks effort.
     asyncio.run(drive(["down", "down", "enter", "enter"]))
     assert results == [(keys[3], None, LLMConfig.PRESETS[keys[3]]["default_effort"])]
+
+
+# --- The live busy indicator: elapsed clock + per-turn verb + the interrupt key ---
+
+
+def test_busy_indicator_formats_the_clock_and_always_names_the_interrupt_key():
+    """'is it hung?' is what makes people kill a session. The fragment must always
+    carry an elapsed clock AND the key that stops it."""
+    from agent.ui_common import busy_indicator
+
+    assert busy_indicator(0, "X").endswith("esc to cancel")
+    assert busy_indicator(47, "X").endswith("esc to cancel")
+    assert "47s" in busy_indicator(47, "X")
+    assert "1m05s" in busy_indicator(65, "X")
+    assert "0s" in busy_indicator(-3.0, "X")  # a clock that never runs backwards
+
+
+def test_busy_indicator_is_pure_so_a_repaint_cannot_flicker():
+    """The 1s tick re-renders the same (elapsed, verb) many times — it must be the
+    same string every time, not a re-rolled verb or a wall-clock read."""
+    from agent.ui_common import busy_indicator
+
+    assert busy_indicator(12.7, "Noodling") == busy_indicator(12.7, "Noodling")
+
+
+def test_busy_indicator_verb_pool_honours_the_env_override():
+    from agent.ui_common import BUSY_VERBS, busy_verbs
+
+    assert busy_verbs({"AGNOSTIC_SPINNER_VERBS": "a, b"}) == ("a", "b")
+    # An override that parses to nothing must never leave random.choice an empty pool.
+    assert busy_verbs({"AGNOSTIC_SPINNER_VERBS": " , "}) == BUSY_VERBS
+    assert busy_verbs({}) == BUSY_VERBS
+
+
+def test_mark_busy_is_the_single_place_the_busy_flag_is_set():
+    """Three call sites used to flip _agent_busy by hand, so any new one silently
+    skipped the clock/verb. _mark_busy() owns the transition."""
+    assert "_agent_busy = True" in inspect.getsource(tui.AgnosticTUI._mark_busy)
+    assert inspect.getsource(tui).count("_agent_busy = True") == 1
+    assert "_agent_busy = True" not in inspect.getsource(tui_commands)
+
+
+def test_mark_busy_starts_a_monotonic_clock_and_picks_one_verb_per_turn():
+    import threading
+    from types import SimpleNamespace
+    from agent.ui_common import busy_verbs
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+    )
+    app = _make_tui(agent)
+    assert app._busy_started == 0.0 and not app._agent_busy
+    app._mark_busy()
+    assert app._agent_busy is True
+    assert app._busy_started > 0.0
+    assert app._busy_verb in busy_verbs()
+    # The verb is chosen per turn, not per tick: a repaint must not re-roll it.
+    verb = app._busy_verb
+    app._tick_busy()
+    assert app._busy_verb == verb
+
+
+# --- Context gauge, the one-shot nudge, and an undoable /compact ------------------
+
+
+def test_context_segment_colours_the_bar_and_never_jitters():
+    from agent.ui_common import context_segment
+
+    text, style = context_segment(
+        {"percentage": 31.0, "used_tokens": 620000, "max_tokens": 2000000}
+    )
+    assert "31%" in text, text
+    assert "620k/2.0M" in text, text
+    assert style == "green"
+
+    widths = set()
+    for pct, expected in ((5.0, "green"), (70.0, "yellow"), (95.0, "red")):
+        seg, seg_style = context_segment(
+            {"percentage": pct, "used_tokens": 620000, "max_tokens": 2000000}
+        )
+        assert seg_style == expected, (pct, seg)
+        widths.add(len(seg))
+    # A segment that changes width shifts everything after it on every repaint.
+    assert len(widths) == 1, f"the status bar jitters as context fills: {widths}"
+
+    # The real default is 2M tokens, so most sessions render an empty bar — it must
+    # still be a full-width bar, not a crash or a stub.
+    empty, _ = context_segment({"percentage": 0.04, "used_tokens": 843, "max_tokens": 2000000})
+    assert "░" * 10 in empty and "█" not in empty
+    assert "843/2.0M" in empty
+
+
+def test_context_segment_and_the_nudge_are_wired_into_the_status_bar():
+    src = inspect.getsource(tui.AgnosticTUI._update_status_bar)
+    assert "context_segment(st)" in src
+    assert "📊" not in src, "the old jittering token fragment is gone"
+    assert 'st["near_limit"]' in src and "self._ctx_warned = True" in src
+    assert "/compact undo" in src, "the nudge must name the exact remediation"
+    # Re-armed in exactly two places: a manual /compact and an auto-compaction.
+    assert "self._ctx_warned = False" in inspect.getsource(tui.AgnosticTUI._output_callback)
+    assert "self._ctx_warned = False" in inspect.getsource(tui_commands)
+
+
+def test_compact_undo_restores_the_pre_compaction_history():
+    """/compact stashes the history, shows what the distillation kept, and
+    '/compact undo' puts the original messages back."""
+    from types import SimpleNamespace
+
+    class FakeTUI:
+        _handle_slash_command = tui_commands.SlashCommandMixin._handle_slash_command
+
+        def __init__(self, agent):
+            self.agent = agent
+            self.written = []
+            self._ctx_warned = True
+            self._pre_compact_history = None
+
+        def _write_output(self, *args, **kwargs):
+            self.written.append(args[0])
+
+    def plain(written):
+        return "\n".join(
+            r.renderable.plain if isinstance(r, Panel) else getattr(r, "plain", str(r))
+            for r in written
+        )
+
+    history = [{"role": "system", "content": "You are an autonomous AI coding agent."}]
+    history += [
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i} on agent/tui.py"}
+        for i in range(9)
+    ]
+    app = FakeTUI(SimpleNamespace(history=list(history)))
+
+    assert app._handle_slash_command("/compact") is True
+    assert len(app.agent.history) < len(history), "nothing was compacted"
+    assert "Session Distillation" in plain(app.written)
+    assert app._ctx_warned is False, "a compaction re-arms the one-shot nudge"
+
+    app.written.clear()
+    assert app._handle_slash_command("/compact undo") is True
+    assert app.agent.history == history
+    assert "Restored 10 pre-compaction messages" in plain(app.written)
+
+    # The stash is consumed once — a second undo has nothing to restore.
+    app.written.clear()
+    assert app._handle_slash_command("/compact undo") is True
+    assert "Nothing to undo" in plain(app.written)
+
+
+# --- `!cmd`: a local shell escape that costs zero context ------------------------
+
+
+def _pilot_tui(agent, monkeypatch):
+    """A mountable AgnosticTUI for `async with app.run_test()` pilot tests.
+
+    A non-empty `detection` is what stops on_mount from launching _detect_model_bg,
+    which would AttributeError on doctor=None inside a worker thread."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(tui, "index_workspace", lambda: None)
+    return tui.AgnosticTUI(
+        agent=agent,
+        code_indexer_inst=SimpleNamespace(get_all_symbols=list, get_indexed_files=list),
+        detected_model="test-model",
+        doctor=None,
+        test_runner=None,
+        detection={"status": "offline", "base_url": "http://x/v1"},
+    )
+
+
+def test_bang_prefix_runs_the_command_without_spending_a_turn(monkeypatch):
+    """`!echo hi` must go through the registry's run_command (so the guard and the
+    hard-stop confirm still apply) and must not touch the model or the history."""
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from textual.widgets import Input
+
+    calls = []
+    turns = []
+
+    def execute(name, args, confirm_callback=None):
+        calls.append((name, args))
+        return SimpleNamespace(output="hello-from-bang", is_error=False)
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+        registry=SimpleNamespace(execute=execute),
+        run_turn=turns.append,
+    )
+    app = _pilot_tui(agent, monkeypatch)
+
+    async def drive():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one("#prompt-input", Input).value = "!echo hi"
+            await pilot.press("enter")
+            for _ in range(200):
+                await pilot.pause()
+                if calls and not app._agent_busy:
+                    break
+                await asyncio.sleep(0.02)
+
+    asyncio.run(drive())
+
+    assert calls == [("run_command", {"command": "echo hi"})]
+    assert turns == [], "a shell escape must never spend an LLM turn"
+    assert agent.history == [], "a shell escape must cost zero context"
+
+
+def test_bare_bang_is_not_a_shell_escape():
+    """'!' alone (or '! ') falls through to the model — a silent no-op would be worse."""
+    src = inspect.getsource(tui.AgnosticTUI._process_input)
+    assert 'user_input.startswith("!") and user_input[1:].strip()' in src
+    # And it must hand off to a worker like every other shell-outing branch does.
+    assert "_dispatch_background" in src
+
+
+def test_bang_runs_through_the_tool_registry_not_a_raw_subprocess():
+    """core/safety/guards.json stays the single policy source: the UI layer must not
+    grow its own Popen path around it."""
+    src = inspect.getsource(tui.AgnosticTUI._run_bang)
+    assert 'execute(\n            "run_command"' in src or 'execute("run_command"' in src
+    assert "confirm_callback" in src
+    assert "subprocess.run" not in src and "Popen" not in src
+
+
+# --- Winner 7: folded tool cards say what they hid, and Ctrl+O gives it back -------
+
+
+def test_fold_summary_keeps_short_output_whole():
+    """Nothing under the limit is folded, and nothing is reported as hidden."""
+    assert fold_summary("x" * 100) == ("x" * 100, 0)
+    assert fold_summary("", 600) == ("", 0)
+
+
+def test_fold_summary_clips_on_a_line_boundary_and_counts_what_it_hid():
+    """A card must never end mid-line, and the count is what makes the fold honest."""
+    clipped, hidden = fold_summary("line\n" * 100, limit=20)
+    assert clipped.endswith("line"), "clipped mid-line instead of at a newline"
+    assert clipped == "line\nline\nline\nline"
+    assert hidden == 98
+
+
+def test_fold_summary_falls_back_to_a_hard_cut_when_there_is_no_newline():
+    """One enormous single line (a minified bundle, a base64 blob) still gets folded."""
+    clipped, hidden = fold_summary("y" * 1000, limit=600)
+    assert clipped == "y" * 600
+    assert hidden == 1
+
+
+def test_ctrl_o_expands_the_output_the_tool_card_folded_away(monkeypatch):
+    """The escape hatch ships with the fold: the marker at the tail of a long tool
+    output is absent from the card and present after Ctrl+O."""
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from rich.text import Text
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+    )
+    app = _pilot_tui(agent, monkeypatch)
+
+    writes = []
+
+    def _plain(item) -> str:
+        inner = getattr(item, "renderable", item)
+        body = inner.plain if isinstance(inner, Text) else str(inner)
+        return f"{getattr(item, 'title', '') or ''}\n{body}"
+
+    async def drive():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            real = app._write_output
+            app._write_output = lambda *a, **kw: (writes.append(a[0]), real(*a, **kw))[1]
+            app._output_callback("tool_start", "run_command")
+            app._output_callback("tool_end", "X" * 2000 + "TAIL-MARKER")
+            await pilot.pause()
+            folded = "\n".join(_plain(w) for w in writes)
+            assert "TAIL-MARKER" not in folded, "the card printed the whole output"
+            assert "run_command" in folded and "lines hidden — ctrl+o" in folded
+            await pilot.press("ctrl+o")
+            await pilot.pause()
+            expanded = "\n".join(_plain(w) for w in writes)
+            assert "TAIL-MARKER" in expanded, "ctrl+o did not give the full output back"
+
+    asyncio.run(drive())
+
+
+def test_expand_output_says_so_when_no_tool_has_run():
+    """Ctrl+O on a fresh session explains itself instead of doing nothing."""
+    src = inspect.getsource(tui.AgnosticTUI.action_expand_output)
+    assert "No tool output captured yet." in src
+    assert "self._tool_outputs[-1]" in src
+
+
+def test_tool_card_title_is_a_plain_string_not_markup():
+    """A tool name or path containing '[' would raise MarkupError on the border."""
+    src = inspect.getsource(tui.AgnosticTUI._output_callback)
+    assert "title=title" in src
+    assert "[dim blue]⚙️ Tool Output[/dim blue]" not in src
+
+
+# --- Winner 8: double-Esc rewind — pick a turn, then pick what to restore ---------
+
+
+def test_rewind_picker_lists_turns_newest_first_then_asks_for_the_scope():
+    """Two steps, one gesture: the turn, then files / conversation / both. Esc on the
+    first step cancels outright — a rewind must never happen by accident."""
+    import asyncio
+    from textual.app import App
+    from agent.tui_rewind import RewindScreen
+
+    marks = [
+        ("turn-1", "10:00:00", [{"role": "user", "content": "a"}]),
+        ("turn-2", "10:01:00", [{"role": "user", "content": "b"}]),
+    ]
+    results = []
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(RewindScreen(list(marks)), callback=results.append)
+
+    async def drive(keys_to_press):
+        results.clear()
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            for k in keys_to_press:
+                await pilot.press(k)
+                await pilot.pause()
+
+    # Newest first: the highlighted row is turn-2. Enter -> scope step, down -> the
+    # second scope ('conversation'), Enter finishes.
+    asyncio.run(drive(["enter", "down", "enter"]))
+    assert results == [("turn-2", marks[1][2], "conversation")]
+
+    asyncio.run(drive(["escape"]))
+    assert results == [None]
+
+    # The default scope is the file-only one, and Esc backs out of the scope step.
+    asyncio.run(drive(["enter", "enter"]))
+    assert results == [("turn-2", marks[1][2], "files")]
+    asyncio.run(drive(["enter", "escape", "escape"]))
+    assert results == [None]
+
+
+def test_rewind_picker_with_no_turns_yet_dismisses_instead_of_hanging():
+    """A fresh session has no marks: the picker says so and closes on any key."""
+    import asyncio
+    from textual.app import App
+    from agent.tui_rewind import RewindScreen
+
+    results = []
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(RewindScreen([]), callback=results.append)
+
+    async def drive():
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+
+    asyncio.run(drive())
+    assert results == [None]
+
+
+def test_rewind_restores_the_files_without_touching_the_conversation(tmp_path, monkeypatch):
+    """The 2-axis restore is the point: 'files' reverts the writes made since the
+    turn and leaves agent.history exactly as it is."""
+    import threading
+    from types import SimpleNamespace
+
+    from agent.governance.undo import UndoManager
+
+    manager = UndoManager()
+    monkeypatch.setattr(tui, "undo_manager", manager)
+
+    target = tmp_path / "app.py"
+    target.write_text("original\n", encoding="utf-8")
+    manager.create_checkpoint("turn-1")
+    target.write_text("wrecked\n", encoding="utf-8")
+    manager.record_change(target, "original\n", "wrecked\n", "write")
+
+    history = [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}]
+    app = _make_tui(
+        SimpleNamespace(
+            confirm_callback=None,
+            output_callback=None,
+            history=list(history),
+            cancel_event=threading.Event(),
+        )
+    )
+    # The app is never mounted here, so there is no #output-log to write to.
+    app._write_output = [].append
+    app._apply_rewind(("turn-1", [], "files"))
+
+    assert target.read_text(encoding="utf-8") == "original\n"
+    assert len(app.agent.history) == len(history)
+
+
+def test_rewind_copies_the_history_snapshot_instead_of_aliasing_it():
+    """Restoring the conversation must not hand the live history the stored list —
+    the next turn would then append into the mark itself."""
+    import threading
+    from types import SimpleNamespace
+
+    snapshot = [{"role": "user", "content": "a"}]
+    app = _make_tui(
+        SimpleNamespace(
+            confirm_callback=None,
+            output_callback=None,
+            history=[],
+            cancel_event=threading.Event(),
+        )
+    )
+    app._write_output = [].append
+    app._apply_rewind(("turn-1", snapshot, "conversation"))
+    assert app.agent.history == snapshot
+    app.agent.history.append({"role": "user", "content": "next"})
+    assert snapshot == [{"role": "user", "content": "a"}]
+
+
+def test_esc_only_rewinds_when_idle_with_an_empty_input_and_pressed_twice():
+    """Branch order is the whole safety story: confirm-deny, then cancel, then
+    rewind — and the rewind reuses the one double-tap timer."""
+    src = inspect.getsource(tui.AgnosticTUI.action_cancel_turn)
+    assert src.index("_awaiting_confirm") < src.index("cancel_event.set()")
+    assert src.index("cancel_event.set()") < src.index("_double_tap")
+    assert 'self._double_tap("rewind", 0.8)' in src
+    assert "inp.value.strip()" in src
+
+
+def test_every_turn_is_checkpointed_by_mark_busy():
+    """The file half and the conversation half are snapshotted at the same instant,
+    off the single busy-entry point — not from a second hook of our own."""
+    src = inspect.getsource(tui.AgnosticTUI._mark_busy)
+    assert "undo_manager.create_checkpoint(name)" in src
+    assert "self._turn_marks.append" in src
+    # Never len(_turn_marks): the deque evicts, and the names would then collide.
+    assert "len(self._turn_marks)" not in src
+
+
+# --- Bare /session opens a resume picker instead of printing a flat list ---------
+
+
+def test_session_picker_lists_saved_sessions_and_loads_the_chosen_one():
+    """Newest first (list_sessions' own order), one keystroke to resume. Each row
+    carries the turn count, the timestamp and any note, so the names need not be
+    self-documenting."""
+    import asyncio
+    from textual.app import App
+    from textual.widgets import OptionList
+
+    from agent.tui_sessions import SessionPickerScreen
+
+    sessions = [
+        {"name": "alpha", "turn_count": 4, "saved_at": "2026-08-19 10:00", "notes": ""},
+        {"name": "beta", "turn_count": 9, "saved_at": "2026-08-20 09:00", "notes": "wip"},
+    ]
+    results, labels = [], []
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(SessionPickerScreen(list(sessions)), callback=results.append)
+
+    async def drive(keys_to_press):
+        results.clear()
+        labels.clear()
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            lst = app.screen.query_one("#picker-list", OptionList)
+            labels.extend(str(lst.get_option_at_index(i).prompt) for i in range(lst.option_count))
+            for k in keys_to_press:
+                await pilot.press(k)
+                await pilot.pause()
+
+    asyncio.run(drive(["down", "enter"]))
+    assert results == ["beta"]
+    assert "9 turns" in labels[1] and "wip" in labels[1]
+    assert "4 turns" in labels[0]
+
+    asyncio.run(drive(["escape"]))
+    assert results == [None]
+
+
+def test_session_picker_with_nothing_saved_dismisses_instead_of_hanging():
+    """An empty .agnostic/sessions must still close on a keypress."""
+    import asyncio
+    from textual.app import App
+
+    from agent.tui_sessions import SessionPickerScreen
+
+    results = []
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(SessionPickerScreen([]), callback=results.append)
+
+    async def drive():
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+
+    asyncio.run(drive())
+    assert results == [None]
+
+
+def test_session_picker_never_opens_while_a_turn_is_running():
+    """Replacing agent.history under a live worker is the hazard the rewind picker
+    avoids too — the bare /session branch guards on _agent_busy before pushing."""
+    src = inspect.getsource(tui_commands.SlashCommandMixin._handle_slash_command)
+    branch = src[src.index('elif cmd == "session"') :]
+    assert branch.index("self._agent_busy") < branch.index("SessionPickerScreen")
+
+
+# --- The status bar must actually fit on a real terminal -------------------------
+
+
+def test_status_bar_shows_the_busy_and_context_segments_at_100_columns(monkeypatch):
+    """The bar is built as one long Text; at a fixed height of 1 everything past
+    ~98 cells was cut off with no ellipsis — the context gauge, the queue count and
+    the busy indicator, i.e. exactly the segments that say what the agent is doing.
+    Asserted against the RENDERED strips, not the source Text."""
+    import asyncio
+    import threading
+    import time
+    from types import SimpleNamespace
+
+    from textual.geometry import Region
+    from textual.widgets import Static
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[{"role": "user", "content": "x" * 400}],
+        cancel_event=threading.Event(),
+        llm_client=SimpleNamespace(
+            config=SimpleNamespace(
+                model="qwen2.5-coder-32b-instruct", reasoning_effort="high", sub_model=None
+            )
+        ),
+    )
+    app = _pilot_tui(agent, monkeypatch)
+    rendered = []
+
+    async def drive():
+        async with app.run_test(size=(100, 24)) as pilot:
+            await pilot.pause()
+            app._git_status = " | 🌿 master*"
+            app._prompt_queue.append("later prompt")
+            app._agent_busy = True
+            app._busy_started = time.monotonic() - 5
+            app._busy_verb = "Percolating"
+            app._update_status_bar()
+            await pilot.pause()
+            bar = app.query_one("#status-bar", Static)
+            strips = bar.render_lines(Region(0, 0, bar.size.width, bar.size.height))
+            rendered.append("\n".join(s.text for s in strips))
+
+    asyncio.run(drive())
+
+    visible = rendered[0]
+    assert "esc to cancel" in visible, "the busy indicator never reached the screen"
+    assert "Percolating… 5s" in visible
+    assert "CTX" in visible and "1 queued" in visible
+    assert "🤖 qwen2.5-coder-32b-instruct" in visible
+
+
+# --- Exiting must never leave a confirm-blocked worker parked forever ------------
+
+
+def test_force_exit_releases_a_worker_blocked_on_a_hard_stop_confirm(monkeypatch):
+    """Double-tap Ctrl+C during a GOVERNANCE HARD-STOP prompt: the worker thread is
+    parked in _tui_confirm_callback's Event.wait(), and after self.exit() neither the
+    input box nor Esc can ever set that Event again. Textual runs thread workers on
+    the default ThreadPoolExecutor, whose atexit hook joins them with no timeout — a
+    parked worker hangs the whole process at shutdown. Exit denies the pending
+    confirm on the way out instead."""
+    import asyncio
+    import threading
+    import time
+    from types import SimpleNamespace
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+    )
+    app = _pilot_tui(agent, monkeypatch)
+    answers = []
+
+    async def drive():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._agent_busy = True  # a turn is running: Ctrl+C takes the cancel branch
+            app._busy_started = time.monotonic()
+            app._busy_verb = "Percolating"
+            # daemon: a regression must fail this test, not hang the whole suite.
+            worker = threading.Thread(
+                target=lambda: answers.append(app._tui_confirm_callback("rm -rf /")),
+                daemon=True,
+            )
+            worker.start()
+            for _ in range(200):
+                await pilot.pause()
+                if app._awaiting_confirm:
+                    break
+                await asyncio.sleep(0.01)
+            assert app._awaiting_confirm, "the confirm prompt never came up"
+
+            app.action_quit_safe()  # first press: cancel
+            assert answers == [], "a cancel must not answer the confirm"
+            app.action_quit_safe()  # second press within 1.5s: force-exit
+            for _ in range(200):
+                await pilot.pause()
+                if answers:
+                    break
+                await asyncio.sleep(0.01)
+        worker.join(timeout=5)
+        assert not worker.is_alive(), "the worker is still parked in _confirm_event.wait()"
+
+    asyncio.run(drive())
+
+    assert answers == [False], "an exit is not an approval"

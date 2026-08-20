@@ -17,6 +17,7 @@ from textual.widgets import RichLog
 from rich.text import Text
 from rich.panel import Panel
 from rich.markdown import Markdown
+from rich import box
 
 from agent.llm.client import LLMConfig
 from agent.governance.undo import undo_manager, theme_manager
@@ -36,7 +37,7 @@ from agent.ui_common import (
 class SlashCommandMixin:
     """/commands for AgnosticTUI. Host must provide: agent, doctor, detection,
     test_runner, query_one, _write_output, _post_output, _print_banner,
-    _dispatch_background, _run_agent_turn, _update_status_bar, _agent_busy."""
+    _dispatch_background, _run_agent_turn, _update_status_bar, _mark_busy, _agent_busy."""
 
     def _apply_model_pick(self, pick) -> None:
         """Picker/argument result -> switch_model -> echo. pick is
@@ -49,6 +50,19 @@ class SlashCommandMixin:
         )
         ok = msg.startswith(("Switched", "Updated"))
         self._write_output(Text(f"🧠 {msg}", style="bold green" if ok else "bold yellow"))
+        self._update_status_bar()
+
+    def _load_session_pick(self, name) -> None:
+        """Resume-picker result -> the existing load path. name is the chosen
+        session, or None when the picker was cancelled."""
+        if not name:
+            return
+        hist, msg = session_manager.load_session(name)
+        if hist:
+            self.agent.history = hist
+            self._write_output(Text(f"📂 {msg}", style="bold green"))
+        else:
+            self._write_output(Text(f"❌ {msg}", style="bold red"))
         self._update_status_bar()
 
     def _handle_slash_command(self, user_input: str) -> bool:
@@ -90,11 +104,43 @@ class SlashCommandMixin:
             )
             return True
 
-        elif user_input == "/compact":
+        elif cmd == "compact":
+            if args.strip().lower() == "undo":
+                prev = getattr(self, "_pre_compact_history", None)
+                if prev is None:
+                    self._write_output(
+                        Text("Nothing to undo — no /compact has run this session.", style="yellow")
+                    )
+                else:
+                    self.agent.history = list(prev)
+                    self._pre_compact_history = None
+                    self._write_output(
+                        Text(
+                            f"↩ Restored {len(self.agent.history)} pre-compaction messages.",
+                            style="bold green",
+                        )
+                    )
+                return True
+            self._pre_compact_history = list(self.agent.history)
             self.agent.history, ok, msg = context_manager.compact_messages(
                 self.agent.history, force=True
             )
-            self._write_output(Text(msg, style="bold green"))
+            self._write_output(Text(msg, style="bold green" if ok else "yellow"))
+            if ok:
+                self._ctx_warned = False
+                # Show what survived, so a session that goes sideways after a
+                # compaction is debuggable instead of a black box.
+                block = self.agent.history[0]["content"].partition("### [Session Distillation")
+                if block[1]:
+                    self._write_output(
+                        Panel(
+                            safe_text(block[1] + block[2]),
+                            title="🧹 What compaction kept",
+                            border_style="green",
+                            box=box.ROUNDED,
+                            padding=(0, 1),
+                        )
+                    )
             return True
 
         elif cmd == "fix":
@@ -114,6 +160,22 @@ class SlashCommandMixin:
             return True
 
         elif cmd == "session":
+            if not args.strip():
+                # Bare /session: resume picker. Never while a worker owns
+                # agent.history — a load would race it.
+                if self._agent_busy:
+                    self._write_output(
+                        Text("Finish or cancel the current turn first.", style="yellow")
+                    )
+                    return True
+                from agent.tui_sessions import SessionPickerScreen
+
+                self.push_screen(
+                    SessionPickerScreen(session_manager.list_sessions()),
+                    callback=self._load_session_pick,
+                )
+                return True
+
             parts = args.split()
             subcmd = parts[0].lower() if parts else "list"
             sess_name = parts[1] if len(parts) > 1 else "latest"
@@ -247,8 +309,7 @@ class SlashCommandMixin:
                 f"Create a deterministic execution plan for the following objective:\n'{task}'\n"
                 "State ASSUMPTIONS, then a numbered step-by-step PLAN with specific verification criteria for each step."
             )
-            self._agent_busy = True
-            self._update_status_bar()
+            self._mark_busy()
             self._run_agent_turn(plan_prompt)
             return True
 

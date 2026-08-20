@@ -7,6 +7,46 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- A bare `/session` in the TUI opens an arrow-key resume picker of this
+  workspace's saved sessions (newest first, with turn count, timestamp and
+  notes) and loads the chosen one; `/session save|load|list <name>` is
+  unchanged, so the flat list stays greppable.
+- Double-Esc rewind in the TUI: every turn is checkpointed silently, and pressing
+  Esc twice while idle opens a two-step picker — which turn, then whether to
+  restore the files, the conversation, or both. The generic half of the `/model`
+  picker moved to `agent/tui_picker.py::PickerScreen`, which the rewind screen
+  subclasses.
+- TUI tool cards now carry the tool name, how long it ran and how many lines the
+  fold hid (`⚙️ run_command · 3.4s · +812 lines hidden — ctrl+o`), clipped on a
+  line boundary instead of mid-line, and `Ctrl+O` prints the last tool's output
+  in full — the escape hatch ships with the fold.
+- A `!` prefix in the TUI runs a shell command locally without spending a turn:
+  `!git status`, `!ls tests`. It goes through the same `run_command` tool the
+  model uses, so `core/safety/guards.json` stays the single policy source and a
+  hard-stop command still asks, and it appends nothing to the conversation —
+  zero context, zero LLM calls.
+- The TUI status bar carries a `CTX ███░░░░░░░  31% (620k/2.0M)` gauge — bar,
+  exact percentage and colour (green/yellow/red), fixed width so it never
+  shifts — and warns once, before the cliff, naming the auto-compaction
+  threshold and the remediation. `/compact` now prints what the distillation
+  kept, and `/compact undo` restores the pre-compaction messages.
+- Typing ahead during a governance hard-stop no longer revokes it: text that is
+  not a y/n answer is queued as a prompt and the confirm stays pending (Esc is
+  the explicit deny, so a worker can never block forever). A verdict can carry a
+  reason — `n: too risky, patch the test instead` denies and prepends the reason
+  to the next turn.
+- Shift+Tab in the TUI cycles the trust tier (`strict` → `trust-reads` →
+  `trust-tests` → `trust-all` → `strict`), and the status bar carries a `🛡`
+  badge read live from `SafetyGuard` on every repaint — red on `trust-all` — so
+  the displayed tier can never drift from the one being enforced.
+- Ctrl+C in the TUI escalates instead of scolding: while a turn runs it cancels
+  it, and a second press within 1.5s force-exits (idle, two presses quit). Ctrl+L
+  asks twice before clearing the log. Both share one `_double_tap` timer.
+- Live busy indicator in the TUI status bar: `∴ Percolating… 47s · esc to cancel`,
+  ticking once a second while a turn or background worker runs, with the verb
+  chosen once per turn (override the pool with `AGNOSTIC_SPINNER_VERBS`). The
+  status bar is now built as a `rich.text.Text`, so a cwd or model name
+  containing `[` can no longer be parsed as markup.
 - `/model` in the TUI is an interactive picker (`agent/tui_model_picker.py`):
   arrow keys move, Space/Enter select, Esc steps back. Preset → (subscription
   presets only) concrete model → effort, the last step skipped when the model

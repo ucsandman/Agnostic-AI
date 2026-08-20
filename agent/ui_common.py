@@ -28,10 +28,10 @@ SLASH_COMMANDS = {
     "/theme": "[name] — terminal colour theme; picker when no name is given",
     "/plan": "<task> — ask the model for a step-by-step plan before touching code",
     "/fix": "[cmd] — run the tests (or read the last trace), diagnose, fix in one turn",
-    "/compact": "condense older turns into a summary that keeps files, tests, symbols",
+    "/compact": "[undo] — condense older turns into a summary; undo restores the last one",
     "/trust": "reads|tests|all — set the session trust tier",
     "/untrust": "back to the strict trust tier",
-    "/session": "save|load|list <name> — snapshot / restore the conversation",
+    "/session": "[save|load|list <name>] — no args opens the resume picker",
     "/audit": "write a Markdown report of the session and export it",
     "/retro": "alias of /audit",
     "/research": "<topic> — spawn a researcher subagent and return its notes",
@@ -81,6 +81,90 @@ def stream_tail(chunks, max_lines: int = 12) -> str:
     last `max_lines` lines so the growing block cannot push the input box off screen.
     The full text is rendered into the log when the message finishes."""
     return "\n".join("".join(chunks).splitlines()[-max_lines:])
+
+
+# The busy-indicator verb pool. One is picked per turn (not per tick) so the status
+# bar reads as a label, not a slot machine. Override with AGNOSTIC_SPINNER_VERBS.
+BUSY_VERBS: tuple[str, ...] = (
+    "Percolating",
+    "Noodling",
+    "Untangling",
+    "Wrangling",
+    "Pondering",
+    "Marinating",
+    "Whirring",
+    "Spelunking",
+    "Rummaging",
+    "Distilling",
+    "Simmering",
+    "Triangulating",
+)
+
+
+def busy_verbs(env: Optional[dict] = None) -> tuple[str, ...]:
+    """The verb pool, with AGNOSTIC_SPINNER_VERBS (comma separated) as an override.
+    An unset or all-blank override falls back to BUSY_VERBS — never an empty pool,
+    which would make random.choice raise mid-turn."""
+    raw = (env if env is not None else os.environ).get("AGNOSTIC_SPINNER_VERBS", "")
+    verbs = tuple(v.strip() for v in raw.split(",") if v.strip())
+    return verbs or BUSY_VERBS
+
+
+def busy_indicator(elapsed_s: float, verb: str) -> str:
+    """The live busy fragment: '∴ Percolating… 47s · esc to cancel'.
+
+    Pure and monotonic-clock-agnostic — the caller passes an elapsed duration, so
+    this never reads the wall clock and renders identically for the same inputs.
+    """
+    s = max(0, int(elapsed_s))
+    clock = f"{s}s" if s < 60 else f"{s // 60}m{s % 60:02d}s"
+    return f"∴ {verb}… {clock} · esc to cancel"
+
+
+def fold_summary(text: str, limit: int = 600) -> Tuple[str, int]:
+    """(clipped, hidden_line_count) for a folded tool-output card.
+
+    Clips at the last newline at or before `limit` so a card never ends mid-line,
+    and reports how many lines the fold hid — a fold that cannot say what it ate
+    is the Codex mistake. Returns (text, 0) when nothing is hidden.
+    """
+    if len(text) <= limit:
+        return text, 0
+    cut = text.rfind("\n", 0, limit)
+    cut = limit if cut <= 0 else cut
+    return text[:cut], text[cut:].count("\n") + 1
+
+
+def _short(n: int) -> str:
+    """Compact token counts for the status bar: '843' / '620k' / '2.0M'."""
+    n = int(n)
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n // 1_000}k"
+    return str(n)
+
+
+def context_segment(st: dict, width: int = 10) -> Tuple[str, str]:
+    """(text, rich_style) for the status bar. Fixed width so the bar never jitters.
+
+    Thresholds match ContextManager.render_gauge: green <60, yellow <80, red above.
+    render_gauge itself is deliberately left alone — it returns a 16-block Rich
+    *markup* string keyed to a messages list, which a Text-based status bar cannot
+    use. This takes the already-computed status dict, so there is no second
+    estimate pass.
+    """
+    pct = float(st["percentage"])
+    filled = min(width, int(pct / 100 * width))
+    bar = "█" * filled + "░" * (width - filled)
+    style = "green" if pct < 60 else "yellow" if pct < 80 else "red"
+    # The percentage is right-aligned in a fixed 4-column field ('   5%' … ' 100%'):
+    # left-aligned, every repaint would shift everything after it by a column.
+    return (
+        f"CTX {bar} {f'{pct:.0f}%'.rjust(4)} "
+        f"({_short(st['used_tokens'])}/{_short(st['max_tokens'])})",
+        style,
+    )
 
 
 def parse_slash_command(line: str) -> Tuple[str, str]:
@@ -211,18 +295,19 @@ class PromptHistoryRing:
         return self.entries[self.index] if self.index < len(self.entries) else ""
 
 
-def parse_confirm_answer(answer: str) -> Tuple[bool, bool]:
-    """Reads a y/n answer to a hard-stop confirmation. Returns (approved, unrecognized).
+def parse_confirm_answer(answer: str) -> Tuple[bool, bool, str]:
+    """Reads a y/n answer to a hard-stop confirmation. Returns (approved, unrecognized, reason).
 
-    Anything that is not y/yes/n/no is a denial — but flagged, so the caller can put
-    the text back in the input box instead of silently eating a typed prompt.
+    'y'/'yes' -> (True, False, ''); 'n'/'no' -> (False, False, ''). A verdict followed by
+    whitespace or ':' carries the rest as a reason — 'n: too risky, patch the test instead'
+    -> (False, False, 'too risky, patch the test instead') — which the caller feeds into the
+    next turn. Anything else -> (False, True, '') and the CALLER MUST NOT treat that as an
+    answer: a mistimed keystroke must never revoke a safety decision.
     """
-    a = answer.strip().lower()
-    if a in ("y", "yes"):
-        return True, False
-    if a in ("n", "no"):
-        return False, False
-    return False, True
+    m = re.match(r"(y|yes|n|no)\b[\s:]*(.*)", answer.strip(), re.IGNORECASE | re.DOTALL)
+    if not m:
+        return False, True, ""
+    return m.group(1).lower() in ("y", "yes"), False, m.group(2).strip()
 
 
 def format_user_display(raw_input: str) -> str:

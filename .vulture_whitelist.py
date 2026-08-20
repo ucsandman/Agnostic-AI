@@ -18,6 +18,9 @@ from agent.tools.registry import ToolRegistry, ToolResult
 from agent.tools.subagent import SubagentManager, SubagentWorker
 from agent.tui import AgnosticTUI
 from agent.tui_model_picker import ModelPickerScreen
+from agent.tui_picker import PickerScreen
+from agent.tui_rewind import RewindScreen
+from agent.tui_sessions import SessionPickerScreen
 from textual.widgets import OptionList
 from agent.web.server import CompanionHandler, CompanionTelemetry, _CompanionServer
 from agent.workflows.pr_pilot import PRAutoPilot
@@ -60,6 +63,8 @@ AgnosticTUI.action_history_prev
 AgnosticTUI.action_history_next
 AgnosticTUI.action_complete_slash
 AgnosticTUI.action_quit_safe
+AgnosticTUI.action_cycle_trust
+AgnosticTUI.action_expand_output
 AgnosticTUI.on_input_submitted
 AgnosticTUI.on_mount
 AgnosticTUI.display
@@ -87,12 +92,15 @@ ui_common.help_text
 ui_common.complete_token
 ui_common.stream_tail
 ui_common.LineForwarder
-# Textual framework hooks on the /model picker screen: DEFAULT_CSS, message
-# handlers and action_* methods are invoked by Textual, never by our code.
-ModelPickerScreen.DEFAULT_CSS
+ui_common.LineForwarder.flush  # file-like protocol: Rich Console calls it
+# Textual framework hooks on the picker screens: DEFAULT_CSS, message handlers
+# and action_* methods are invoked by Textual, never by our code.
+PickerScreen.DEFAULT_CSS
+PickerScreen.action_pick
+PickerScreen.action_back
 ModelPickerScreen.on_option_list_option_selected
-ModelPickerScreen.action_pick
-ModelPickerScreen.action_back
+RewindScreen.on_option_list_option_selected
+SessionPickerScreen.on_option_list_option_selected
 OptionList.highlighted
 # test stubs in tests/test_loop_client.py: read by the code under test, not the test
 AgentLoop.turn_lock
