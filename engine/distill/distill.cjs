@@ -39,6 +39,11 @@ function loadCandidates() {
   for (const line of lines) {
     try {
       const item = JSON.parse(line);
+      // Normalise here, once: legacy/hand-edited records reach every downstream
+      // consumer (promotion gates, prune, examples) and must not crash them.
+      if (!item || !item.id || typeof item.text !== 'string' || !item.text.trim()) continue;
+      if (!Array.isArray(item.sightingDays)) item.sightingDays = [];
+      if (typeof item.tier !== 'number') item.tier = 0;
       map.set(item.id, item);
     } catch (_) {}
   }
@@ -57,7 +62,10 @@ function harvestCorrections() {
   const events = [];
   for (const line of lines) {
     try {
-      events.push(JSON.parse(line));
+      const ev = JSON.parse(line);
+      // A line with no correction text is a log entry, not a candidate.
+      // A line with no correction text is a log entry, not a candidate.
+      if (ev && typeof ev.correction === 'string' && ev.correction.trim()) events.push(ev);
     } catch (_) {}
   }
   return events;

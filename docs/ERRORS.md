@@ -3,7 +3,48 @@
 One line minimum every time something broke or a premise turned out wrong.
 Full entries (symptom, root cause, fix) when it took more than one attempt.
 
-## 2026-08-20
+## 2026-08-20 (review tournament)
+
+- **The default prompt mode dropped the rules the repo exists to enforce.**
+  Symptom: none visible — the agent just behaved generically. Root cause:
+  `agnostic` defaults to compact mode, and the compact branch of
+  `_load_harness_system_prompt` replaced the compiled `global-rules.md` with a
+  hardcoded five-line prompt instead of shortening it; a fresh clone (no
+  `storage/compiled/`) fell back to a two-sentence stub with no message. Fix:
+  compact mode clips the real rules to ~4 KB; a missing compiled prompt is
+  reported. Lesson: a "compact" variant must be derived from the full one, never
+  hand-written beside it, or the two drift and nobody notices.
+- **Every edit on Windows rewrote LF files as CRLF.** Root cause: reads used
+  universal newlines, writes used `newline=None`; `/undo` restores did the same.
+  Fix: `newline=''` on both sides plus newline-matching for edit targets.
+  Lesson: a file tool that changes bytes it was not asked to change is a bug even
+  when the diff "looks right" in the terminal.
+- **An aborted turn bricked the session.** Root cause: the assistant message
+  with `tool_calls` was appended before the calls ran; any exception or Ctrl+C in
+  between left them unanswered and every later request failed with a 400. Fix:
+  `_repair_history()` backfills `[aborted]` results in `finally`.
+- **Tab never fired in the TUI.** Textual matches the Screen's `focus_next`
+  binding before the App's, so the slash/`@`/`#` completion action was dead code
+  since the TUI shipped. Fix: `Binding(..., priority=True)`. Lesson: a binding
+  needs one test that presses the key.
+- **`reg-hooks.cjs` died whenever port 3000 was busy.** `listen()` failures are
+  `'error'` events, not promise rejections, so the `.catch` never saw them. Fix:
+  ephemeral port. Lesson: same as the 7842 entry below — a fixed port in a test
+  is a guess about someone else's machine.
+- **Docs promised things the code did not do** (read-only output truncation,
+  `grep_search` regex, TUI fuzzy completion, a TUI model picker). Each was fixed
+  in code, not in the docs. Lesson: when a doc claim and the code disagree, the
+  doc was usually the design — implement it.
+- **Wrong premise: "no tool runs vulture, delete the whitelist."** The repo
+  has no vulture step, but the machine's global pre-commit hook does, and the
+  first commit of this release was blocked by 20 false positives (Textual
+  `action_*`/`compose`/`on_print`, prompt_toolkit handlers, `to_dict`s). Fix:
+  the whitelist is back as `.vulture_whitelist.py` (the hook's preferred name),
+  pruned to real framework callbacks. Lesson: "nothing runs X" must include the
+  global hooks in `~/.claude/git-hooks`, not just the repo's CI and scripts.
+- **A harness wrapper (`rtk`) hung a subagent for 10 minutes on
+  `pytest … | tail`.** Not a repo bug; recorded in the session memory. Lesson for
+  briefs: redirect test output to a file and read the exit code.
 
 - **`launch.py` opened a different project's app.** Symptom: `python launch.py`
   brought up an unrelated local UI (hooop) instead of the command center. Root
@@ -41,6 +82,8 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
   `engine/skills/recommend.cjs` (SyntaxError). Fix: use the Edit tool for code
   edits on this machine.
 - **`vulture_whitelist.py` imported gitignored `skills/definitions`** and three
-  renamed classes, so it failed on a clean clone. Fixed; it now imports clean.
+  renamed classes, so it failed on a clean clone. Fixed at the time; the file
+  has since been deleted along with the vulture pass.
 - **`tools/errorlog --selftest` could not fail** (printed a check mark next to
-  a literal `false`, exited 0). Now uses `assert`.
+  a literal `false`, exited 0). Fixed at the time; the tool has since been
+  deleted — the command center is the only error surface.

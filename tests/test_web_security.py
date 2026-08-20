@@ -37,9 +37,7 @@ def companion(monkeypatch):
 
 
 def _request(url, method="GET", headers=None, token=None):
-    req = urllib.request.Request(
-        url, method=method, data=b"" if method == "POST" else None
-    )
+    req = urllib.request.Request(url, method=method, data=b"" if method == "POST" else None)
     for key, value in (headers or {}).items():
         req.add_header(key, value)
     if token:
@@ -103,6 +101,19 @@ def test_read_only_status_still_works_without_token(companion):
     assert json.loads(body)["status"] == "online"
 
 
+def test_quick_actions_show_output_and_lock_the_button(companion):
+    """/api/test and /api/distill return an 'output' field, but the page rendered
+    only data.message — a failing suite read 'Tests failed (Exit 1)' with no
+    traceback — and nothing disabled the button during a 600s run."""
+    url, _ = companion
+    status, body = _request(f"{url}/")
+    assert status == 200
+    page = body.decode("utf-8")
+    assert 'id="action-output"' in page, "nothing renders the API 'output' field"
+    assert "data.output" in page, "triggerApi never reads data.output"
+    assert "btn.disabled = true" in page, "the clicked button is never disabled"
+
+
 def test_served_page_carries_the_session_token(companion):
     url, _ = companion
     status, body = _request(f"{url}/")
@@ -133,6 +144,18 @@ def test_server_still_answers_while_another_connection_is_open(companion):
         parked.close()
 
 
+def test_second_start_reports_the_port_actually_bound(companion):
+    """/web called twice used to echo back the port that was *asked* for, so the
+    user was handed a URL nothing is listening on."""
+    url, _ = companion
+    bound = web._server_instance.server_address[1]
+    assert bound != 7843
+
+    ok, again = web.start_companion_server(7843)
+    assert ok, again
+    assert again == f"http://127.0.0.1:{bound}" == url
+
+
 def test_server_uses_daemon_threads(companion):
     import socketserver
 
@@ -153,9 +176,7 @@ def _post(url, path):
 
 
 @pytest.mark.parametrize("path", ["/api/test", "/api/distill"])
-def test_subprocess_routes_pass_a_timeout_and_report_expiry(
-    companion, monkeypatch, path
-):
+def test_subprocess_routes_pass_a_timeout_and_report_expiry(companion, monkeypatch, path):
     """Both routes ran subprocess.run() with no timeout while the browser polled
     /api/status once a second — a hung test/distill run wedged the server."""
     import subprocess

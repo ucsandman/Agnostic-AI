@@ -3,6 +3,36 @@
 Durable architecture and product decisions, newest first. One entry per
 decision: what, why, what it rules out.
 
+## 2026-08-20 — A tool the model cannot use successfully is removed, not kept
+
+`ask_question` (no input channel), `generate_artifact` (a `write_file` with a
+worse path) and `manage_subagents` (`kill` unimplemented) were re-sent as JSON
+schemas on every completion and could never succeed. The rule: every tool in
+`ToolRegistry` must be able to return a real result in the default UI, or it
+goes. Half-built capabilities live behind a slash command or not at all — the
+model's tool list is not a roadmap. Same rule for modules: the MCP stub, the
+fake `TaskManager`, `planner.py` and the Python harvester were deleted rather
+than whitelisted.
+
+## 2026-08-20 — A turn can always be cancelled and history stays well-formed
+
+`AgentLoop.cancel_event` is the one cancellation primitive: checked between
+steps and before each dispatch, handed to `ToolRegistry` so `run_command` can
+kill its child. Whatever ends a turn early — Esc, an exception, Ctrl+C — every
+pending `tool_call` gets a synthetic result (`[cancelled by user]` /
+`[aborted]`) before the lock is released, because an OpenAI-style backend
+rejects a transcript with an unanswered tool call forever after. New
+background work in the loop must honour the event and must not append an
+assistant tool-call message it cannot answer.
+
+## 2026-08-20 — Compact prompt mode shortens the rules; it never replaces them
+
+Small-context local models get the compiled `global-rules.md` clipped at a
+line boundary (~4 KB) under the harness badge, followed by the workspace's own
+`AGENTS.md`/`CLAUDE.md` if it fits. A hand-written summary beside the real
+rules drifted silently and made the repo's headline claim false by default;
+that shape is ruled out.
+
 ## 2026-08-20 — Default ports are a starting guess, never an assumption
 
 Every local server here (`tools/dashboard` 7842, `agent/web/server.py` 7843,
@@ -47,8 +77,9 @@ projection of config gets generated.
 
 ## 2026-08-20 — `pyproject.toml` is the Python source of truth
 
-`setup.py` removed. Dependencies live in `pyproject.toml` (mirrored in
-`requirements.txt` for plain `pip install -r`), dev tools in the `dev` extra,
+`setup.py` removed. Dependencies live in `pyproject.toml` (`requirements.txt`
+is a one-line `-e .` shim so `pip install -r` still works), dev tools in the
+`dev` extra,
 ruff and pytest config alongside. The npm package is `private`; it exists for
 scripts only and is never published.
 

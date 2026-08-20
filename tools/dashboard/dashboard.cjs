@@ -252,7 +252,7 @@ function executeRoutine(routineId, opts = {}) {
     case 'harvest':
       return { success: true, result: runHarvest() };
     case 'sync':
-      return { success: true, result: runSync({ force: Boolean(opts.force) }) };
+      return { success: true, result: runSync({ check: false, force: Boolean(opts.force) }) };
     case 'skills_consolidate':
       return { success: true, result: consolidateSkills() };
     case 'dashclaw_probe':
@@ -489,6 +489,19 @@ function getDecisionsData() {
   };
 }
 
+// dashboard.html is ~142 KB and neither it nor SESSION_TOKEN changes while the
+// process lives, so read and inject once instead of on every request. Lazily,
+// so requiring this module still touches no disk.
+let cachedPage;
+function renderPage() {
+  if (cachedPage === undefined) {
+    cachedPage = fs.existsSync(HTML_FILE)
+      ? fs.readFileSync(HTML_FILE, 'utf8').replace('__DASHBOARD_TOKEN__', SESSION_TOKEN)
+      : null;
+  }
+  return cachedPage;
+}
+
 function serveDashboard() {
   const server = http.createServer(async (req, res) => {
     res.setHeader(ID_HEADER, '1');
@@ -685,9 +698,10 @@ function serveDashboard() {
 
       // Serve HTML
       if (pathname === '/' || pathname === '/index.html' || pathname === '/dashboard') {
-        if (fs.existsSync(HTML_FILE)) {
+        const page = renderPage();
+        if (page !== null) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          return res.end(fs.readFileSync(HTML_FILE, 'utf8').replace('__DASHBOARD_TOKEN__', SESSION_TOKEN));
+          return res.end(page);
         }
       }
       if (pathname === '/favicon.ico') {
@@ -695,7 +709,7 @@ function serveDashboard() {
         return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#1f2a3a"/><text x="16" y="22" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#f2f2f2" text-anchor="middle">AG</text></svg>');
       }
 
-      // Backward compatibility for parity & errorlog endpoints
+      // Backward compatibility for the parity endpoint
       if (pathname === '/api/data') {
         const digestFile = path.join(STORAGE, 'distill-digest.json');
         let digest = {};

@@ -12,6 +12,7 @@
  *   ~/.claude/corrections.jsonl          (user corrections to agent behavior)
  *   ~/.claude/meditations/CANDIDATES.md  (4-tier promotion ladder candidates)
  *   ~/.claude/error-log/wes.jsonl        (human-side error tracking)
+ *   storage/corrections.jsonl            (cross-client corrections from the hook)
  *   core/rules/global-rules.md           (learned rules section)
  *
  * Usage:
@@ -391,6 +392,46 @@ function harvestWesErrorLog() {
   return items;
 }
 
+// ── Source 6: Cross-client corrections from the correction-tracker hook ──────
+// engine/hooks/correction-tracker.cjs appends these for every client, so they
+// are the only corrections that exist outside ~/.claude.
+
+function harvestHarnessCorrections() {
+  const file = path.join(STORAGE, 'corrections.jsonl');
+  if (!fs.existsSync(file)) return [];
+
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean);
+  const items = [];
+
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line);
+      // A line with no correction text is a log entry, not a candidate.
+      const text = (entry.correction || '').trim();
+      if (text.length < 5) continue;
+
+      const day = String(entry.timestamp || entry.ts || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const client = entry.client || 'unknown';
+
+      items.push({
+        id: hashFingerprint(text),
+        text,
+        firstSeen: day,
+        sightingDays: [day],
+        tier: 0,
+        client,
+        source: 'harness-corrections',
+        kind: 'correction',
+        bucket: 'user-correction',
+        repo: entry.repo ? path.basename(entry.repo) : null,
+        tags: ['correction', 'user-correction', client]
+      });
+    } catch (_) {}
+  }
+
+  return items;
+}
+
 function deduplicateAndMerge(allItems, seedMap) {
   const map = new Map();
   const deletedIds = loadDeletedIds();
@@ -451,7 +492,8 @@ function runHarvest() {
     { name: 'Claude Corrections', fn: harvestClaudeCorrections },
     { name: 'Meditation Candidates', fn: harvestMeditationCandidates },
     { name: 'Learned Rules', fn: harvestLearnedRules },
-    { name: 'Wes Error Log', fn: harvestWesErrorLog }
+    { name: 'Wes Error Log', fn: harvestWesErrorLog },
+    { name: 'Harness Corrections', fn: harvestHarnessCorrections }
   ];
 
   const allItems = [];
@@ -542,6 +584,7 @@ module.exports = {
   runHarvest,
   deduplicateAndMerge,
   harvestClaudeErrorLog,
+  harvestHarnessCorrections,
   harvestMeditationCandidates,
   getCandidate,
   updateCandidate,

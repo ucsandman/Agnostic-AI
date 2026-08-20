@@ -1,7 +1,8 @@
 """
 tests/test_loop_client.py — Regression Tests for Agent Loop, LLM Client & Compaction
 Covers malformed tool arguments, orphaned tool-result compaction, truncated tool calls,
-client retry/timeout, reasoning-effort passthrough, and the tool-step cap.
+client retry/timeout, reasoning-effort passthrough, the tool-step cap, the harness system
+prompt, aborted tool calls, and subagent workspace isolation.
 """
 
 import threading
@@ -52,9 +53,7 @@ def _tool_call(call_id, name, arguments):
 
 def _response(content="", tool_calls=None, finish_reason="stop"):
     msg = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=msg, finish_reason=finish_reason)]
-    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason=finish_reason)])
 
 
 def _bare_loop(llm_client, registry):
@@ -66,6 +65,7 @@ def _bare_loop(llm_client, registry):
     loop.confirm_callback = lambda prompt: True
     loop.output_callback = lambda msg_type, content: None
     loop.turn_lock = threading.Lock()
+    loop.cancel_event = threading.Event()
     return loop
 
 
@@ -81,6 +81,15 @@ def _assert_no_orphan_tool_messages(messages):
             )
         else:
             open_ids = set()
+
+
+def _assert_every_tool_call_is_answered(messages):
+    for i, m in enumerate(messages):
+        if m.get("role") != "assistant" or not m.get("tool_calls"):
+            continue
+        answered = {x.get("tool_call_id") for x in messages[i + 1 :] if x.get("role") == "tool"}
+        missing = [tc["id"] for tc in m["tool_calls"] if tc["id"] not in answered]
+        assert not missing, f"tool_calls left unanswered — the next turn will 400: {missing}"
 
 
 # --- Compaction -----------------------------------------------------------
@@ -116,9 +125,7 @@ def _history_ending_in_parallel_tool_calls():
 
 def test_compaction_never_orphans_parallel_tool_results():
     cm = ContextManager()
-    compacted, did, _msg = cm.compact_messages(
-        _history_ending_in_parallel_tool_calls(), force=True
-    )
+    compacted, did, _msg = cm.compact_messages(_history_ending_in_parallel_tool_calls(), force=True)
     assert did is True
     assert compacted[0]["role"] == "system"
     _assert_no_orphan_tool_messages(compacted)
@@ -157,9 +164,7 @@ def test_malformed_tool_args_are_not_executed():
     registry = FakeRegistry()
     llm = FakeLLMClient(
         [
-            _response(
-                tool_calls=[_tool_call("call_1", "read_file", '{"path": "a.py"')]
-            ),
+            _response(tool_calls=[_tool_call("call_1", "read_file", '{"path": "a.py"')]),
             _response(content="recovered"),
         ]
     )
@@ -219,9 +224,7 @@ def test_truncated_tool_call_is_not_executed():
     llm = FakeLLMClient(
         [
             _response(
-                tool_calls=[
-                    _tool_call("call_1", "write_file", '{"path": "a.py", "con')
-                ],
+                tool_calls=[_tool_call("call_1", "write_file", '{"path": "a.py", "con')],
                 finish_reason="length",
             ),
             _response(content="recovered"),
@@ -242,10 +245,7 @@ def test_truncated_tool_call_is_not_executed():
 def test_tool_step_cap_is_reported():
     registry = FakeRegistry()
     llm = FakeLLMClient(
-        [
-            _response(tool_calls=[_tool_call(f"call_{i}", "read_file", "{}")])
-            for i in range(4)
-        ]
+        [_response(tool_calls=[_tool_call(f"call_{i}", "read_file", "{}")]) for i in range(4)]
     )
     seen = []
     loop = _bare_loop(llm, registry)
@@ -256,6 +256,82 @@ def test_tool_step_cap_is_reported():
     assert any("maximum tool call limit" in c for _t, c in seen), (
         "cap must be visible to the operator, not silent"
     )
+
+
+# --- Cooperative cancel ---------------------------------------------------
+
+
+class _EndlessToolCalls:
+    """A client that never stops asking for tool calls."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def chat_completion(self, **kwargs):
+        self.calls += 1
+        return _response(tool_calls=[_tool_call(f"call_{self.calls}", "read_file", "{}")])
+
+
+class _CancelOnCall:
+    """Fires the cancel event the moment the model answers, then hands back tool calls."""
+
+    def __init__(self, loop, tool_calls):
+        self.loop = loop
+        self.tool_calls = tool_calls
+
+    def chat_completion(self, **kwargs):
+        self.loop.cancel_event.set()
+        return _response(tool_calls=self.tool_calls)
+
+
+def test_cancel_event_ends_the_turn_and_leaves_history_well_formed():
+    llm = _EndlessToolCalls()
+    registry = FakeRegistry()
+    loop = _bare_loop(llm, registry)
+    seen = []
+    loop.output_callback = lambda msg_type, content: seen.append((msg_type, content))
+
+    plain_execute = registry.execute
+
+    def cancelling_execute(name, args, confirm_callback=None):
+        loop.cancel_event.set()  # the operator hits Esc while the tool runs
+        return plain_execute(name, args, confirm_callback=confirm_callback)
+
+    registry.execute = cancelling_execute
+
+    out = loop.run_turn("go", max_steps=50)
+
+    assert out == "[cancelled by user]"
+    assert llm.calls == 1, "a cancelled turn must not ask the model for another step"
+    assert ("system", "⏹ cancelled") in seen
+    _assert_every_tool_call_is_answered(loop.history)
+    _assert_no_orphan_tool_messages(loop.history)
+
+
+def test_cancel_before_a_parallel_batch_answers_every_tool_call():
+    registry = FakeRegistry()
+    loop = _bare_loop(None, registry)
+    loop.llm_client = _CancelOnCall(
+        loop,
+        [_tool_call("call_a", "read_file", "{}"), _tool_call("call_b", "grep_search", "{}")],
+    )
+
+    out = loop.run_turn("go", max_steps=5)
+
+    assert out == "[cancelled by user]"
+    assert registry.calls == [], "no tool may be dispatched after cancel"
+    assert [m["content"] for m in loop.history if m.get("role") == "tool"] == [
+        "[cancelled by user]",
+        "[cancelled by user]",
+    ]
+    _assert_every_tool_call_is_answered(loop.history)
+
+
+def test_a_new_turn_clears_a_stale_cancel_event():
+    registry = FakeRegistry()
+    loop = _bare_loop(FakeLLMClient([]), registry)
+    loop.cancel_event.set()
+    assert loop.run_turn("go") == "done"
 
 
 # --- LLM client retry / timeout / effort ---------------------------------
@@ -429,9 +505,7 @@ def test_subagent_malformed_tool_args_are_not_executed(tmp_path):
     registry = FakeRegistry()
     llm = FakeLLMClient(
         [
-            _response(
-                tool_calls=[_tool_call("call_1", "read_file", '{"file_path": "a.py"')]
-            ),
+            _response(tool_calls=[_tool_call("call_1", "read_file", '{"file_path": "a.py"')]),
             _response(content="recovered"),
         ]
     )
@@ -552,11 +626,7 @@ def test_streaming_aggregates_content_tool_calls_and_finish_reason():
         [
             _chunk(content="Let me "),
             _chunk(content="look."),
-            _chunk(
-                tool_calls=[
-                    _tc_delta(0, call_id="call_1", name="read_", arguments='{"file')
-                ]
-            ),
+            _chunk(tool_calls=[_tc_delta(0, call_id="call_1", name="read_", arguments='{"file')]),
             _chunk(tool_calls=[_tc_delta(0, name="file", arguments='_path": "a.py"}')]),
             _chunk(finish_reason="tool_calls"),
         ]
@@ -578,3 +648,166 @@ def test_streaming_aggregates_content_tool_calls_and_finish_reason():
     assert msg.tool_calls[0].function.name == "read_file"
     assert msg.tool_calls[0].function.arguments == '{"file_path": "a.py"}'
     assert res.choices[0].finish_reason == "tool_calls"
+
+
+# --- Harness system prompt -----------------------------------------------
+
+
+def _prompt_loop(tmp_path):
+    """AgentLoop stub with just enough state for _load_harness_system_prompt()."""
+    loop = object.__new__(AgentLoop)
+    loop.workspace_root = tmp_path
+    loop.output_callback = lambda msg_type, content: None
+    return loop
+
+
+def _write_compiled_prompt(tmp_path, text):
+    compiled = tmp_path / "storage" / "compiled"
+    compiled.mkdir(parents=True, exist_ok=True)
+    (compiled / "system_prompt.md").write_text(text, encoding="utf-8")
+
+
+def test_compact_prompt_still_carries_the_compiled_rules(tmp_path):
+    rules = "# Global Rules\n" + "\n".join(
+        f"- rule {i}: verify before claiming done" for i in range(200)
+    )
+    _write_compiled_prompt(tmp_path, rules)
+
+    loop = _prompt_loop(tmp_path)
+    loop._load_harness_system_prompt(compact=True)
+    system = loop.history[0]["content"]
+
+    assert "Agnostic Harness" in system, "the compact badge must survive"
+    assert "rule 0: verify before claiming done" in system, (
+        "compact mode must clip the compiled rules, not replace them"
+    )
+    assert "clipped for small context" in system
+    assert "rule 199" not in system, "a 6 KB rules file must actually be clipped"
+
+
+def test_full_prompt_is_sent_verbatim(tmp_path):
+    rules = "# Global Rules\nnever read .env\n"
+    _write_compiled_prompt(tmp_path, rules)
+
+    loop = _prompt_loop(tmp_path)
+    loop._load_harness_system_prompt(compact=False)
+    assert loop.history[0]["content"] == rules
+
+
+def test_project_agreement_is_appended_once(tmp_path):
+    _write_compiled_prompt(tmp_path, "# Global Rules\nbe surgical\n")
+    (tmp_path / "AGENTS.md").write_text("Run pytest before claiming done.", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("lower priority, must be skipped", encoding="utf-8")
+    (tmp_path / ".agnostic").mkdir()
+    (tmp_path / ".agnostic" / "state.md").write_text("Task: ship loop fixes.", encoding="utf-8")
+
+    loop = _prompt_loop(tmp_path)
+    loop._load_harness_system_prompt(compact=True)
+    system = loop.history[0]["content"]
+
+    assert "### [Project Agreement: AGENTS.md]" in system
+    assert "Run pytest before claiming done." in system
+    assert "### [Project Agreement: .agnostic/state.md]" in system
+    assert "lower priority" not in system, "only the first agreement file is used"
+
+
+def test_project_agreement_is_skipped_when_compact_has_no_room(tmp_path):
+    _write_compiled_prompt(tmp_path, "# Global Rules\n" + "x" * 8000)
+    (tmp_path / "AGENTS.md").write_text("y" * 5000, encoding="utf-8")
+
+    loop = _prompt_loop(tmp_path)
+    loop._load_harness_system_prompt(compact=True)
+    assert "Project Agreement" not in loop.history[0]["content"]
+
+    loop._load_harness_system_prompt(compact=False)
+    assert "Project Agreement" in loop.history[0]["content"]
+
+
+# --- Aborted tool calls must never brick the session ---------------------
+
+
+@pytest.mark.parametrize("boom", [RuntimeError("tool exploded"), KeyboardInterrupt()])
+def test_unfinished_tool_calls_are_backfilled(boom):
+    class _BoomRegistry(FakeRegistry):
+        def execute(self, name, args, confirm_callback=None):
+            raise boom
+
+    llm = FakeLLMClient([_response(tool_calls=[_tool_call("call_1", "read_file", "{}")])])
+    loop = _bare_loop(llm, _BoomRegistry())
+    try:
+        loop.run_turn("go", max_steps=2)
+    except KeyboardInterrupt:  # ctrl-c is not caught by the turn's except Exception
+        pass
+
+    _assert_every_tool_call_is_answered(loop.history)
+    assert loop.history[-1] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "[aborted]",
+    }
+    assert loop.is_busy is False
+
+
+def test_repair_leaves_a_completed_turn_untouched():
+    registry = FakeRegistry()
+    llm = FakeLLMClient(
+        [
+            _response(tool_calls=[_tool_call("call_1", "read_file", "{}")]),
+            _response(content="done"),
+        ]
+    )
+    loop = _bare_loop(llm, registry)
+    loop.run_turn("go", max_steps=3)
+
+    assert "[aborted]" not in [m.get("content") for m in loop.history]
+    _assert_every_tool_call_is_answered(loop.history)
+
+
+# --- Subagent workspace isolation ----------------------------------------
+
+
+def test_branch_workspace_falls_back_to_the_real_workspace(tmp_path, monkeypatch):
+    from agent.tools import subagent as subagent_mod
+
+    monkeypatch.setattr(
+        subagent_mod.subprocess,
+        "run",
+        lambda *a, **kw: SimpleNamespace(
+            returncode=128, stdout="", stderr="fatal: not a git repository"
+        ),
+    )
+    (tmp_path / "main.py").write_text("print('hi')\n", encoding="utf-8")
+
+    worker = subagent_mod.SubagentWorker(
+        role="researcher",
+        system_prompt="",
+        client=None,
+        workspace_root=tmp_path,
+        workspace_mode="branch",
+    )
+
+    assert worker.active_workspace == tmp_path, (
+        "a failed worktree must inherit the real workspace, not an empty scratch dir"
+    )
+    assert not list(tmp_path.parent.glob(".agnostic_scratch_*"))
+    assert "shared workspace" in worker.workspace_note
+    worker.cleanup()
+    assert (tmp_path / "main.py").exists(), "cleanup must never delete the real workspace"
+
+
+# --- Live run_command output reaches the UI -------------------------------
+
+
+def test_registry_streams_tool_output_to_the_loop_callback(tmp_path):
+    """run_command emits one callback per line; the loop must forward those to the
+    UI as 'tool_chunk' so a long command visibly progresses."""
+    events = []
+    loop = AgentLoop(
+        workspace_root=str(tmp_path),
+        output_callback=lambda msg_type, content: events.append((msg_type, content)),
+    )
+
+    assert loop.registry.on_output is not None, "the loop wired no live output channel"
+    loop.registry.on_output("compiling...")
+
+    assert ("tool_chunk", "compiling...") in events

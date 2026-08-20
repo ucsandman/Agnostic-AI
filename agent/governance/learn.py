@@ -4,6 +4,7 @@ Connects the Agnostic Coding Agent directly into the harness candidates.jsonl an
 """
 
 import json
+import os
 import time
 import hashlib
 from pathlib import Path
@@ -74,9 +75,12 @@ class Learner:
             existing_entries[fp] = entry
             msg = f"Logged new Tier 0 lesson: {lesson_text[:80]}"
 
-        # Write back
+        # Write back via a sibling temp file: a crash mid-write must never
+        # truncate the existing ladder. os.replace is atomic on both platforms.
         lines = [json.dumps(item) for item in existing_entries.values()]
-        self.candidates_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp_file = self.candidates_file.with_name(self.candidates_file.name + ".tmp")
+        tmp_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(str(tmp_file), str(self.candidates_file))
         return True, msg
 
 

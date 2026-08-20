@@ -7,11 +7,21 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 "UI" says where the command is handled: **TUI** is `agnostic` (Textual),
 **legacy** is `agnostic-legacy` (prompt_toolkit). Most work in both.
 
+## Keys (TUI)
+
+| Key | What it does |
+|---|---|
+| `Esc` | Cancel the running turn: it stops after the current step, and a running `run_command` child is killed. |
+| `Ctrl+C` | Quit (refuses while a turn is running — cancel with `Esc` first). |
+| `Ctrl+L` | Clear the output log. |
+| `Tab` | Complete a partially typed slash command, or an `@file` / `#symbol` token against the workspace index (press again to cycle candidates). |
+| `↑` / `↓` | Walk the prompt history. |
+
 ## Model and session
 
 | Command | UI | What it does |
 |---|---|---|
-| `/model [preset] [effort]` | both | Pick a preset: subscription bridges (`agy`, `claude`, `codex` CLIs, no API key), hosted APIs (Gemini, Claude, GPT, DeepSeek; key from env), or a local / custom OpenAI-compatible endpoint. Optional effort `low` / `medium` / `high`. With no args the legacy shell opens an arrow-key picker; the TUI prints the preset list and takes the argument form. |
+| `/model [preset] [effort]` | both | Pick a preset: subscription bridges (`agy`, `claude`, `codex` CLIs, no API key), hosted APIs (Gemini, Claude, GPT, DeepSeek; key from env), or a local / custom OpenAI-compatible endpoint. Optional effort `low` / `medium` / `high`. With no args the legacy shell opens an arrow-key picker and the TUI prints a numbered preset table (context window, default effort, whether the key / CLI / endpoint is actually available); pick from it with `/model <key or number> [effort]`. |
 | `/doctor` | both | Probe the configured endpoint: model id, context length, latency. |
 | `/compact` | both | Condense older turns into a summary that keeps touched files, test results and symbols. Also happens automatically near the context limit. |
 | `/session save\|load\|list <name>` | both | Snapshot / restore the conversation and whiteboard. |
@@ -37,8 +47,7 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 | Command | UI | What it does |
 |---|---|---|
 | `/plan <task>` | both | Ask the model for a step-by-step plan before touching code. |
-| `/grill-me <task>` | legacy | The model asks you three architect-style trade-off questions before starting. In the TUI the command prints a pointer to `agnostic --legacy`. |
-| `/schedule "every 30s run /test"` | both | Start a background routine: `every <N>s|m|h <command or prompt>`. |
+| `/schedule "every 30s run /test"` | both | Start a background routine: `every <N>s\|m\|h <command or prompt>`. `/schedule list` shows the running routines (id, interval, prompt); `/schedule stop <id>` or `/schedule stop all` cancels them. |
 | `/loop <N> "prompt"` | both | Run a prompt N times in the background. |
 | `/fix [cmd]` | both | Run the test command (or read the last stack trace), diagnose, apply a fix in one turn. |
 | `/test [cmd]` | both | Detect the test runner (`npm test`, `pytest`, `cargo test`, ...) or use `cmd`; loop fix-and-rerun until green or the retry cap. |
@@ -54,6 +63,6 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 | Command | UI | What it does |
 |---|---|---|
 | `/learn <lesson>` | both | Append a candidate rule to `storage/candidates.jsonl` (tier 0) for the distiller. |
-| `/harvest` | both | Run the cross-agent harvester over local transcripts and error logs. |
+| `/harvest` | both | Run `engine/harvest/harvest.cjs`: scan local agent error logs, corrections and meditation candidates into `storage/candidates.jsonl`. |
 | `/distill` | both | Run the promotion ladder and pruner; write the digest and proposal. |
 | `/web` | both | Start the web companion on `http://127.0.0.1:7843` (next free port if taken): telemetry, diffs, context meter, run tests / distill from the browser. |

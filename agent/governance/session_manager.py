@@ -14,6 +14,9 @@ class SessionManager:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.sessions_dir = self.workspace_root / ".agnostic" / "sessions"
+        # path -> (mtime, summary): the web companion polls list_sessions() at
+        # ~1 Hz and every miss re-parses a full conversation history.
+        self._summaries: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
     def save_session(
         self,
@@ -35,9 +38,11 @@ class SessionManager:
                 "notes": state_notes or "",
             }
 
-            session_file.write_text(
-                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            # Temp file + atomic rename: a crash mid-write must never truncate
+            # an existing snapshot.
+            tmp_file = session_file.with_name(session_file.name + ".tmp")
+            tmp_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            os.replace(str(tmp_file), str(session_file))
             return (
                 True,
                 f"Session successfully saved as '{clean_name}' ({len(history)} turns).",
@@ -79,15 +84,20 @@ class SessionManager:
         results = []
         for file in sorted(self.sessions_dir.glob("*.json"), key=os.path.getmtime, reverse=True):
             try:
+                mtime = file.stat().st_mtime
+                cached = self._summaries.get(str(file))
+                if cached and cached[0] == mtime:
+                    results.append(cached[1])
+                    continue
                 data = json.loads(file.read_text(encoding="utf-8"))
-                results.append(
-                    {
-                        "name": file.stem,
-                        "saved_at": data.get("saved_at", "Unknown"),
-                        "turn_count": data.get("turn_count", len(data.get("history", []))),
-                        "notes": data.get("notes", ""),
-                    }
-                )
+                summary = {
+                    "name": file.stem,
+                    "saved_at": data.get("saved_at", "Unknown"),
+                    "turn_count": data.get("turn_count", len(data.get("history", []))),
+                    "notes": data.get("notes", ""),
+                }
+                self._summaries[str(file)] = (mtime, summary)
+                results.append(summary)
             except (OSError, json.JSONDecodeError):  # a corrupt session file is skipped, not fatal
                 pass
         return results

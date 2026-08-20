@@ -7,9 +7,25 @@ import os
 import json
 import time
 import subprocess
+import threading
+from functools import lru_cache
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
 import httpx
+
+
+@lru_cache(maxsize=None)
+def get_http_client(timeout: float) -> httpx.Client:
+    """One pooled httpx.Client per distinct timeout, shared by every consumer.
+
+    Building one costs ~200ms (a fresh SSLContext loading the certifi bundle)
+    and the discarded one leaks its connection pool — a price every LLMClient()
+    and every /model switch (two _init_client calls) used to pay.
+
+    Long read budget for slow local models, short connect budget so an
+    unreachable endpoint fails in seconds instead of minutes.
+    """
+    return httpx.Client(timeout=httpx.Timeout(timeout, connect=min(10.0, timeout)))
 
 
 class SubprocessSubscriptionBridge:
@@ -64,6 +80,7 @@ class SubprocessSubscriptionBridge:
         tools: Optional[List[Dict[str, Any]]] = None,
         reasoning_effort: str = "medium",
         stream_callback: Optional[Any] = None,
+        timeout: int = 180,
     ) -> Any:
         prompt_text = cls._format_conversation_prompt(messages, tools)
 
@@ -98,19 +115,41 @@ class SubprocessSubscriptionBridge:
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                # Merged rather than a second pipe: stdout was streamed line by
+                # line while stderr sat unread, so a chatty CLI filled the stderr
+                # buffer and both sides deadlocked.
+                stderr=subprocess.STDOUT,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
             )
-            raw_lines = []
-            if proc.stdout:
-                for line in proc.stdout:
-                    raw_lines.append(line)
-                    if stream_callback:
-                        stream_callback(line)
-            stdout_remainder, stderr = proc.communicate(timeout=180)
+            # The read loop blocks until the child closes stdout, so the deadline
+            # has to kill the child — a communicate(timeout=) below it never runs.
+            expired = []
+
+            def _kill_expired():
+                expired.append(True)
+                proc.kill()
+
+            killer = threading.Timer(timeout, _kill_expired)
+            killer.start()
+            try:
+                raw_lines = []
+                if proc.stdout:
+                    for line in proc.stdout:
+                        raw_lines.append(line)
+                        if stream_callback:
+                            stream_callback(line)
+                stdout_remainder, _ = proc.communicate()
+            finally:
+                killer.cancel()
+
+            if expired:
+                raise RuntimeError(
+                    f"Subscription CLI for '{provider}' produced no result within "
+                    f"{timeout}s and was terminated."
+                )
             if stdout_remainder:
                 raw_lines.append(stdout_remainder)
                 if stream_callback:
@@ -118,8 +157,9 @@ class SubprocessSubscriptionBridge:
 
             raw_output = "".join(raw_lines).strip()
             if proc.returncode != 0 and not raw_output:
-                err_text = stderr.strip() or f"Process exited with code {proc.returncode}"
-                raise RuntimeError(f"Subscription CLI execution failed: {err_text}")
+                raise RuntimeError(
+                    f"Subscription CLI execution failed: Process exited with code {proc.returncode}"
+                )
         except FileNotFoundError:
             raise RuntimeError(
                 f"Native CLI executable for '{provider}' not found on PATH. "
@@ -391,9 +431,7 @@ class LLMClient:
             self.client = OpenAI(
                 base_url=self.config.base_url,
                 api_key=self.config.api_key or "local",
-                # Long read budget for slow local models, short connect budget so
-                # an unreachable endpoint fails in seconds instead of minutes.
-                timeout=httpx.Timeout(self.config.timeout, connect=10.0),
+                http_client=get_http_client(self.config.timeout),
                 max_retries=0,  # retries are owned by _with_retry below
             )
         else:
@@ -517,7 +555,7 @@ class LLMClient:
         self._init_client()
         return f"Updated model configuration: {self.config.model} ({self._effort_note()})"
 
-    def chat_completion(  # noqa: vulture
+    def chat_completion(
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,

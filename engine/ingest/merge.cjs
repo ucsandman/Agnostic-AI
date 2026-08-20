@@ -22,8 +22,11 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
+const { backupTarget } = require('../sync/sync.cjs');
+
 const HOME = os.homedir();
 const ROOT = path.resolve(__dirname, '..', '..');
+const BACKUPS_DIR = path.join(process.env.AGNOSTIC_STORAGE || path.join(ROOT, 'storage'), 'backups');
 
 const RULE_FILENAMES = [
   'CLAUDE.md',
@@ -152,14 +155,15 @@ function parseSections(markdown) {
 }
 
 function mergeBulletList(bodyA = '', bodyB = '') {
-  const bulletsA = bodyA.split('\n').map(l => l.trim()).filter(Boolean);
-  const bulletsB = bodyB.split('\n').map(l => l.trim()).filter(Boolean);
+  const bulletsA = bodyA.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
+  const bulletsB = bodyB.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
 
   const seen = new Set();
   const merged = [];
 
   for (const b of [...bulletsA, ...bulletsB]) {
-    // Treat sub-bullets or prose lines
+    // Dedupe on the normalized text (hashBullet trims for us) but emit the
+    // original line, so nested bullets keep their indentation.
     const hash = hashBullet(b);
     if (!seen.has(hash)) {
       seen.add(hash);
@@ -178,11 +182,18 @@ function mergeRuleFiles(files) {
 
   const masterSections = new Map();
   const learnedRulesMap = new Map();
+  let preamble = null;
 
   for (const file of files) {
     const parsed = parseSections(file.content);
     for (const [title, body] of parsed.entries()) {
-      if (title === '__preamble__') continue;
+      if (title === '__preamble__') {
+        // Everything above the first '##' is content too. First file's wins
+        // verbatim; later files contribute only their distinct lines.
+        if (preamble === null) preamble = body;
+        else if (body) preamble = mergeBulletList(preamble, body);
+        continue;
+      }
 
       if (title.toLowerCase().includes('learned rule')) {
         // Special handling for learned rules
@@ -210,6 +221,8 @@ function mergeRuleFiles(files) {
   const parts = [];
   parts.push(`# Universal Working Agreement (Unified Across All Agents)\n\n> Automatically merged from: ${files.map(f => f.name).join(', ')}\n`);
 
+  if (preamble && preamble.trim()) parts.push(preamble.trim());
+
   for (const [title, body] of masterSections.entries()) {
     parts.push(`## ${title}\n\n${body}`);
   }
@@ -232,6 +245,7 @@ function syncProjectDirectory(targetDir) {
   const merged = mergeRuleFiles(files);
   for (const name of ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md']) {
     const p = path.join(targetDir, name);
+    if (fs.existsSync(p)) backupTarget(BACKUPS_DIR, 'merge', p);
     fs.writeFileSync(p, merged, 'utf8');
     console.log(`  ✓ Synced merged rules to: ${name}`);
   }
@@ -248,6 +262,7 @@ if (require.main === module) {
     const merged = mergeRuleFiles(globalFiles);
     if (merged) {
       const ssotPath = path.join(ROOT, 'core', 'rules', 'global-rules.md');
+      if (fs.existsSync(ssotPath)) backupTarget(BACKUPS_DIR, 'merge-global', ssotPath);
       fs.writeFileSync(ssotPath, merged, 'utf8');
       console.log(`[Merge] Global SSOT updated: ${ssotPath}`);
       // Re-trigger sync

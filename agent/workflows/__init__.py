@@ -1,3 +1,3 @@
 """
-Agnostic Agent — Workflows (Swarm, Tester, Planner, Grill, PR Pilot)
+Agnostic Agent — Workflows (Swarm, Tester, PR Pilot, Diagram, Scheduler)
 """

@@ -2407,7 +2407,12 @@ dashclaw install claude --trial</code></pre>
 
         const tierLabels = ['T0 · Observation', 'T1 · Repo Fact', 'T2 · Universal Rule', 'T3 · Trait'];
 
-        container.innerHTML = data.items.map(item => `
+        // The server caps the payload; say so rather than let the list read as the whole match.
+        const capped = data.total > data.items.length
+          ? `<div class="candidate-meta" style="margin-bottom: 12px;">Showing first ${data.items.length} of ${data.total} matches — narrow the search or filters to see the rest.</div>`
+          : '';
+
+        container.innerHTML = capped + data.items.map(item => `
           <div class="candidate-card" onclick="openCandidateEditModal('${item.id}')" title="Click to view, edit, or delete this observation">
             <div class="candidate-header">
               <div class="candidate-text">${escapeHtml(item.text)}</div>
@@ -3061,7 +3066,16 @@ dashclaw install claude --trial</code></pre>
       }
     }
 
-    async function runRoutine(id, opts = {}) {
+    async function runRoutine(id, opts = {}, btnEl = null) {
+      // Inline onclick runs during dispatch, so currentTarget is the clicked button
+      // — no need to thread it through every call site. Disabling it also stops
+      // a double-click launching two concurrent runs.
+      const btn = btnEl || (window.event && window.event.currentTarget) || null;
+      const label = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+      }
       try {
         const res = await fetch('/api/routines/run', {
           method: 'POST',
@@ -3084,7 +3098,7 @@ ${names}
 
 Overwrite them with the SSOT now?`
             );
-            if (force) return runRoutine('sync', { force: true });
+            if (force) return await runRoutine('sync', { force: true }, btn);
           } else {
             showToast(`Sync: ${written}/${total} targets updated${skipped.length ? `, ${skipped.length} skipped` : ''}.`, 'success');
           }
@@ -3094,6 +3108,11 @@ Overwrite them with the SSOT now?`
         loadOverview();
       } catch (err) {
         alert(`Error executing routine: ${err.message}`);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = label;
+        }
       }
     }
 
@@ -3107,7 +3126,12 @@ Overwrite them with the SSOT now?`
     }
 
     // Event listeners
-    document.getElementById('error-search').addEventListener('input', loadErrors);
+    // One request per typing pause, not one per keystroke.
+    let errorSearchTimer = null;
+    document.getElementById('error-search').addEventListener('input', () => {
+      clearTimeout(errorSearchTimer);
+      errorSearchTimer = setTimeout(loadErrors, 250);
+    });
     document.getElementById('filter-tier').addEventListener('change', loadErrors);
     document.getElementById('filter-kind').addEventListener('change', loadErrors);
     document.getElementById('skill-search').addEventListener('input', renderSkillsGrid);

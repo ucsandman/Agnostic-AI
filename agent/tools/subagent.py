@@ -12,7 +12,7 @@ from typing import Callable, Optional, Literal, Any
 from pathlib import Path
 from agent.llm.client import LLMClient
 
-WorkspaceMode = Literal["inherit", "share", "branch"]
+WorkspaceMode = Literal["inherit", "branch"]
 
 # Roles that must never mutate the workspace, whatever the model asks for.
 READ_ONLY_ROLES = {"researcher", "reviewer"}
@@ -36,6 +36,7 @@ class SubagentWorker:
         self.workspace_root = workspace_root
         self.workspace_mode = workspace_mode
         self.confirm_callback = confirm_callback
+        self.workspace_note = ""
         self.active_workspace = self._prepare_workspace()
 
     def build_registry(self):
@@ -50,38 +51,39 @@ class SubagentWorker:
         return ToolRegistry(workspace_root=str(self.active_workspace), read_only=read_only)
 
     def _prepare_workspace(self) -> Path:
-        """Provisions workspace based on selected isolation mode."""
-        if self.workspace_mode == "inherit":
+        """Provisions workspace based on selected isolation mode.
+
+        Only a real git worktree gives isolation; anything else inherits the real
+        workspace. An empty scratch dir looks like a repo with no code, and the worker
+        then reports 'no such file' with total confidence.
+        """
+        if self.workspace_mode != "branch":
             return self.workspace_root
 
         subagent_id = str(uuid.uuid4())[:8]
         scratch_dir = self.workspace_root.parent / f".agnostic_scratch_{self.role}_{subagent_id}"
-
-        if self.workspace_mode == "branch":
-            try:
-                # Attempt to create an isolated git worktree
-                res = subprocess.run(
-                    f"git worktree add -b scratch-{subagent_id} {scratch_dir} HEAD",
-                    cwd=self.workspace_root,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                if res.returncode == 0 and scratch_dir.exists():
-                    return scratch_dir
-            except (
-                OSError,
-                subprocess.SubprocessError,
-            ):  # no worktree support; caller uses a plain dir
-                pass
-
-        # Fallback for 'share' or if git worktree fails: copy or shallow sandbox
         try:
-            scratch_dir.mkdir(parents=True, exist_ok=True)
-            return scratch_dir
-        except Exception:
-            return self.workspace_root
+            res = subprocess.run(
+                f"git worktree add -b scratch-{subagent_id} {scratch_dir} HEAD",
+                cwd=self.workspace_root,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if res.returncode == 0 and scratch_dir.exists():
+                return scratch_dir
+        except (
+            OSError,
+            subprocess.SubprocessError,
+        ):  # no worktree support; fall through to the shared workspace
+            pass
+
+        self.workspace_note = (
+            "[Note: no git worktree could be created, so this subagent ran in the shared "
+            "workspace instead of an isolated branch.]"
+        )
+        return self.workspace_root
 
     def cleanup(self):
         """Cleans up isolated workspaces after task completion."""
@@ -258,7 +260,7 @@ class SubagentManager:
             except ImportError:  # web companion is optional
                 pass
             # Distill response header
-            return f"### [Subagent Report: {role.upper()}]\n{result}\n"
+            return f"### [Subagent Report: {role.upper()}]\n{result}\n{worker.workspace_note}"
         except Exception as e:
             subagent_registry.update_state(subagent_id, "error", detail=str(e))
             return f"### [Subagent Report: {role.upper()} - ERROR]\n{str(e)}\n"
@@ -297,7 +299,7 @@ class SubagentRegistry:
         self._subagents[subagent_id] = info
         return info
 
-    def update_state(self, subagent_id: str, state: str, detail: str = ""):  # noqa: vulture
+    def update_state(self, subagent_id: str, state: str, detail: str = ""):
         if subagent_id in self._subagents:
             self._subagents[subagent_id]["state"] = state
             if detail:

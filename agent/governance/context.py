@@ -8,9 +8,7 @@ from typing import List, Dict, Any, Tuple
 
 
 class ContextManager:
-    def __init__(
-        self, max_context_tokens: int = 2000000, compaction_threshold: float = 0.75
-    ):
+    def __init__(self, max_context_tokens: int = 2000000, compaction_threshold: float = 0.75):
         self.max_context_tokens = max_context_tokens
         self.compaction_threshold = compaction_threshold
 
@@ -52,7 +50,9 @@ class ContextManager:
         bar_color = "green" if pct < 60 else "yellow" if pct < 80 else "red"
         bar = "█" * filled_blocks + "░" * empty_blocks
 
-        return f"[{bar_color}]Context: [{bar}] {pct:.1f}% ({used:,} / {total:,} tokens)[/{bar_color}]"
+        return (
+            f"[{bar_color}]Context: [{bar}] {pct:.1f}% ({used:,} / {total:,} tokens)[/{bar_color}]"
+        )
 
     def compact_messages(
         self, messages: List[Dict[str, Any]], force: bool = False
@@ -107,9 +107,7 @@ class ContextManager:
             # Note test failures or passes
             if "FAILED" in content or "PASSED" in content or "pytest" in content:
                 for line in content.splitlines():
-                    if any(
-                        kw in line for kw in ("PASSED", "FAILED", "ERROR", "assert")
-                    ):
+                    if any(kw in line for kw in ("PASSED", "FAILED", "ERROR", "assert")):
                         test_findings.append(line.strip()[:100])
 
             summary_lines.append(f"• [{role}]: {content[:160]}...")
@@ -135,16 +133,10 @@ class ContextManager:
         condensed_text = "\n\n".join(condensed_sections)
 
         # Combine leading system message with the session distillation so system message is strictly at index 0
-        merged_system_content = (
-            f"{system_msg.get('content', '')}\n\n{condensed_text}".strip()
-        )
-        compacted_messages = [
-            {"role": "system", "content": merged_system_content}
-        ] + recent_turns
+        merged_system_content = f"{system_msg.get('content', '')}\n\n{condensed_text}".strip()
+        compacted_messages = [{"role": "system", "content": merged_system_content}] + recent_turns
 
-        freed_estimate = max(
-            0, st["used_tokens"] - self.estimate_tokens(compacted_messages)
-        )
+        freed_estimate = max(0, st["used_tokens"] - self.estimate_tokens(compacted_messages))
         msg = f"🧹 Compacted {len(middle_turns)} turns (freed ~{freed_estimate:,} tokens)."
         return compacted_messages, True, msg
 
@@ -154,4 +146,4 @@ class ContextManager:
         return self.compact_messages(messages, force=False)
 
 
-context_manager = ContextManager()  # noqa: vulture
+context_manager = ContextManager()

@@ -102,15 +102,18 @@ function serve() {
   });
 }
 
-if (OPEN_FLAG || process.argv.includes('--serve')) {
-  serve();
-} else {
-  const res = searchMemory(QUERY);
-  console.log(`[Recall] Found ${res.length} result(s) for "${QUERY}":\n`);
-  for (const item of res) {
-    console.log(`[${item.source}] ${item.title}`);
-    console.log(item.content.slice(0, 150) + (item.content.length > 150 ? '...' : ''));
-    console.log('---');
+// Requiring this module must not start a server or print: only the CLI runs.
+if (require.main === module) {
+  if (OPEN_FLAG || process.argv.includes('--serve')) {
+    serve();
+  } else {
+    const res = searchMemory(QUERY);
+    console.log(`[Recall] Found ${res.length} result(s) for "${QUERY}":\n`);
+    for (const item of res) {
+      console.log(`[${item.source}] ${item.title}`);
+      console.log(item.content.slice(0, 150) + (item.content.length > 150 ? '...' : ''));
+      console.log('---');
+    }
   }
 }
 

@@ -49,4 +49,4 @@ class SandboxWatchdog:
         return restore.returncode == 0 and clean.returncode == 0
 
 
-watchdog = SandboxWatchdog(Path("."))  # noqa: vulture
+watchdog = SandboxWatchdog(Path("."))

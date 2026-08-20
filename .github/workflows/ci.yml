@@ -7,13 +7,27 @@ on:
 
 jobs:
   test:
-    name: test (py${{ matrix.python }})
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }} py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.12"]
+        include:
+          - { os: ubuntu-latest, python: "3.9" }
+          - { os: ubuntu-latest, python: "3.12" }
+          # The project is developed on Windows (mklink /J junctions, CRLF, .cmd
+          # entry points); one Windows leg keeps those paths honest.
+          - { os: windows-latest, python: "3.12" }
+    defaults:
+      run:
+        shell: bash
     steps:
+      # The repo is LF-only and docs:check compares bytes, so the Windows runner
+      # must not translate line endings on checkout.
+      - name: Keep LF line endings on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5

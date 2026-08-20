@@ -10,7 +10,7 @@ import os
 import time
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -41,9 +41,11 @@ from agent.ui_common import (
     SLASH_COMMANDS,
     build_arg_parser,
     detect_model,
+    endpoint_status_line,
     expand_prompt_references,
     format_user_display,
-    index_workspace,
+    help_text,
+    history_file_path,
     maybe_start_web_companion,
     parse_slash_command,
     safe_text,
@@ -75,7 +77,7 @@ MAX_COMPLETIONS = 50
 class AgnosticCompleter(Completer):
     """Dynamic Completer for Slash commands, @file paths, and #symbol names."""
 
-    def __init__(self, commands: List[str], indexer: CodebaseIndexer):
+    def __init__(self, commands: Iterable[str], indexer: CodebaseIndexer):
         self.commands = commands
         self.indexer = indexer
 
@@ -117,20 +119,20 @@ kb = KeyBindings()
 
 
 @kb.add("enter")
-def _handle_enter(event):  # noqa: vulture
+def _handle_enter(event):
     """Enter submits the prompt (even in multiline mode). Use Escape+Enter to insert a literal newline."""
     event.current_buffer.validate_and_handle()
 
 
 @kb.add("c-j")
-def _handle_ctrl_enter(event):  # noqa: vulture
+def _handle_ctrl_enter(event):
     """Ctrl+Enter inserts a literal newline for multi-line input."""
     event.current_buffer.insert_text("\n")
 
 
 @kb.add("escape", "v")
 @kb.add("escape", "V")
-def _handle_alt_v(event):  # noqa: vulture
+def _handle_alt_v(event):
     """Alt+V handler: grabs image from clipboard, saves locally, and inserts reference into prompt."""
     try:
         img = ImageGrab.grabclipboard()
@@ -191,7 +193,9 @@ def rich_output_callback(msg_type: str, content: str):
     try:
         from agent.web.server import companion_telemetry
 
-        if msg_type != "assistant_chunk":
+        # Per-chunk events are excluded: the companion log holds 150 entries, so one
+        # noisy build would evict the whole session's tool calls and diffs.
+        if msg_type not in ("assistant_chunk", "tool_chunk"):
             companion_telemetry.log_event(msg_type, content)
     except ImportError:  # web companion is optional; the terminal is the real UI
         pass
@@ -225,6 +229,10 @@ def rich_output_callback(msg_type: str, content: str):
         label = Text.from_markup("[dim magenta]⚙️  Executing Tool:[/dim magenta] ")
         label.append(content, style="yellow")
         console.print(label)
+
+    elif msg_type == "tool_chunk":
+        # Live run_command output: one line at a time, as the command prints it.
+        console.print(safe_text(content, style="dim"))
 
     elif msg_type == "tool_end":
         # Raw tool output (e.g. a grep hit containing '[/etc/hosts]') must never be
@@ -351,9 +359,6 @@ def main(argv: Optional[List[str]] = None):
     if use_compact:
         agent._load_harness_system_prompt(compact=True)
 
-    # Pre-index workspace for fast fuzzy autocomplete & symbol lookups
-    index_workspace()
-
     from agent.web.server import companion_telemetry
 
     companion_telemetry.bind_agent(agent)
@@ -372,12 +377,8 @@ def main(argv: Optional[List[str]] = None):
         sys.exit(0)
 
     print_banner()
-    if detection["status"] == "online":
-        console.print(f"[dim green]✓ Connected to {args.url} (Model: {detected_model})[/dim green]")
-    else:
-        console.print(
-            f"[dim yellow]⚠️ Local endpoint offline at {args.url} (Run LM Studio/Ollama)[/dim yellow]"
-        )
+    status_text, status_style = endpoint_status_line(detection, detected_model)
+    console.print(Text(status_text, style=status_style))
 
     # Set initial context window limit based on active model config
     if hasattr(config, "context_window") and config.context_window:
@@ -433,9 +434,8 @@ def main(argv: Optional[List[str]] = None):
         return f" 📁 {display_cwd}{git_str}  │  🤖 {disp_model} ({curr_effort})  │  📊 {used:,}/{total:,} tok ({pct:.1f}%)  │  Alt+V: Paste Image "
 
     # Setup persistent terminal history, keybindings, bottom toolbar and dynamic autocomplete
-    history_dir = Path.home() / ".agnostic"
-    history_dir.mkdir(parents=True, exist_ok=True)
-    history_file = history_dir / "agent_history.txt"
+    history_file = history_file_path()
+    history_file.parent.mkdir(parents=True, exist_ok=True)
 
     session = PromptSession(
         history=FileHistory(str(history_file)),
@@ -848,31 +848,6 @@ def main(argv: Optional[List[str]] = None):
                 console.print(f"[bold magenta]⏰ {resp}[/bold magenta]")
                 continue
 
-            elif user_input.startswith("/grill-me") or user_input.startswith("/grill"):
-                task = cmd_args
-                if not task:
-                    task = Prompt.ask(
-                        "[cyan]What feature or architecture task do you want to be grilled on?[/cyan]"
-                    ).strip()
-                from agent.workflows.grill import DesignInterviewer
-
-                interviewer = DesignInterviewer(agent.llm_client)
-                aligned_summary = interviewer.interview(task)
-                proceed = Prompt.ask(
-                    "\nProceed to implement based on aligned choices?",
-                    choices=["y", "n"],
-                    default="y",
-                )
-                if proceed.lower() == "y":
-                    with console.status(
-                        "[bold cyan]Implementing aligned specifications...[/bold cyan]",
-                        spinner="dots",
-                    ):
-                        agent.run_turn(
-                            f"Implement the following feature based on aligned architecture choices:\nObjective: {task}\n\nAligned Specifications:\n{aligned_summary}"
-                        )
-                continue
-
             elif user_input.startswith("/state"):
                 from agent.governance.state import state_manager
 
@@ -943,44 +918,26 @@ def main(argv: Optional[List[str]] = None):
                 continue
 
             elif user_input.startswith("/harvest"):
-                from agent.governance.harvester import harvester
-
-                count = harvester.scan_and_harvest()
+                console.print("[cyan]Running Cross-Agent Harvester...[/cyan]")
+                res = subprocess.run(
+                    "node engine/harvest/harvest.cjs",
+                    cwd=agent.workspace_root,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                )
                 console.print(
-                    f"[bold green]🌾 Harvested {count} cross-agent corrections into candidate ladder.[/bold green]"
+                    Panel(
+                        safe_text(res.stdout or res.stderr or "Harvest complete."),
+                        title="Harvest Results",
+                        border_style="cyan",
+                    )
                 )
                 continue
 
             elif user_input == "/help":
-                console.print("""
-[bold]Available Commands & Slash Shortcuts:[/bold]
-• [bold cyan]/fix [cmd][/bold cyan]         - One-click diagnosis & automated test repair
-• [bold cyan]/compact[/bold cyan]           - Manual context compression & history distillation
-• [bold cyan]/session save <name>[/bold cyan] - Snapshot conversation turns & whiteboard state
-• [bold cyan]/session load <name>[/bold cyan] - Restore saved session snapshot
-• [bold cyan]/session list[/bold cyan]        - List saved snapshots
-• [bold cyan]/trust [reads|tests|all][/bold cyan] - Adjust session trust level
-• [bold cyan]/audit / /retro[/bold cyan]     - Compile & export session retrospective report
-• [bold cyan]/web[/bold cyan]                 - Start live visual browser companion (Port 7843)
-• [bold cyan]/swarm <task>[/bold cyan]       - Dispatch 3 parallel subagents simultaneously
-• [bold cyan]/diagram[/bold cyan]            - Generate instant Mermaid architecture dependency diagram
-• [bold cyan]/pr[/bold cyan]                 - Generate GitHub Pull Request summary and description
-• [bold cyan]/harvest[/bold cyan]            - Harvest corrections across local Claude, Cursor, and Codex transcripts
-• [bold cyan]/learn <lesson>[/bold cyan]    - Record candidate rule/lesson directly into harness SSOT
-• [bold cyan]/grill-me <task>[/bold cyan]   - Interactive lead architect interview to align on design & specs
-• [bold cyan]/schedule every 30s "cmd"[/bold cyan] - Run recurring background routine
-• [bold cyan]/state[/bold cyan]              - View persistent state whiteboard (.agnostic/state.md)
-• [bold cyan]/distill[/bold cyan]            - Run 4-Tier Promotion Ladder & prune candidate rules
-• [bold cyan]/test [cmd][/bold cyan]         - Run autonomous test-and-repair loop until tests pass
-• [bold cyan]/undo[/bold cyan]               - Instant snapshot rollback of the last file edit/write
-• [bold cyan]/commit[/bold cyan]             - Auto-generate conventional git commit and stage changes
-• [bold cyan]/multiline[/bold cyan]          - Paste large multi-line logs/specs without premature sending
-• [bold cyan]/clear[/bold cyan]              - Clear the terminal screen while keeping session memory
-• [bold cyan]/plan <task>[/bold cyan]         - Generate a step-by-step goal-driven plan before coding
-• [bold cyan]/doctor[/bold cyan]             - Auto-detect local model status, context size & endpoint health
-• [bold cyan]/model [preset] [effort][/bold cyan] - Switch between AGY, Claude, Codex, DeepSeek, Local & effort level
-• [bold cyan]/exit[/bold cyan]               - Exit the interactive REPL
-                """)
+                console.print("[bold]Available commands:[/bold]")
+                console.print(safe_text(help_text(), style="cyan"))
                 continue
 
             # Context reference expansion (@file, #symbol)

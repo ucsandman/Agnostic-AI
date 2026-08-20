@@ -4,8 +4,8 @@ Dispatches parallel worker subagents (Researcher, Implementer, Security Reviewer
 with optional Git Worktree branch isolation, and synthesizes their reports into a unified execution diff.
 """
 
-import shutil
 import subprocess
+import uuid
 import concurrent.futures
 from pathlib import Path
 from typing import Dict, Optional
@@ -27,9 +27,14 @@ class SwarmCoordinator:
     def _create_isolated_worktree(self, role: str) -> Optional[Path]:
         """Creates an isolated git worktree branch for subagent if git repo is clean/available."""
         try:
-            wt_dir = self.workspace_root / ".agnostic" / "worktrees" / f"wt_{role}"
-            if wt_dir.exists():
-                shutil.rmtree(wt_dir, ignore_errors=True)
+            # Unique per swarm: two concurrent swarms sharing wt_<role> would
+            # delete each other's checkout mid-run.
+            wt_dir = (
+                self.workspace_root
+                / ".agnostic"
+                / "worktrees"
+                / f"wt_{role}_{uuid.uuid4().hex[:8]}"
+            )
             wt_dir.parent.mkdir(parents=True, exist_ok=True)
 
             res = subprocess.run(
@@ -38,6 +43,7 @@ class SwarmCoordinator:
                 shell=True,
                 capture_output=True,
                 text=True,
+                timeout=60,
             )
             if res.returncode == 0 and wt_dir.exists():
                 return wt_dir
@@ -52,8 +58,9 @@ class SwarmCoordinator:
                 cwd=self.workspace_root,
                 shell=True,
                 capture_output=True,
+                timeout=60,
             )
-        except (OSError, subprocess.SubprocessError):  # worktree already removed
+        except (OSError, subprocess.SubprocessError):  # worktree already removed / git hung
             pass
 
     def dispatch_swarm(self, objective: str, use_worktrees: bool = False) -> str:
@@ -115,16 +122,19 @@ class SwarmCoordinator:
                         f"[bold red]✗ Swarm Worker [{role.upper()}] failed: {str(e)}[/bold red]"
                     )
 
-        # Synthesis
+        # Synthesis. A silent worker is labelled, never pasted in as "None".
+        def report(role: str) -> str:
+            return results.get(role) or "(no report — this worker returned nothing)"
+
         synthesis_prompt = (
             f"Synthesize the following 3 parallel subagent reports into a unified, actionable implementation strategy for '{objective}':\n\n"
-            f"--- RESEARCH REPORT ---\n{results.get('researcher', '')}\n\n"
-            f"--- TEST SUITE STRATEGY ---\n{results.get('tester', '')}\n\n"
-            f"--- SECURITY & REVIEW REPORT ---\n{results.get('reviewer', '')}\n\n"
+            f"--- RESEARCH REPORT ---\n{report('researcher')}\n\n"
+            f"--- TEST SUITE STRATEGY ---\n{report('tester')}\n\n"
+            f"--- SECURITY & REVIEW REPORT ---\n{report('reviewer')}\n\n"
             "Provide a dense, structured implementation summary with concrete file edits to make."
         )
 
-        synthesis = (
+        message = (
             self.client.chat_completion(
                 [
                     {
@@ -135,7 +145,7 @@ class SwarmCoordinator:
                 ]
             )
             .choices[0]
-            .message.content.strip()
+            .message
         )
 
-        return synthesis
+        return (message.content or "").strip()

@@ -164,6 +164,10 @@ def test_tui_confirm_callback_blocks_until_answered():
             self._confirm_response = False
             self._awaiting_confirm = False
             self.written = []
+            self.confirm_mode = None
+
+        def _set_confirm_mode(self, on):
+            self.confirm_mode = on
 
         def call_from_thread(self, fn, *a, **kw):
             fn(*a, **kw)
@@ -186,12 +190,35 @@ def test_tui_confirm_callback_blocks_until_answered():
         threading.Event().wait(0.01)
     assert fake._awaiting_confirm is True
     assert fake.written  # the hard-stop panel was posted
+    assert fake.confirm_mode is True, "the input box must show that it wants a y/n answer"
 
     # Simulate the human answering "n" in the input box.
     fake._confirm_response = False
     fake._confirm_event.set()
     t.join(timeout=2)
     assert result_holder["approved"] is False
+    assert fake.confirm_mode is False, "the prompt must be restored once the human answered"
+
+
+def test_parse_confirm_answer_denies_but_flags_an_unrecognized_answer():
+    """A typed prompt submitted while a hard-stop confirmation is pending used to be
+    swallowed as a silent denial. It must still deny — but say so, so the caller can
+    put the text back in the input box."""
+    from agent.ui_common import parse_confirm_answer
+
+    assert parse_confirm_answer("y") == (True, False)
+    assert parse_confirm_answer("YES") == (True, False)
+    assert parse_confirm_answer("n") == (False, False)
+    assert parse_confirm_answer(" No ") == (False, False)
+    assert parse_confirm_answer("write a test for parse_slash_command") == (False, True)
+
+
+def test_unrecognized_confirm_answer_is_echoed_back_into_the_input():
+    src = inspect.getsource(tui.AgnosticTUI.on_input_submitted)
+    assert "parse_confirm_answer" in src
+    assert "event.input.value = user_input" in src, (
+        "a non-y/n answer must be restored to the input box, not discarded"
+    )
 
 
 # --- Bug 3: expensive slash commands run in background workers (structural) ------
@@ -205,7 +232,6 @@ EXPENSIVE_WORK = frozenset(
         "quick_fix",  # AutoTestRunner: subprocess + agent turns
         "auto_repair_loop",  # AutoTestRunner: subprocess + agent turns
         "format_report",  # ModelDoctor.inspect(): httpx GET, 4s timeout
-        "scan_and_harvest",  # harvester: reads transcript files off disk
         "generate_mermaid_map",  # ArchitectureDiagrammer: os.walk of the workspace
         "spawn",  # subagent dispatch => LLM call
         "dispatch_swarm",  # 3 parallel subagents
@@ -372,12 +398,163 @@ def test_web_companion_does_not_open_a_browser_when_it_failed_to_start(monkeypat
     assert opened == [], f"browser was opened for a server that never started: {opened}"
 
 
+def test_harvest_shells_out_to_the_one_node_harvester_in_both_uis():
+    """There used to be two harvesters: engine/harvest/harvest.cjs and a 45-line
+    Python one whose ~/.gemini path could never match its own filename guard. Both
+    UIs must drive the node engine, like /distill does."""
+    for mod in (cli, tui):
+        src = inspect.getsource(mod)
+        assert "engine/harvest/harvest.cjs" in src, f"{mod.__name__} does not run the harvester"
+        assert "governance.harvester" not in src, f"{mod.__name__} still uses the dead harvester"
+
+    with pytest.raises(ImportError):
+        import agent.governance.harvester  # noqa: F401
+
+
 def test_web_slash_command_reports_the_failure_instead_of_claiming_success():
     src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
     assert "Companion server is active at" not in src, (
         "/web must not claim the server is active when start returned ok=False"
     )
     assert "Companion server failed to start" in src
+
+
+# --- Bug 10: the banner claimed a model even with the endpoint offline -----------
+
+
+def test_endpoint_status_line_is_honest_when_offline():
+    from agent.ui_common import endpoint_status_line
+
+    text, style = endpoint_status_line(
+        {"status": "offline", "base_url": "http://localhost:1234/v1"}, "local-model"
+    )
+    assert "offline" in text
+    assert "http://localhost:1234/v1" in text
+    assert "/doctor" in text, "the offline line must give a next step"
+    assert "✓" not in text
+    assert "yellow" in style
+
+
+def test_endpoint_status_line_reports_the_connection_when_online():
+    from agent.ui_common import endpoint_status_line
+
+    text, style = endpoint_status_line({"status": "online", "base_url": "http://h:1/v1"}, "qwen-7b")
+    assert "qwen-7b" in text
+    assert "http://h:1/v1" in text
+    assert "green" in style
+
+
+def test_tui_banner_does_not_claim_a_model_when_the_endpoint_is_offline():
+    """_print_banner printed a green '✓ Model: <name>' unconditionally — including
+    for the literal default '--model local-model' against a dead endpoint."""
+    src = inspect.getsource(tui.AgnosticTUI._print_banner)
+    assert "✓ Model:" not in src, "the TUI banner still claims a model unconditionally"
+    assert "_show_endpoint_status" in src
+    assert "endpoint_status_line" in inspect.getsource(tui.AgnosticTUI._show_endpoint_status)
+
+
+def test_both_uis_share_one_endpoint_status_render():
+    assert "endpoint_status_line" in inspect.getsource(cli.main)
+
+
+# --- /model in the TUI lists the presets instead of dead-ending -------------------
+
+
+def test_model_preset_rows_marks_the_active_preset_and_reports_availability(monkeypatch):
+    from agent.ui_common import model_preset_rows
+
+    presets = {
+        "sub-claude-code": {
+            "name": "Claude Code (subscription)",
+            "provider": "anthropic-sub",
+            "model": "claude-code-subscription",
+            "base_url": "subscription://definitely-not-a-real-cli",
+            "default_effort": "high",
+            "context_window": 200000,
+        },
+        "hosted": {
+            "name": "Hosted model",
+            "provider": "google",
+            "model": "gemini-x",
+            "api_key_env": "AGNOSTIC_TEST_KEY",
+            "alt_api_key_envs": ["AGNOSTIC_TEST_ALT_KEY"],
+            "default_effort": "low",
+            "context_window": 1000000,
+        },
+        "local-lmstudio": {
+            "name": "Local",
+            "provider": "local",
+            "model": "local-model",
+            "default_effort": "low",
+            "context_window": 32768,
+        },
+    }
+    monkeypatch.delenv("AGNOSTIC_TEST_KEY", raising=False)
+    monkeypatch.setenv("AGNOSTIC_TEST_ALT_KEY", "sk-x")
+
+    rows = model_preset_rows(presets, active_model="local-model", local_online=True)
+    assert [r[0] for r in rows] == ["1", "2", "3"]  # numbers match /model <n>
+    assert [r[1] for r in rows] == ["", "", "●"]  # only the running model is marked
+    assert rows[0][6] == "definitely-not-a-real-cli CLI not on PATH"
+    assert rows[1][6] == "AGNOSTIC_TEST_ALT_KEY set"  # falls back to the alt env var
+    assert rows[2][6] == "endpoint online"
+    assert rows[1][4] == "1000k"
+
+    offline = model_preset_rows(presets, active_model="", local_online=False)
+    assert offline[2][6] == "endpoint offline"
+    assert all(r[1] == "" for r in offline)
+
+
+def test_tui_model_command_lists_presets_instead_of_deferring_to_the_legacy_cli():
+    src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
+    assert "Use the original CLI for the interactive model picker" not in src
+    assert "model_preset_rows" in src
+
+
+# --- The TUI input has prompt history, shared with the legacy CLI -----------------
+
+
+def test_prompt_history_ring_walks_and_persists(tmp_path):
+    from agent.ui_common import PromptHistoryRing
+
+    path = tmp_path / "agent_history.txt"
+    ring = PromptHistoryRing(path)
+    assert ring.prev() is None  # nothing recorded yet
+
+    ring.append("first")
+    ring.append("second")
+    ring.append("second")  # a repeat of the last entry is not stored twice
+    ring.append("   ")  # blank input is not history
+    assert ring.entries == ["first", "second"]
+
+    assert ring.prev() == "second"
+    assert ring.prev() == "first"
+    assert ring.prev() is None  # nothing older
+    assert ring.next() == "second"
+    assert ring.next() == ""  # back at the live line
+    assert ring.next() is None
+
+    ring.append("third")  # submitting resets the walk to the live line
+    assert ring.prev() == "third"
+
+    assert PromptHistoryRing(path).entries == ["first", "second", "third"]
+
+
+def test_prompt_history_is_written_in_the_legacy_cli_format(tmp_path):
+    """Both shells read ~/.agnostic/agent_history.txt, so the TUI must append in the
+    prompt_toolkit FileHistory format the legacy CLI parses."""
+    from prompt_toolkit.history import FileHistory
+
+    from agent.ui_common import PromptHistoryRing
+
+    path = tmp_path / "agent_history.txt"
+    PromptHistoryRing(path).append("/test tests/test_ui_common.py")
+    assert list(FileHistory(str(path)).load_history_strings()) == ["/test tests/test_ui_common.py"]
+
+
+def test_tui_binds_up_and_down_to_prompt_history():
+    keys = {b.key for b in tui.AgnosticTUI.BINDINGS}
+    assert {"up", "down"} <= keys, f"no history bindings on the TUI input: {sorted(keys)}"
 
 
 # --- Version is single-sourced from agent.__version__ ------------------------------
@@ -430,3 +607,118 @@ def test_every_slash_command_has_a_dispatch_branch():
 def test_tui_handles_multiline_instead_of_sending_it_to_the_model():
     src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
     assert _handles(src, "/multiline"), "/multiline falls through to the LLM in the TUI"
+
+
+# --- /help is rendered from SLASH_COMMANDS, and the doc lists the same commands ---
+
+
+def _documented_commands():
+    """Every /command in a backticked span of docs/slash-commands.md."""
+    import re
+    from pathlib import Path
+
+    doc = (Path(tui.__file__).parents[1] / "docs" / "slash-commands.md").read_text(encoding="utf-8")
+    first_tokens = (span.split()[0] for span in re.findall(r"`([^`]+)`", doc) if span.split())
+    return {t for t in first_tokens if re.fullmatch(r"/[a-z][a-z-]*", t)}
+
+
+def test_documented_commands_and_the_table_are_the_same_set():
+    """The table, both /help screens and the doc drifted apart three ways. /help now
+    renders from the table; this keeps the doc in the same set."""
+    documented = _documented_commands()
+    table = set(SLASH_COMMANDS)
+    assert documented - table == set(), "documented but missing from SLASH_COMMANDS"
+    assert table - documented == set(), "in SLASH_COMMANDS but undocumented"
+
+
+def test_both_help_screens_render_from_the_table():
+    from agent.ui_common import help_text
+
+    body = help_text()
+    for cmd, hint in SLASH_COMMANDS.items():
+        assert cmd in body and hint in body
+    for mod in (cli, tui):
+        assert "help_text()" in inspect.getsource(mod), (
+            f"{mod.__name__} still hand-maintains its own /help text"
+        )
+
+
+# --- Tab completion for @file / #symbol tokens (README promised it) ----------------
+
+
+def test_complete_token_ranks_prefix_matches_before_substring_matches():
+    from agent.ui_common import complete_token
+
+    candidates = ["agent/ui_common.py", "common.py", "tests/test_ui_common.py", "COMMON_NOTES.md"]
+    assert complete_token("common", candidates) == [
+        "common.py",  # prefix match, case-insensitive
+        "COMMON_NOTES.md",
+        "agent/ui_common.py",  # substring matches keep source order after those
+        "tests/test_ui_common.py",
+    ]
+
+
+def test_complete_token_is_capped_and_matches_everything_for_an_empty_token():
+    from agent.ui_common import complete_token
+
+    candidates = ["f{}.py".format(i) for i in range(50)]
+    assert complete_token("", candidates) == candidates[:8]
+    assert len(complete_token("f1", candidates, limit=3)) == 3
+
+
+def test_tab_binding_takes_priority_over_the_default_focus_next():
+    """Textual's Screen binds Tab to focus_next and screen bindings are matched
+    before the App's own, so pressing Tab moved focus to the output log and the
+    completion action never ran at all (verified with a headless pilot)."""
+    tab = next(b for b in tui.AgnosticTUI.BINDINGS if b.key == "tab")
+    assert tab.priority is True, "Tab is swallowed by focus_next; completion never fires"
+
+
+def test_tui_tab_completes_file_and_symbol_tokens():
+    src = inspect.getsource(tui.AgnosticTUI)
+    assert "_complete_reference" in src
+    assert "get_all_symbols" in src and "get_indexed_files" in src, (
+        "Tab completion must use the workspace index, as the README claims"
+    )
+
+
+# --- Streaming renders as ONE growing block per reply -----------------------------
+
+
+def test_stream_tail_accumulates_chunks_and_clips_to_the_last_lines():
+    from agent.ui_common import stream_tail
+
+    assert stream_tail([]) == ""
+    assert stream_tail(["Hel", "lo ", "world"]) == "Hello world"  # no separators added
+    chunks = ["line{}\n".format(i) for i in range(20)]
+    assert stream_tail(chunks, max_lines=3) == "line17\nline18\nline19"
+
+
+def test_streaming_updates_one_block_instead_of_relabelling_every_flush():
+    """_flush_stream used to drain the buffer into the log every 8 tokens, so one
+    reply arrived as a dozen '🛡️ Agnostic Agent:' fragments."""
+    flush_src = inspect.getsource(tui.AgnosticTUI._flush_stream)
+    assert "_set_stream_view" in flush_src
+    assert "_post_output" not in flush_src, "streaming must not append to the log per flush"
+    end_src = inspect.getsource(tui.AgnosticTUI._end_stream)
+    assert "_set_stream_view" in end_src and "Panel" in end_src, (
+        "the finished reply must replace the live block with one panel"
+    )
+
+
+# --- The endpoint probe must not block the first frame ----------------------------
+
+
+def test_tui_probes_the_endpoint_on_a_worker_not_before_the_app_starts():
+    """detect_model() is a 4s-timeout httpx GET; main() used to run it before
+    App.run(), so a dead endpoint delayed the whole UI."""
+    assert "detect_model(" not in inspect.getsource(tui.main)
+    assert '@work(thread=True, group="detector")' in inspect.getsource(tui)
+    assert "doctor.inspect()" in inspect.getsource(tui.AgnosticTUI._detect_model_bg)
+    assert "_detect_model_bg" in inspect.getsource(tui.AgnosticTUI.on_mount)
+
+
+def test_tui_banner_shows_the_probing_state_until_the_endpoint_answers():
+    src = inspect.getsource(tui.AgnosticTUI._show_endpoint_status)
+    assert "endpoint_status_line" in src
+    assert "probing" in src, "an unprobed endpoint must not be rendered as offline"

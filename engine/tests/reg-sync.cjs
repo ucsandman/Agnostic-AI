@@ -224,6 +224,73 @@ test('sync: --force writes the drifted target and records state so the next run 
   assert.strictEqual(r.drifted, false, 'a sync-written target must not read as drifted');
 });
 
+// run(--check) signals staleness by exiting 1; capture that instead of dying.
+function checkExitCode(targetsConfig, storageDir) {
+  const realExit = process.exit;
+  let code = null;
+  process.exit = (c) => { code = c; throw new Error('__exit__'); };
+  try {
+    run({ targetsConfig, storageDir, check: true });
+  } catch (err) {
+    if (err.message !== '__exit__') throw err;
+  } finally {
+    process.exit = realExit;
+  }
+  return code;
+}
+
+test('sync: --check reports stale when only the traits file drifted', () => {
+  const dir = path.join(TMP, 'traits-target');
+  fs.mkdirSync(dir, { recursive: true });
+  const rulesFile = path.join(dir, 'RULES.md');
+  const traitsFile = path.join(dir, 'SOUL.md');
+  const targetsConfig = path.join(TMP, 'targets-traits.json');
+  fs.writeFileSync(targetsConfig, JSON.stringify({
+    version: 'test',
+    targets: [{ id: 'regtraits', name: 'Reg Traits', rulesFile, traitsFile, preamble: '# Reg Traits\n' }]
+  }), 'utf8');
+  const storageDir = path.join(TMP, 'traits-storage');
+
+  run({ targetsConfig, storageDir });
+  assert.strictEqual(checkExitCode(targetsConfig, storageDir), null, 'a freshly synced target must check clean');
+
+  fs.writeFileSync(traitsFile, '# traits content changed\n', 'utf8');
+  assert.strictEqual(
+    checkExitCode(targetsConfig, storageDir),
+    1,
+    '--check must exit 1 when the traits file no longer matches core/traits/traits.md'
+  );
+});
+
+test('sync: check/target come from run() options, never from process.argv', () => {
+  const dir = path.join(TMP, 'opts-target');
+  fs.mkdirSync(dir, { recursive: true });
+  const rulesFile = path.join(dir, 'RULES.md');
+  const targetsConfig = path.join(TMP, 'targets-opts.json');
+  fs.writeFileSync(targetsConfig, JSON.stringify({
+    version: 'test',
+    targets: [
+      { id: 'regopts', name: 'Reg Opts', rulesFile, preamble: '# Reg Opts\n' },
+      { id: 'regopts2', name: 'Reg Opts 2', rulesFile: path.join(dir, 'RULES2.md'), preamble: '# Reg Opts 2\n' }
+    ]
+  }), 'utf8');
+  const storageDir = path.join(TMP, 'opts-storage');
+
+  const argvBefore = process.argv.join(' ');
+  assert.strictEqual(
+    checkExitCode(targetsConfig, storageDir),
+    1,
+    'run({check:true}) must report stale targets even though process.argv carries no --check'
+  );
+  assert.strictEqual(process.argv.join(' '), argvBefore, 'run() must not read or mutate process.argv');
+  assert(!fs.existsSync(rulesFile), 'a --check run must not write the target');
+
+  const only = run({ targetsConfig, storageDir, target: 'regopts' });
+  assert.strictEqual(only.length, 1, `target option must filter to one target, got ${only.length}`);
+  assert.strictEqual(only[0].id, 'regopts', 'the filtered target must be the requested one');
+  assert(!fs.existsSync(path.join(dir, 'RULES2.md')), 'the filtered-out target must not be written');
+});
+
 // ── 3. Harvest must not clobber tier promotions ──────────────────────────────
 
 test('harvest: merge preserves an existing tier-2 candidate across a re-harvest', () => {

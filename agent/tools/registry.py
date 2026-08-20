@@ -4,16 +4,19 @@ Provides safe terminal execution, surgical file editing, file viewing, search, a
 Integrated with Audit Logger, Diff Viewer, and Undo Manager.
 """
 
+import fnmatch
 import os
 import json
 import subprocess
+import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, Iterator, List, Optional, Callable
 from agent import __version__
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
 from agent.governance.interceptor import interceptor
-from agent.tools.indexer import DEFAULT_IGNORED_DIRS
+from agent.tools.indexer import DEFAULT_IGNORED_DIRS, DEFAULT_IGNORED_EXTS
 
 
 class ToolResult:
@@ -25,19 +28,34 @@ class ToolResult:
         return {"output": self.output, "is_error": self.is_error}
 
 
-READ_ONLY_TOOLS = ("read_file", "grep_search", "find_files", "get_outline")
+READ_ONLY_TOOLS = ("read_file", "grep_search", "find_files", "get_outline", "find_symbol")
 
 # Honest identification — this is a coding agent, not a browser.
 USER_AGENT = f"AgnosticAI/{__version__} (+https://github.com/ucsandman/agnostic-harness)"
 
 
-def _is_search_skipped(path: Path) -> bool:
-    """True for dot-paths and vendored dependency trees (node_modules, dist, .venv...).
+def _truncate(text: str, limit: int = 120) -> str:
+    """Head/tail truncation so one tool call cannot flood the context window."""
+    lines = text.splitlines()
+    if len(lines) <= limit:
+        return text
+    keep = limit // 3
+    return (
+        "\n".join(lines[:keep])
+        + f"\n\n... [Truncated {len(lines) - 2 * keep} lines to preserve context] ...\n\n"
+        + "\n".join(lines[-keep:])
+    )
 
-    Checked before the guard so search never pays the policy cost for the tens of
-    thousands of files it would discard anyway.
+
+def _match_newlines(text: str, content: str) -> str:
+    """Re-encode `text` with the line endings `content` already uses.
+
+    Models emit '\\n'; a file read verbatim may hold '\\r\\n'. Normalising the search
+    text (never the stored content) keeps matching working without rewriting the file.
     """
-    return any(part.startswith(".") or part in DEFAULT_IGNORED_DIRS for part in path.parts)
+    if "\r\n" in content and "\r\n" not in text:
+        return text.replace("\n", "\r\n")
+    return text
 
 
 def parse_tool_args(raw_args: Any):
@@ -71,15 +89,27 @@ def _line_anchored_offsets(haystack: str, needle: str) -> List[int]:
         if i < 0:
             return offsets
         end = i + len(needle)
-        if (i == 0 or haystack[i - 1] == "\n") and (end == len(haystack) or haystack[end] == "\n"):
+        if (i == 0 or haystack[i - 1] == "\n") and (
+            end == len(haystack) or haystack[end] in "\r\n"
+        ):
             offsets.append(i)
         start = i + 1
 
 
 class ToolRegistry:
-    def __init__(self, workspace_root: Optional[str] = None, read_only: bool = False):
+    def __init__(
+        self,
+        workspace_root: Optional[str] = None,
+        read_only: bool = False,
+        cancel_event: Optional[threading.Event] = None,
+        on_output: Optional[Callable[[str], None]] = None,
+    ):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.read_only = read_only
+        # Set by the UI to stop a running turn; only run_command watches it.
+        self.cancel_event = cancel_event
+        # Called once per run_command output line, live, from the reader thread.
+        self.on_output = on_output
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._register_default_tools()
         if read_only:
@@ -267,7 +297,7 @@ class ToolRegistry:
         # 6. find_files
         self.register(
             name="find_files",
-            description="Find files and directories matching a glob pattern.",
+            description="Find files matching a glob pattern.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -378,77 +408,28 @@ class ToolRegistry:
             func=self._tool_search_web,
         )
 
-        # 12. manage_subagents
+        # 12. find_symbol
         self.register(
-            name="manage_subagents",
-            description="List the subagents spawned during this session and their state.",
+            name="find_symbol",
+            description="Look up a class, function or method by name in the AST symbol index and return its location and source.",
             parameters={
                 "type": "object",
                 "properties": {
-                    "action": {
+                    "name": {
                         "type": "string",
-                        "enum": ["list"],
-                        "description": "Action to perform on subagents.",
+                        "description": "Symbol name, e.g. 'ToolRegistry' or 'ToolRegistry.execute'.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "How many near-matches to list when the name is not an exact hit (default 5).",
                     },
                 },
-                "required": ["action"],
+                "required": ["name"],
             },
-            func=self._tool_manage_subagents,
+            func=self._tool_find_symbol,
         )
 
-        # 13. ask_question
-        self.register(
-            name="ask_question",
-            description="Prompt the human operator with structured interactive questions or multi-choice options to clarify requirements or resolve ambiguities.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "questions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "question": {"type": "string"},
-                                "options": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                },
-                                "is_multi_select": {"type": "boolean"},
-                            },
-                            "required": ["question", "options"],
-                        },
-                        "description": "List of question objects to ask.",
-                    }
-                },
-                "required": ["questions"],
-            },
-            func=self._tool_ask_question,
-        )
-
-        # 14. generate_artifact
-        self.register(
-            name="generate_artifact",
-            description="Generate a visual UI card, HTML preview, or structured markdown artifact for human operator review.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string", "description": "Artifact title."},
-                    "content": {
-                        "type": "string",
-                        "description": "Markdown, HTML, or SVG visual content.",
-                    },
-                    "artifact_type": {
-                        "type": "string",
-                        "enum": ["markdown", "html", "svg", "diff"],
-                        "description": "Type of visual artifact.",
-                    },
-                },
-                "required": ["title", "content"],
-            },
-            func=self._tool_generate_artifact,
-        )
-
-        # 15. read_project_memory
+        # 13. read_project_memory
         self.register(
             name="read_project_memory",
             description="Read persistent project memory, learned conventions, architecture notes, or deviations.",
@@ -464,7 +445,7 @@ class ToolRegistry:
             func=self._tool_read_project_memory,
         )
 
-        # 16. write_project_memory
+        # 14. write_project_memory
         self.register(
             name="write_project_memory",
             description="Persist learned conventions, deviations, architectural decisions, or state across sessions.",
@@ -527,31 +508,49 @@ class ToolRegistry:
                 return ToolResult("Command execution was rejected by user.", is_error=True)
 
         try:
-            res = subprocess.run(
+            # Popen + a reader thread instead of subprocess.run: the reader hands every
+            # line to the UI while the command is still running, and the poll loop is
+            # what lets a cancelled turn kill a long child instead of waiting 120s.
+            proc = subprocess.Popen(
                 cmd,
                 cwd=target_dir,
                 shell=True,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # one stream: interleaved as the user would see it
                 text=True,
-                timeout=120,
             )
-            output = (res.stdout or "") + (res.stderr or "")
+            lines: List[str] = []
+
+            def _read():
+                for line in iter(proc.stdout.readline, ""):
+                    lines.append(line)
+                    if self.on_output:
+                        self.on_output(line.rstrip("\r\n"))
+
+            reader = threading.Thread(target=_read, daemon=True)
+            reader.start()
+
+            deadline = time.monotonic() + 120
+            while proc.poll() is None:
+                cancelled = self.cancel_event is not None and self.cancel_event.is_set()
+                if cancelled or time.monotonic() >= deadline:
+                    proc.kill()
+                    reader.join(timeout=5)
+                    return ToolResult(
+                        "[cancelled by user]"
+                        if cancelled
+                        else "Error: Command execution timed out after 120s.",
+                        is_error=True,
+                    )
+                time.sleep(0.05)
+            reader.join(timeout=5)
+
+            output = "".join(lines)
             if not output.strip():
-                output = f"[Command completed with exit code {res.returncode}]"
+                output = f"[Command completed with exit code {proc.returncode}]"
 
             # Smart output truncation to avoid context blowout while preserving crucial headers and errors
-            lines = output.splitlines()
-            if len(lines) > 120:
-                truncated_output = (
-                    "\n".join(lines[:40])
-                    + f"\n\n... [Truncated {len(lines) - 80} lines to preserve context] ...\n\n"
-                    + "\n".join(lines[-40:])
-                )
-                output = truncated_output
-
-            return ToolResult(output, is_error=(res.returncode != 0))
-        except subprocess.TimeoutExpired:
-            return ToolResult("Error: Command execution timed out after 120s.", is_error=True)
+            return ToolResult(_truncate(output), is_error=(proc.returncode != 0))
         except Exception as e:
             return ToolResult(f"Error running command: {str(e)}", is_error=True)
 
@@ -573,9 +572,20 @@ class ToolRegistry:
             end = min(len(lines), args.get("end_line", len(lines)))
 
             numbered_lines = [f"{i + 1:4d}: {lines[i]}" for i in range(start, end)]
-            return ToolResult("".join(numbered_lines))
+            body = "".join(numbered_lines)
+            # An explicit range is the model paging deliberately — never truncate that.
+            paging = args.get("start_line") is not None or args.get("end_line") is not None
+            return ToolResult(body if paging else _truncate(body))
         except Exception as e:
             return ToolResult(f"Error reading file: {str(e)}", is_error=True)
+
+    def _lint_note(self, target_file: Path) -> str:
+        """Advisory ruff feedback after a successful .py write. Never fatal, and
+        silent when ruff is missing, times out, or the file is clean."""
+        if target_file.suffix != ".py":
+            return ""
+        clean, out = interceptor.run_quick_lint(target_file, self.workspace_root)
+        return "" if clean or not out else f"\n[lint] {out}"
 
     def _tool_write_file(
         self,
@@ -593,7 +603,9 @@ class ToolRegistry:
         prev_content = None
         if target_file.exists() and target_file.is_file():
             try:
-                prev_content = target_file.read_text(encoding="utf-8", errors="replace")
+                # newline='' keeps the file's own endings in the undo snapshot.
+                with open(target_file, "r", encoding="utf-8", errors="replace", newline="") as f:
+                    prev_content = f.read()
             except OSError:  # no undo snapshot for an unreadable file; the write still proceeds
                 pass
 
@@ -653,9 +665,12 @@ class ToolRegistry:
                 description=f"Wrote file {raw_path}",
                 details={"file": raw_path, "bytes": len(content)},
             )
-            with open(target_file, "w", encoding="utf-8") as f:
+            with open(target_file, "w", encoding="utf-8", newline="") as f:
                 f.write(content)
-            return ToolResult(f"Successfully wrote {len(content)} characters to {raw_path}")
+            return ToolResult(
+                f"Successfully wrote {len(content)} characters to {raw_path}"
+                + self._lint_note(target_file)
+            )
         except Exception as e:
             return ToolResult(f"Error writing file: {str(e)}", is_error=True)
 
@@ -678,8 +693,11 @@ class ToolRegistry:
             return ToolResult(f"Error: Target file {raw_path} does not exist.", is_error=True)
 
         try:
-            with open(target_file, "r", encoding="utf-8", errors="replace") as f:
+            with open(target_file, "r", encoding="utf-8", errors="replace", newline="") as f:
                 content = f.read()
+
+            target = _match_newlines(target, content)
+            replacement = _match_newlines(replacement, content)
 
             if target not in content:
                 return ToolResult(
@@ -749,14 +767,40 @@ class ToolRegistry:
                 details={"file": raw_path},
             )
 
-            with open(target_file, "w", encoding="utf-8") as f:
+            with open(target_file, "w", encoding="utf-8", newline="") as f:
                 f.write(new_content)
 
-            return ToolResult(f"Successfully replaced 1 occurrence in {raw_path}")
+            return ToolResult(
+                f"Successfully replaced 1 occurrence in {raw_path}" + self._lint_note(target_file)
+            )
         except Exception as e:
             return ToolResult(f"Error editing file: {str(e)}", is_error=True)
 
+    def _rel(self, p: Path) -> str:
+        try:
+            return str(p.relative_to(self.workspace_root)).replace("\\", "/")
+        except ValueError:
+            return str(p)
+
+    def _walk_files(self, target_dir: Path, name_pattern: str = "") -> Iterator[Path]:
+        """Yield searchable files under target_dir.
+
+        Prunes dot-dirs and vendored trees in-place (same walk as the indexer) so the
+        tens of thousands of files under node_modules are never stat'ed at all, and
+        drops binary/lockfile extensions the model cannot use.
+        """
+        for root, dirs, files in os.walk(target_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in DEFAULT_IGNORED_DIRS]
+            for f in files:
+                if f.startswith(".") or Path(f).suffix.lower() in DEFAULT_IGNORED_EXTS:
+                    continue
+                if name_pattern and not fnmatch.fnmatch(f, name_pattern):
+                    continue
+                yield Path(root) / f
+
     def _tool_grep_search(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        import re
+
         query = args["query"]
         search_path = args.get("search_path", ".")
         file_pattern = args.get("file_pattern", "")
@@ -765,34 +809,43 @@ class ToolRegistry:
         if not target_dir.exists():
             return ToolResult(f"Search path not found: {search_path}", is_error=True)
 
-        results = []
         try:
-            pattern = f"**/{file_pattern}" if file_pattern else "**/*"
-            for file_path in target_dir.glob(pattern):
-                if file_path.is_file():
-                    if _is_search_skipped(file_path):
-                        continue
-                    safe, _ = guard.check_path_access(str(file_path))
-                    if not safe:
-                        continue
-                    try:
-                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                            for idx, line in enumerate(f, 1):
-                                if query.lower() in line.lower():
-                                    rel_path = file_path.relative_to(self.workspace_root)
-                                    results.append(f"{rel_path}:{idx}: {line.strip()[:160]}")
-                                    if len(results) >= 40:
-                                        break
-                    except (
-                        OSError
-                    ):  # unreadable file (permissions/race); skip it and keep searching
-                        pass
-                if len(results) >= 40:
+            rx = re.compile(query, re.IGNORECASE)
+            mode = "regex"
+        except re.error as e:
+            rx = re.compile(re.escape(query), re.IGNORECASE)
+            mode = f"literal (not a valid regex: {e})"
+
+        results: List[str] = []
+        capped = False
+        try:
+            for file_path in self._walk_files(target_dir, file_pattern):
+                try:
+                    blob = file_path.read_bytes().decode("utf-8", errors="ignore")
+                except OSError:  # unreadable file (permissions/race); skip it and keep searching
+                    continue
+                # Whole-file prefilter: most files hold no hit, and the guard check
+                # and per-line scan are far more expensive than one search.
+                if not rx.search(blob):
+                    continue
+                safe, _ = guard.check_path_access(str(file_path))
+                if not safe:
+                    continue
+                rel_path = self._rel(file_path)
+                for idx, line in enumerate(blob.splitlines(), 1):
+                    if rx.search(line):
+                        results.append(f"{rel_path}:{idx}: {line.strip()[:160]}")
+                        if len(results) >= 40:
+                            capped = True
+                            break
+                if capped:
                     break
 
             if not results:
-                return ToolResult(f"No matches found for '{query}'.")
-            return ToolResult("\n".join(results))
+                return ToolResult(f"No matches found for '{query}' ({mode} match).")
+            if capped:
+                results.append("[stopped at 40 results; narrow search_path or file_pattern]")
+            return ToolResult(f"### [grep_search '{query}' — {mode} match]\n" + "\n".join(results))
         except Exception as e:
             return ToolResult(f"Error during grep search: {str(e)}", is_error=True)
 
@@ -801,23 +854,27 @@ class ToolRegistry:
         search_path = args.get("search_path", ".")
         target_dir = (self.workspace_root / search_path).resolve()
 
+        # '**/' matches zero directories in pathlib but not in fnmatch, so try both.
+        patterns = [pattern] + ([pattern[3:]] if pattern.startswith("**/") else [])
         try:
-            matches = []
-            for p in target_dir.glob(pattern):
-                if _is_search_skipped(p):
+            matches: List[str] = []
+            capped = False
+            for p in self._walk_files(target_dir):
+                rel = self._rel(p)
+                if not any(fnmatch.fnmatch(rel, pat) for pat in patterns):
                     continue
                 safe, _ = guard.check_path_access(str(p))
-                if safe:
-                    try:
-                        rel = p.relative_to(self.workspace_root)
-                        matches.append(str(rel))
-                    except ValueError:
-                        matches.append(str(p))
+                if not safe:
+                    continue
+                matches.append(rel)
                 if len(matches) >= 50:
+                    capped = True
                     break
 
             if not matches:
                 return ToolResult(f"No files matched pattern '{pattern}'.")
+            if capped:
+                matches.append("[stopped at 50 results; narrow search_path or pattern]")
             return ToolResult("\n".join(matches))
         except Exception as e:
             return ToolResult(f"Error finding files: {str(e)}", is_error=True)
@@ -840,7 +897,8 @@ class ToolRegistry:
             return ToolResult(f"File not found: {raw_path}", is_error=True)
 
         try:
-            original_content = target_file.read_text(encoding="utf-8", errors="replace")
+            with open(target_file, "r", encoding="utf-8", errors="replace", newline="") as f:
+                original_content = f.read()
 
             hunks = self._parse_patch_hunks(patch)
             if isinstance(hunks, str):
@@ -848,6 +906,8 @@ class ToolRegistry:
 
             new_content = original_content
             for idx, (old_block, new_block) in enumerate(hunks, 1):
+                old_block = _match_newlines(old_block, new_content)
+                new_block = _match_newlines(new_block, new_content)
                 offsets = _line_anchored_offsets(new_content, old_block)
                 count = len(offsets)
                 if count == 0:
@@ -921,8 +981,12 @@ class ToolRegistry:
                 details={"file": raw_path, "hunks": len(hunks)},
             )
 
-            target_file.write_text(new_content, encoding="utf-8")
-            return ToolResult(f"Successfully applied patch to {raw_path} ({len(hunks)} hunk(s))")
+            with open(target_file, "w", encoding="utf-8", newline="") as f:
+                f.write(new_content)
+            return ToolResult(
+                f"Successfully applied patch to {raw_path} ({len(hunks)} hunk(s))"
+                + self._lint_note(target_file)
+            )
 
         except Exception as e:
             return ToolResult(f"Error applying patch: {str(e)}", is_error=True)
@@ -1007,7 +1071,9 @@ class ToolRegistry:
 
                 if not outline:
                     return ToolResult(f"No classes or top-level functions found in {raw_path}")
-                return ToolResult(f"### [AST Outline: {raw_path}]\n" + "\n".join(outline))
+                return ToolResult(
+                    f"### [AST Outline: {raw_path}]\n" + _truncate("\n".join(outline))
+                )
             except Exception as e:
                 return ToolResult(f"Error generating Python AST outline: {str(e)}", is_error=True)
 
@@ -1153,88 +1219,28 @@ class ToolRegistry:
         except Exception as e:
             return ToolResult(f"Error performing web search: {str(e)}", is_error=True)
 
-    def _tool_manage_subagents(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        action = args["action"].lower().strip()
-        from agent.tools.subagent import subagent_registry
+    def _tool_find_symbol(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
+        name = args["name"]
+        max_results = args.get("max_results", 5)
+        from agent.tools.indexer import code_indexer, CodebaseIndexer
 
-        if action == "list":
-            subagents = subagent_registry.list_subagents()
-            if not subagents:
-                return ToolResult("No active or background subagents currently registered.")
-            import json
+        # The shared index is pointed at the CLI's cwd; a subagent worktree needs its own.
+        indexer = code_indexer
+        if indexer.workspace_root != self.workspace_root:
+            if getattr(self, "_own_indexer", None) is None:
+                self._own_indexer = CodebaseIndexer(workspace_root=str(self.workspace_root))
+            indexer = self._own_indexer
 
-            return ToolResult(json.dumps(subagents, indent=2))
-        elif action in ("kill", "kill_all"):
-            # Subagents run synchronously inside the caller's turn; nothing polls a
-            # kill flag, so terminating one is not supported.
-            return ToolResult(
-                f"NOT IMPLEMENTED — no action taken. '{action}' cannot terminate a "
-                "subagent: subagents run to completion inside the spawning turn.",
-                is_error=True,
-            )
-        return ToolResult(f"Unknown action '{action}'.", is_error=True)
+        hit = indexer.resolve_symbol(name)
+        if hit:
+            location, snippet = hit
+            return ToolResult(f"### [{name} — {location}]\n{_truncate(snippet)}")
 
-    def _tool_ask_question(
-        self,
-        args: Dict[str, Any],
-        confirm_callback: Optional[Callable[[str], bool]] = None,
-        **_kwargs,
-    ) -> ToolResult:
-        questions = args.get("questions", [])
-        if not questions:
-            return ToolResult("No questions provided.", is_error=True)
-
-        asked = []
-        for q in questions:
-            q_text = q.get("question", "")
-            opts = q.get("options", [])
-            multi = q.get("is_multi_select", False)
-
-            lines = [f"\n❓ Question: {q_text}"]
-            for i, opt in enumerate(opts, 1):
-                lines.append(f"   [{i}] {opt}")
-            lines.append("   (Multi-select allowed)" if multi else "   (Single select)")
-
-            formatted = "\n".join(lines)
-            # Presentation only — never fail the tool.
-            try:
-                from rich.console import Console
-
-                Console().print(f"[bold cyan]{formatted}[/bold cyan]")
-            except Exception:
-                print(formatted)
-            asked.append(q_text)
-
-        # The registry only receives a yes/no confirm_callback, which cannot carry a
-        # choice. Never invent one: tell the model no human answer exists.
-        listed = "\n".join(f"  - {q}" for q in asked)
-        return ToolResult(
-            "Questions were displayed to the operator, but NO answer was captured "
-            "(this tool has no interactive input channel). The operator has not answered:\n"
-            f"{listed}\n"
-            "Do NOT assume any option was selected. Either proceed with your best "
-            "judgement and state your assumption in plain text, or ask these questions "
-            "in your text reply and stop."
-        )
-
-    def _tool_generate_artifact(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        title = args["title"]
-        content = args["content"]
-        art_type = args.get("artifact_type", "markdown")
-
-        artifacts_dir = self.workspace_root / ".agnostic" / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        import re
-
-        safe_title = re.sub(r"[^a-zA-Z0-9_\-]", "_", title.lower())
-        ext = ".html" if art_type == "html" else ".svg" if art_type == "svg" else ".md"
-        artifact_path = artifacts_dir / f"{safe_title}{ext}"
-        artifact_path.write_text(content, encoding="utf-8")
-
-        return ToolResult(
-            f"✅ Generated {art_type.upper()} Artifact: {artifact_path.name}\nPath: {str(artifact_path)}"
-        )
+        prefix = name.lstrip("#@").strip().lower()
+        near = [s for s in indexer.get_all_symbols() if s.lower().startswith(prefix)][:max_results]
+        if near:
+            return ToolResult(f"No symbol named '{name}'. Closest indexed names: {', '.join(near)}")
+        return ToolResult(f"No symbol named '{name}' in the index.", is_error=True)
 
     def _tool_read_project_memory(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         key = args.get("key")

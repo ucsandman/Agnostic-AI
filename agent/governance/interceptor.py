@@ -148,26 +148,10 @@ class CodeInterceptor:
                         except OSError:  # hook exited between poll() and kill()
                             pass
 
-        # 3. Post-tool correction tracker hook
-        elif event == "post_tool":
-            tracker = hooks_dir / "correction-tracker.cjs"
-            if tracker.exists():
-                try:
-                    # Fire-and-forget: the tracker's result is never read, so the
-                    # tool call must not pay for its start-up or its runtime.
-                    proc = subprocess.Popen(
-                        ["node", str(tracker)],
-                        stdin=subprocess.PIPE,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        text=True,
-                    )
-                    proc.stdin.write(json.dumps(payload))
-                    proc.stdin.close()
-                except (
-                    OSError
-                ):  # tracker missing or stdin already closed; fire-and-forget by design
-                    pass
+        # No post_tool hook: correction-tracker.cjs only records when the payload
+        # carries a correction, which a tool result never does — spawning it after
+        # every tool call was a guaranteed no-op plus one unreaped child. Clients
+        # that do produce corrections still invoke the tracker directly.
 
         return True, None
 

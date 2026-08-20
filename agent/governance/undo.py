@@ -35,9 +35,7 @@ class UndoManager:
         new_content: str,
         action: str,
     ):
-        self.history.append(
-            FileSnapshot(file_path, previous_content, new_content, action)
-        )
+        self.history.append(FileSnapshot(file_path, previous_content, new_content, action))
 
     def create_checkpoint(self, name: str) -> str:
         """Saves a named checkpoint snapshot of current undo history state."""
@@ -70,7 +68,7 @@ class UndoManager:
                     reverted_files.append(f"Deleted {target.name}")
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    with open(target, "w", encoding="utf-8") as f:
+                    with open(target, "w", encoding="utf-8", newline="") as f:
                         f.write(last_snapshot.previous_content)
                     reverted_files.append(f"Restored {target.name}")
             except Exception as e:
@@ -98,7 +96,8 @@ class UndoManager:
             else:
                 # Restore previous content
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with open(target, "w", encoding="utf-8") as f:
+                # newline='' — the snapshot already holds the file's original endings.
+                with open(target, "w", encoding="utf-8", newline="") as f:
                     f.write(last_snapshot.previous_content)
                 return (
                     True,
@@ -108,9 +107,7 @@ class UndoManager:
             return False, f"Failed to revert {target.name}: {str(e)}"
 
     def get_history_summary(self) -> List[str]:
-        return [
-            f"{s.action.upper()}: {s.file_path.name}" for s in reversed(self.history)
-        ]
+        return [f"{s.action.upper()}: {s.file_path.name}" for s in reversed(self.history)]
 
 
 undo_manager = UndoManager()
@@ -188,9 +185,7 @@ class ThemeManager:
     }
 
     def __init__(self, default_theme: str = "tokyo-night"):
-        self.active_theme_key = (
-            default_theme if default_theme in self.PALETTES else "tokyo-night"
-        )
+        self.active_theme_key = default_theme if default_theme in self.PALETTES else "tokyo-night"
 
     def get_active_theme(self):
         return self.PALETTES.get(self.active_theme_key, self.PALETTES["tokyo-night"])

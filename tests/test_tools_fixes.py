@@ -1,8 +1,13 @@
 """
 tests/test_tools_fixes.py — Regression Tests for Tool-Layer Honesty Fixes
-Covers @file secret refusal, exact/unique apply_patch, non-fabricated ask_question,
-removed stub tool registrations, and read-only subagent tool subsets.
+Covers @file secret refusal, exact/unique apply_patch, removed stub tool
+registrations, read-only subagent tool subsets, output truncation, preserved
+line endings, regex grep with honest caps, and symbol lookup.
 """
+
+import sys
+import threading
+import time
 
 import pytest
 
@@ -106,33 +111,7 @@ def test_apply_patch_search_replace_duplicate_refuses(workspace):
     assert after == dup
 
 
-# --- 3. ask_question must never fabricate an answer ---
-
-
-def test_ask_question_does_not_fabricate_selection(workspace):
-    reg = ToolRegistry(workspace_root=str(workspace))
-    res = reg.execute(
-        "ask_question",
-        {
-            "questions": [
-                {
-                    "question": "Which database?",
-                    "options": ["Postgres", "SQLite"],
-                    "is_multi_select": False,
-                }
-            ]
-        },
-    )
-    out = res.output
-    assert '"selected"' not in out
-    assert "User responses captured" not in out
-    # No option may be echoed back — an echoed option reads as a chosen answer.
-    assert "Postgres" not in out and "SQLite" not in out
-    assert "Which database?" in out
-    assert "no answer" in out.lower() or "not answered" in out.lower()
-
-
-# --- 4. Stub tools must not be advertised ---
+# --- 3. Stub tools must not be advertised ---
 
 REMOVED_STUBS = {
     "call_mcp_tool",
@@ -140,6 +119,11 @@ REMOVED_STUBS = {
     "define_subagent",
     "schedule",
     "manage_task",
+    # Tools the model could never use successfully: no input channel, no reader,
+    # no working action.
+    "ask_question",
+    "generate_artifact",
+    "manage_subagents",
 }
 
 
@@ -150,23 +134,7 @@ def test_stub_tools_are_not_registered(workspace):
     assert "read_file" in names and "apply_patch" in names
 
 
-def test_mcp_bridge_registers_no_fake_tool(workspace):
-    from agent.tools.mcp_client import MCPBridge
-
-    reg = ToolRegistry(workspace_root=str(workspace))
-    MCPBridge(reg)
-    names = {t["function"]["name"] for t in reg.get_openai_tools()}
-    assert "call_mcp_tool" not in names
-
-
-def test_manage_subagents_kill_reports_not_implemented(workspace):
-    reg = ToolRegistry(workspace_root=str(workspace))
-    res = reg.execute("manage_subagents", {"action": "kill", "conversation_ids": ["x"]})
-    assert res.is_error is True
-    assert "NOT IMPLEMENTED" in res.output
-
-
-# --- 5. Non-implementer subagents get a read-only registry ---
+# --- 4. Non-implementer subagents get a read-only registry ---
 
 
 def test_researcher_subagent_registry_is_read_only(tmp_path):
@@ -281,17 +249,6 @@ def test_write_and_edit_survive_console_encoding_error(workspace, monkeypatch):
     assert (workspace / "mod.py").read_text(encoding="utf-8") == "def f():\n    return 4\n"
 
 
-def test_ask_question_survives_console_encoding_error(workspace, monkeypatch):
-    _break_console(monkeypatch)
-    reg = ToolRegistry(workspace_root=str(workspace))
-    res = reg.execute(
-        "ask_question",
-        {"questions": [{"question": "Which database?", "options": ["A"]}]},
-    )
-    assert res.is_error is False, res.output
-    assert "no answer" in res.output.lower()
-
-
 # --- 8. The confirm channel must stay live after construction ---
 
 
@@ -354,7 +311,7 @@ def test_swarm_worktree_manager_inherits_the_confirm_callback(tmp_path, monkeypa
     assert created == [_confirm, _confirm, _confirm]
 
 
-# --- 6. grep/find must not walk vendored dependency trees ---
+# --- 9. grep/find must not walk vendored dependency trees ---
 
 
 def _ignored_dir_workspace(tmp_path):
@@ -384,7 +341,7 @@ def test_find_files_skips_ignored_dirs(tmp_path, monkeypatch):
     assert "node_modules" not in out
 
 
-# --- 7. indexer reuses one SafetyGuard per workspace root ---
+# --- 10. indexer reuses one SafetyGuard per workspace root ---
 
 
 def test_indexer_guard_is_cached_per_root(tmp_path, workspace):
@@ -397,3 +354,301 @@ def test_indexer_guard_is_cached_per_root(tmp_path, workspace):
     b1 = _guard_for_root(str(other))
     assert a1 is a2
     assert a1 is not b1
+
+
+# --- 11. Read-only tool output is truncated to head and tail ---
+
+BIG_FILE = "".join(f"x{i} = {i}\n" for i in range(400))
+
+
+def test_read_file_truncates_long_output(workspace):
+    (workspace / "big.py").write_text(BIG_FILE, encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    out = reg.execute("read_file", {"file_path": "big.py"}).output
+    assert "Truncated" in out, "read_file must truncate a 400-line file"
+    assert len(out.splitlines()) < 120
+    assert "x0 = 0" in out and "x399 = 399" in out
+
+
+def test_read_file_line_range_is_never_truncated(workspace):
+    """An explicit start/end range is the model paging deliberately — hand it back whole."""
+    (workspace / "big.py").write_text(BIG_FILE, encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    out = reg.execute("read_file", {"file_path": "big.py", "start_line": 1, "end_line": 200}).output
+    assert "Truncated" not in out
+    assert len(out.splitlines()) == 200
+
+
+# --- 12. File edits must not rewrite the file's line endings ---
+
+
+def test_edit_file_preserves_lf_line_endings(workspace):
+    p = workspace / "lf.txt"
+    p.write_bytes(b"alpha\nbeta\ngamma\n")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    res = reg.execute(
+        "edit_file",
+        {"file_path": "lf.txt", "target_content": "beta", "replacement_content": "BETA"},
+    )
+    assert res.is_error is False, res.output
+    assert p.read_bytes() == b"alpha\nBETA\ngamma\n"
+
+
+def test_edit_file_matches_an_lf_target_against_a_crlf_file(workspace):
+    """The model always emits \\n; a CRLF file must still match and stay CRLF."""
+    p = workspace / "crlf.txt"
+    p.write_bytes(b"alpha\r\nbeta\r\ngamma\r\n")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    res = reg.execute(
+        "edit_file",
+        {
+            "file_path": "crlf.txt",
+            "target_content": "alpha\nbeta",
+            "replacement_content": "alpha\nBETA",
+        },
+    )
+    assert res.is_error is False, res.output
+    assert p.read_bytes() == b"alpha\r\nBETA\r\ngamma\r\n"
+
+
+def test_apply_patch_preserves_lf_line_endings(workspace):
+    p = workspace / "mod.py"
+    p.write_bytes(b"def f():\n    return 1\n")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    res = reg.execute(
+        "apply_patch",
+        {"file_path": "mod.py", "patch_content": "@@\n def f():\n-    return 1\n+    return 42\n"},
+    )
+    assert res.is_error is False, res.output
+    assert p.read_bytes() == b"def f():\n    return 42\n"
+
+
+def test_undo_rollback_restores_the_original_bytes(workspace):
+    from agent.governance.undo import undo_manager
+
+    p = workspace / "lf.txt"
+    p.write_bytes(b"alpha\nbeta\ngamma\n")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    undo_manager.history.clear()
+    reg.execute("write_file", {"file_path": "lf.txt", "content": "alpha\nBETA\ngamma\n"})
+    ok, msg = undo_manager.rollback_last()
+    assert ok, msg
+    assert p.read_bytes() == b"alpha\nbeta\ngamma\n"
+
+
+# --- 13. The undo history covers a full write-then-edit turn ---
+
+
+def test_write_then_edit_rolls_back_in_reverse_order(workspace):
+    from agent.governance.undo import undo_manager
+
+    (workspace / "existing.txt").write_bytes(b"old\n")
+    reg = ToolRegistry(workspace_root=str(workspace))
+    undo_manager.history.clear()
+
+    assert not reg.execute("write_file", {"file_path": "created.txt", "content": "new\n"}).is_error
+    assert not reg.execute(
+        "edit_file",
+        {"file_path": "existing.txt", "target_content": "old", "replacement_content": "changed"},
+    ).is_error
+    assert len(undo_manager.history) == 2
+
+    ok, msg = undo_manager.rollback_last()
+    assert ok, msg
+    assert (workspace / "existing.txt").read_bytes() == b"old\n"
+
+    ok, msg = undo_manager.rollback_last()
+    assert ok, msg
+    assert not (workspace / "created.txt").exists()
+
+
+# --- 14. grep_search is a real regex search with honest caps ---
+
+
+def _grep_workspace(tmp_path, monkeypatch):
+    ws = tmp_path / "gws"
+    ws.mkdir()
+    monkeypatch.setattr(registry_mod.guard, "workspace_root", ws.resolve())
+    return ws
+
+
+def test_grep_search_matches_a_regex_and_names_the_mode(tmp_path, monkeypatch):
+    ws = _grep_workspace(tmp_path, monkeypatch)
+    (ws / "src.py").write_text("alpha1\nbeta\nalpha2\n", encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("grep_search", {"query": r"alpha\d"}).output
+    assert "alpha1" in out and "alpha2" in out
+    assert "beta" not in out
+    assert "regex" in out.lower()
+
+
+def test_grep_search_falls_back_to_literal_on_an_invalid_regex(tmp_path, monkeypatch):
+    ws = _grep_workspace(tmp_path, monkeypatch)
+    (ws / "src.py").write_text("a+b = 3\n", encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("grep_search", {"query": "+b"}).output
+    assert "a+b = 3" in out
+    assert "literal" in out.lower()
+
+
+def test_grep_search_reports_hitting_the_result_cap(tmp_path, monkeypatch):
+    ws = _grep_workspace(tmp_path, monkeypatch)
+    (ws / "many.txt").write_text("needle\n" * 60, encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("grep_search", {"query": "needle"}).output
+    assert "stopped at 40 results" in out
+
+
+def test_find_files_reports_hitting_the_result_cap(tmp_path, monkeypatch):
+    ws = _grep_workspace(tmp_path, monkeypatch)
+    for i in range(60):
+        (ws / "f{0}.txt".format(i)).write_text("x", encoding="utf-8")
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("find_files", {"pattern": "**/*.txt"}).output
+    assert "stopped at 50 results" in out
+
+
+# --- 15. find_symbol resolves a symbol out of the AST index ---
+
+
+def test_find_symbol_returns_location_and_snippet(tmp_path, monkeypatch):
+    ws = _grep_workspace(tmp_path, monkeypatch)
+    (ws / "mod.py").write_text(
+        "def helper():\n    return 7\n\n\nclass Widget:\n    pass\n", encoding="utf-8"
+    )
+    reg = ToolRegistry(workspace_root=str(ws))
+    out = reg.execute("find_symbol", {"name": "Widget"}).output
+    assert "mod.py:5-6" in out
+    assert "class Widget:" in out
+
+    near = reg.execute("find_symbol", {"name": "help"}).output
+    assert "helper" in near
+
+
+# --- 16. run_command honours the cooperative cancel event ---
+
+
+def test_run_command_is_killed_when_the_cancel_event_is_set(tmp_path):
+    cancel = threading.Event()
+    reg = ToolRegistry(workspace_root=str(tmp_path), cancel_event=cancel)
+    timer = threading.Timer(0.5, cancel.set)
+    timer.start()
+    try:
+        started = time.monotonic()
+        res = reg._tool_run_command(
+            {"command": '{0} -c "import time; time.sleep(30)"'.format(sys.executable)}
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        timer.cancel()
+
+    assert res.is_error and "cancelled" in res.output
+    assert elapsed < 10, "cancel must kill the child, not wait it out ({0:.1f}s)".format(elapsed)
+
+
+# --- 17. A successful .py write carries advisory lint output ---
+
+
+def _lint_workspace(tmp_path, monkeypatch):
+    ws = tmp_path / "lws"
+    ws.mkdir()
+    monkeypatch.setattr(registry_mod.guard, "workspace_root", ws.resolve())
+    return ws
+
+
+def test_edit_file_appends_advisory_lint_output(tmp_path, monkeypatch):
+    ws = _lint_workspace(tmp_path, monkeypatch)
+    (ws / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        registry_mod.interceptor, "run_quick_lint", lambda path, root: (False, "E999 boom")
+    )
+    reg = ToolRegistry(workspace_root=str(ws))
+
+    out = reg._tool_edit_file(
+        {"file_path": "mod.py", "target_content": "x = 1", "replacement_content": "x = 2"}
+    ).output
+
+    assert "Successfully replaced" in out
+    assert "[lint] E999 boom" in out
+    assert (ws / "mod.py").read_text(encoding="utf-8") == "x = 2\n", "lint stays advisory"
+
+
+def test_write_file_does_not_lint_a_non_python_file(tmp_path, monkeypatch):
+    ws = _lint_workspace(tmp_path, monkeypatch)
+    linted = []
+    monkeypatch.setattr(
+        registry_mod.interceptor,
+        "run_quick_lint",
+        lambda path, root: (linted.append(path), (True, None))[1],
+    )
+    reg = ToolRegistry(workspace_root=str(ws))
+
+    out = reg._tool_write_file({"file_path": "notes.txt", "content": "hi\n"}).output
+
+    assert "Successfully wrote" in out and "[lint]" not in out
+    assert linted == [], "ruff must stay off the hot path for non-Python files"
+
+
+# --- 18. run_command streams its output line by line ---
+
+
+def test_run_command_streams_each_line_while_the_command_runs(tmp_path):
+    """A long build used to sit silent until it finished; the UI needs the lines
+    as they are printed, and the returned ToolResult must still carry them all."""
+    seen = []
+    reg = ToolRegistry(
+        workspace_root=str(tmp_path),
+        on_output=lambda line: seen.append((line, time.monotonic())),
+    )
+    script = (
+        "import time; [(print('line' + str(i), flush=True), time.sleep(0.3)) for i in range(3)]"
+    )
+
+    res = reg._tool_run_command({"command": '{0} -c "{1}"'.format(sys.executable, script)})
+
+    assert [line for line, _ in seen] == ["line0", "line1", "line2"]
+    assert seen[-1][1] - seen[0][1] > 0.3, "lines must stream, not arrive in one dump at the end"
+    assert "line0" in res.output and "line2" in res.output, "the full output is still returned"
+
+
+# --- 19. /schedule can list and stop the routines it started ---
+
+
+def test_schedule_list_and_stop_report_and_cancel_a_routine():
+    from agent.workflows.scheduler import TaskScheduler
+
+    sched = TaskScheduler()
+    assert "No scheduled" in sched.parse_and_schedule("/schedule list", lambda p: None)
+
+    sched.parse_and_schedule('/schedule every 1h "run pytest"', lambda p: None)
+    task_id = next(iter(sched.tasks))
+    task = sched.tasks[task_id]
+
+    rows = sched.list_tasks()
+    assert [r["id"] for r in rows] == [task_id]
+    assert rows[0]["every"] == "3600s"
+    assert rows[0]["prompt"] == "run pytest"
+    assert rows[0]["running"] is True
+
+    listing = sched.parse_and_schedule("/schedule list", lambda p: None)
+    assert task_id in listing and "run pytest" in listing
+
+    assert sched.cancel_task(task_id) is True
+    assert task.stop_event.is_set()
+    assert sched.tasks == {}
+    assert sched.cancel_task(task_id) is False
+
+
+def test_schedule_stop_all_cancels_every_routine():
+    from agent.workflows.scheduler import TaskScheduler
+
+    sched = TaskScheduler()
+    sched.parse_and_schedule('/schedule every 1h "a"', lambda p: None)
+    sched.parse_and_schedule('/schedule every 2h "b"', lambda p: None)
+    started = list(sched.tasks.values())
+
+    msg = sched.parse_and_schedule("/schedule stop all", lambda p: None)
+
+    assert "2" in msg
+    assert all(t.stop_event.is_set() for t in started)
+    assert sched.tasks == {}

@@ -4,14 +4,13 @@ Automatically queries LM Studio or local OpenAI-compatible endpoints to detect a
 context window size, available models, and endpoint latency.
 """
 
-import httpx
 from typing import Dict, Any
+
+from agent.llm.client import get_http_client
 
 
 class ModelDoctor:
-    def __init__(
-        self, base_url: str = "http://localhost:1234/v1", api_key: str = "lm-studio"
-    ):
+    def __init__(self, base_url: str = "http://localhost:1234/v1", api_key: str = "lm-studio"):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
@@ -30,19 +29,17 @@ class ModelDoctor:
         }
 
         try:
-            with httpx.Client(timeout=4.0) as client:
-                res = client.get(models_url, headers=headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    models_list = data.get("data", [])
-                    info["status"] = "online"
-                    info["all_models"] = [
-                        m.get("id") for m in models_list if m.get("id")
-                    ]
-                    if info["all_models"]:
-                        info["active_model"] = info["all_models"][0]
-                else:
-                    info["error"] = f"HTTP {res.status_code}: {res.text[:200]}"
+            # Shared pooled client — never close it, other callers hold it too.
+            res = get_http_client(4.0).get(models_url, headers=headers)
+            if res.status_code == 200:
+                data = res.json()
+                models_list = data.get("data", [])
+                info["status"] = "online"
+                info["all_models"] = [m.get("id") for m in models_list if m.get("id")]
+                if info["all_models"]:
+                    info["active_model"] = info["all_models"][0]
+            else:
+                info["error"] = f"HTTP {res.status_code}: {res.text[:200]}"
         except Exception as e:
             info["error"] = str(e)
 
@@ -51,10 +48,7 @@ class ModelDoctor:
     def format_report(self) -> str:
         data = self.inspect()
         if data["status"] == "online":
-            models_str = (
-                "\n".join([f"  • {m}" for m in data["all_models"]])
-                or "  (None reported)"
-            )
+            models_str = "\n".join([f"  • {m}" for m in data["all_models"]]) or "  (None reported)"
             return (
                 f"✅ Endpoint Status: ONLINE ({data['base_url']})\n"
                 f"🤖 Active / Detected Model: [bold green]{data['active_model'] or 'Unknown'}[/bold green]\n"

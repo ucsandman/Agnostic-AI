@@ -1,3 +1,3 @@
 """
-Agnostic Agent — Tools (CodebaseIndexer, DiffViewer, Subagents, MCP Bridge)
+Agnostic Agent — Tools (CodebaseIndexer, DiffViewer, Subagents, ToolRegistry)
 """

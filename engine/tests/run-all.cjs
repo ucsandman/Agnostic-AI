@@ -86,6 +86,20 @@ function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+// Runs fn with console.log captured, returning the lines it printed. Used both
+// to assert a module prints nothing and to keep engine chatter out of the report.
+function captureLog(fn) {
+  const lines = [];
+  const real = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    fn();
+  } finally {
+    console.log = real;
+  }
+  return lines;
+}
+
 async function run() {
   // 1. Test Sync Engine (pure: compileTarget/loadSource only read repo-committed SSOT files)
   const { compileTarget, loadSource } = require('../sync/sync.cjs');
@@ -241,6 +255,47 @@ async function run() {
     assert.notStrictEqual(a, c, 'Different text should fingerprint differently');
   });
 
+  // 4b. runDistillation must survive legacy / partial records: a candidate with no
+  // sightingDays and a corrections line with no `correction` field. Hermetic:
+  // AGNOSTIC_STORAGE and AGNOSTIC_EXAMPLES_DIR point at a tmp dir, and the distill
+  // modules are re-required so they resolve their paths against it.
+  await test('Distill: legacy/partial records do not crash runDistillation', () => {
+    const tmpDir = makeTmpDir('agnostic-distill-fixture-');
+    const saved = { storage: process.env.AGNOSTIC_STORAGE, examples: process.env.AGNOSTIC_EXAMPLES_DIR };
+    const distillModules = ['../distill/distill.cjs', '../distill/prune.cjs'];
+    process.env.AGNOSTIC_STORAGE = tmpDir;
+    process.env.AGNOSTIC_EXAMPLES_DIR = path.join(tmpDir, 'examples');
+    fs.writeFileSync(
+      path.join(tmpDir, 'candidates.jsonl'),
+      JSON.stringify({ id: 'legacy01', text: 'legacy candidate with no sightingDays', tier: 0 }) + '\n',
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, 'corrections.jsonl'),
+      JSON.stringify({ ts: '2026-08-20', note: 'a log line carrying no correction' }) + '\n' +
+        JSON.stringify({ ts: '2026-08-20', correction: 'a real correction worth keeping' }) + '\n',
+      'utf8'
+    );
+    try {
+      for (const m of distillModules) delete require.cache[require.resolve(m)];
+      const digest = require('../distill/distill.cjs').runDistillation();
+      assert(digest.allCandidates.some(c => c.id === 'legacy01'), 'legacy candidate must survive the run');
+      assert(digest.allCandidates.every(c => Array.isArray(c.sightingDays)), 'every stored candidate needs a sightingDays array');
+      assert(digest.allCandidates.every(c => typeof c.text === 'string'), 'no textless candidate may be stored');
+      assert(
+        digest.allCandidates.some(c => c.text === 'a real correction worth keeping'),
+        'the well-formed correction must still be harvested'
+      );
+    } finally {
+      if (saved.storage === undefined) delete process.env.AGNOSTIC_STORAGE;
+      else process.env.AGNOSTIC_STORAGE = saved.storage;
+      if (saved.examples === undefined) delete process.env.AGNOSTIC_EXAMPLES_DIR;
+      else process.env.AGNOSTIC_EXAMPLES_DIR = saved.examples;
+      for (const m of distillModules) delete require.cache[require.resolve(m)];
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   // 5. Test Recall Engine (read-only against repo-committed core/rules/global-rules.md)
   const { searchMemory } = require('../../tools/recall/recall.cjs');
   await test('Recall: searches rules and facts', () => {
@@ -248,6 +303,19 @@ async function run() {
     assert(Array.isArray(results), 'Results should be an array');
     assert(results.length > 0, 'Should find Simplicity rule in the repo SSOT');
     assert.strictEqual(results[0].type, 'rule');
+  });
+
+  // 5b. Tool modules must be importable: requiring one may not bind a port or
+  // print, or no test can ever exercise the functions inside it.
+  await test('Tools: recall requires cleanly, with no side effects', () => {
+    const mod = '../../tools/recall/recall.cjs';
+    delete require.cache[require.resolve(mod)];
+    let recall;
+    const printed = captureLog(() => {
+      recall = require(mod);
+    });
+    assert.deepStrictEqual(printed, [], `requiring a tool module must print nothing, got ${JSON.stringify(printed)}`);
+    assert.strictEqual(typeof recall.searchMemory, 'function', 'recall must export searchMemory');
   });
 
   // 6. Test Multi-Rule Merger Across Polyglot Formats (pure, given mock files)
@@ -266,6 +334,16 @@ async function run() {
     assert(merged.includes('Rule D'), 'Merged should contain Rule D');
     assert(merged.includes('L1 (2026-08-10)'), 'Merged should contain L1');
     assert(merged.includes('L2 (2026-08-12)'), 'Merged should contain L2');
+  });
+
+  await test('Merge: keeps the preamble above the first heading and nested bullet indentation', () => {
+    const merged = mergeRuleFiles([
+      { name: 'CLAUDE.md', content: '# Project Rules\n\nRead docs/ARCH.md before editing.\n\n## Core Rules\n\n- Rule A\n  - Rule A.1 nested\n' },
+      { name: 'AGENTS.md', content: '# Project Rules\n\nRun the linter before every commit.\n\n## Core Rules\n\n- Rule B\n' }
+    ]);
+    assert(merged.includes('Read docs/ARCH.md before editing.'), `first file's preamble must survive: ${merged}`);
+    assert(merged.includes('Run the linter before every commit.'), `distinct preamble lines from later files must survive: ${merged}`);
+    assert(/\n\s+- Rule A\.1 nested/.test(merged), `nested bullet indentation must survive: ${JSON.stringify(merged)}`);
   });
 
   // 7. Test Parity Engine — tracked-target shape from the repo SSOT config, plus a
@@ -392,6 +470,45 @@ async function run() {
   });
   console.log(`      candidatesTotal=${harvestTotal} (1 seeded fixture + whatever this machine holds)`);
 
+  // 10b. The correction-tracker hook is the only writer of cross-client corrections
+  // (storage/corrections.jsonl); harvest must read it like any other source.
+  // Hermetic: AGNOSTIC_STORAGE points at a tmp dir and harvest.cjs is re-required
+  // so it resolves STORAGE against it.
+  await test('Harvester: picks up a correction-tracker record from storage/corrections.jsonl', () => {
+    const tmpDir = makeTmpDir('agnostic-corrections-');
+    const saved = process.env.AGNOSTIC_STORAGE;
+    const mod = '../harvest/harvest.cjs';
+    const correction = 'Stop guessing the port; read the URL the server printed.';
+    process.env.AGNOSTIC_STORAGE = tmpDir;
+    fs.writeFileSync(
+      path.join(tmpDir, 'corrections.jsonl'),
+      JSON.stringify({
+        timestamp: '2026-08-20T10:00:00.000Z',
+        client: 'codex',
+        repo: 'C:/Projects/agnostic-ai',
+        correction,
+        resolved: false
+      }) + '\n',
+      'utf8'
+    );
+    try {
+      delete require.cache[require.resolve(mod)];
+      captureLog(() => require(mod).runHarvest());
+      const stored = fs.readFileSync(path.join(tmpDir, 'candidates.jsonl'), 'utf8')
+        .trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+      const item = stored.find(c => c.text === correction);
+      assert(item, 'the hook-written correction must reach candidates.jsonl');
+      assert.strictEqual(item.kind, 'correction', 'it must be normalised as a correction');
+      assert.strictEqual(item.client, 'codex', 'the client that made the correction must survive');
+      assert.strictEqual(item.firstSeen, '2026-08-20', 'the record timestamp must become the sighting day');
+    } finally {
+      if (saved === undefined) delete process.env.AGNOSTIC_STORAGE;
+      else process.env.AGNOSTIC_STORAGE = saved;
+      delete require.cache[require.resolve(mod)];
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   // 11. Test Skill Metadata Parsing — fixture SKILL.md in a tmp dir, never touches
   // ~/.claude/skills (or any other real agent skills dir) or skills/definitions/.
   const { parseSkillMetadata } = require('../skills/consolidate.cjs');
@@ -436,10 +553,37 @@ async function run() {
   });
 
   // 13. Test First-Run Setup & Default State (read-only against real storage/harness-installed.json)
-  const { isFirstRun } = require('../setup/first-run.cjs');
+  const { isFirstRun, wireAgentHooks } = require('../setup/first-run.cjs');
   await test('First-Run Setup: verifies installation state and default harness status', () => {
     const firstRun = isFirstRun();
     assert.strictEqual(typeof firstRun, 'boolean', 'isFirstRun should return boolean');
+  });
+
+  // 13b. Wiring runs more than once (npm run setup:default, --force, a re-install).
+  // The .bak must keep the user's PRISTINE settings, not the copy we already wired.
+  await test('First-Run Setup: a second wiring run keeps the pristine settings backup', () => {
+    const tmpHome = makeTmpDir('agnostic-firstrun-home-');
+    try {
+      const settings = path.join(tmpHome, '.claude', 'settings.json');
+      const pristine = JSON.stringify({ model: 'opus', hooks: {} }, null, 2);
+      fs.mkdirSync(path.dirname(settings), { recursive: true });
+      fs.writeFileSync(settings, pristine, 'utf8');
+
+      captureLog(() => {
+        wireAgentHooks(tmpHome);
+        wireAgentHooks(tmpHome);
+      });
+
+      assert.strictEqual(
+        fs.readFileSync(`${settings}.bak`, 'utf8'),
+        pristine,
+        'the .bak must still hold the pre-install settings after a second run'
+      );
+      const wired = JSON.parse(fs.readFileSync(settings, 'utf8'));
+      assert(wired.hooks.PreToolUse.length >= 1, 'the guard hooks must still be wired into settings.json');
+    } finally {
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
   });
 
   // 14. Test Candidate Update & Tombstoned Deletion — real storage/candidates.jsonl

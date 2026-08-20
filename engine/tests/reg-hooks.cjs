@@ -148,7 +148,7 @@ async function run() {
   }
 
   // --- 4. dashclaw-setup does not adopt a bare healthy localhost:3000 ---
-  await test('Setup: does NOT adopt a healthy 127.0.0.1:3000 when adoptLocalhostPortsAllowed=false', async () => {
+  await test('Setup: does NOT adopt a healthy 127.0.0.1 dev server when adoptLocalhostPortsAllowed=false', async () => {
     assert.strictEqual(GUARDS.dashclaw.adoptLocalhostPortsAllowed, false, 'guards.json must forbid localhost adoption');
     const backup = fs.existsSync(DC_CONFIG_STORAGE) ? fs.readFileSync(DC_CONFIG_STORAGE, 'utf8') : null;
     const savedEnv = { url: process.env.DASHCLAW_BASE_URL, key: process.env.DASHCLAW_API_KEY };
@@ -159,11 +159,13 @@ async function run() {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok' }));
     });
-    await new Promise((resolve) => server.listen(3000, '127.0.0.1', resolve)).catch(() => {});
+    // Port 0: a listen() failure is an 'error' EVENT, not a rejection, so a fixed
+    // port that some other dev server already holds would crash the whole suite.
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 
     try {
       const config = await dashclawSetup.autoConfigureDashClaw();
-      assert.strictEqual(config.configured, false, `must not configure from a bare local probe: ${JSON.stringify(config)}`);
+      assert.strictEqual(config.configured, false, `must not configure from a bare local probe on port ${server.address().port}: ${JSON.stringify(config)}`);
       assert.strictEqual(config.active, false, 'must not activate from a bare local probe');
     } finally {
       await new Promise((resolve) => server.close(resolve));

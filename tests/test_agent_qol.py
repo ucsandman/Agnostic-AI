@@ -3,16 +3,18 @@ tests/test_agent_qol.py — Comprehensive Unit Tests for Agnostic Agent QoL Enha
 Tests AST symbol indexer, .agentignore, session manager, context compaction, trust tiers, and audit manager.
 """
 
-import re
+from pathlib import Path
 
 import pytest
 
 from agent.tools.indexer import CodebaseIndexer
+from agent.governance.learn import Learner
 from agent.governance.session_manager import SessionManager
 from agent.governance.context import ContextManager
 from agent.governance.guard import SafetyGuard
 from agent.governance.audit import AuditManager
 from agent.cli import expand_prompt_references, AgnosticCompleter
+from agent.llm.client import LLMConfig
 from prompt_toolkit.document import Document
 
 
@@ -301,15 +303,19 @@ def test_subagent_workspace_modes(temp_workspace):
     assert worker_inherit.active_workspace == temp_workspace
     worker_inherit.cleanup()
 
-    worker_share = SubagentWorker(
+    # Only "branch" (a real git worktree) gets isolation; every other mode
+    # value -- including the removed legacy "share" -- inherits the real
+    # workspace instead of being handed an empty scratch dir.
+    worker_legacy = SubagentWorker(
         role="tester",
         system_prompt="Test",
         client=LLMClient(),
         workspace_root=temp_workspace,
         workspace_mode="share",
     )
-    assert worker_share.active_workspace != temp_workspace
-    worker_share.cleanup()
+    assert worker_legacy.active_workspace == temp_workspace
+    worker_legacy.cleanup()
+    assert temp_workspace.exists()
 
 
 def test_checkpoint_transactions(temp_workspace):
@@ -385,63 +391,87 @@ def test_simulate_command_tool(temp_workspace):
     assert "BLOCKED" in res_blocked.output
 
 
-def test_model_switching_and_presets(monkeypatch):
+@pytest.mark.parametrize("preset_key", sorted(LLMConfig.PRESETS))
+def test_every_preset_builds_a_valid_config(preset_key, monkeypatch):
+    """Every preset in the table must switch cleanly. _init_client is stubbed:
+    this is a config-table check, and building a real client per preset made it
+    the slowest test in the suite for no extra coverage."""
     from agent.llm.client import LLMClient
 
+    preset = LLMConfig.PRESETS[preset_key]
     # Every API-key preset needs its env var present, or the switch is refused.
-    for env_var in (
-        "GEMINI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "DEEPSEEK_API_KEY",
-    ):
-        monkeypatch.setenv(env_var, "placeholder-value")
+    for env_var in [preset.get("api_key_env")] + list(preset.get("alt_api_key_envs", [])):
+        if env_var:
+            monkeypatch.setenv(env_var, "placeholder-value")
+    monkeypatch.setattr(LLMClient, "_init_client", lambda self: None)
 
     client = LLMClient()
     assert client.config.model == "local-model"
 
-    # Switch to Google Antigravity Pro 3.1 preset with high reasoning effort
-    msg = client.switch_model(preset_key="agy-pro-3.1", reasoning_effort="high")
-    assert "Google Antigravity Pro" in msg
-    assert client.config.model == "gemini-3.1-pro"
+    msg = client.switch_model(preset_key=preset_key, reasoning_effort="high")
+    assert preset["name"] in msg
+    assert client.config.model == preset["model"]
+    assert client.config.provider == preset["provider"]
+    assert client.config.base_url == preset["base_url"]
+    assert client.config.base_url.startswith(("http://", "https://", "subscription://"))
+    assert client.config.context_window > 0
     assert client.config.reasoning_effort == "high"
 
-    # Switch to Claude Sonnet 5 preset
-    msg = client.switch_model(preset_key="claude-sonnet-5")
-    assert "Claude Code Sonnet 5" in msg
-    assert client.config.model == "claude-sonnet-5"
+    # Without an explicit override the preset's own default effort is adopted.
+    client.switch_model(preset_key=preset_key)
+    assert client.config.reasoning_effort == preset["default_effort"]
+    assert client.config.reasoning_effort in ("low", "medium", "high")
 
-    # Switch to OpenAI Codex GPT-5.6 Sol preset
-    msg = client.switch_model(preset_key="codex-gpt-5.6-sol", reasoning_effort="high")
-    assert "OpenAI Codex GPT-5.6 Sol" in msg
-    assert client.config.model == "gpt-5.6-sol"
-    assert client.config.reasoning_effort == "high"
 
-    # Switch to DeepSeek V4-Pro preset
-    msg = client.switch_model(preset_key="deepseek-v4-pro")
-    assert "DeepSeek V4-Pro" in msg
-    assert client.config.model == "deepseek-v4-pro"
+def test_alt_api_key_env_resolution(monkeypatch):
+    from agent.llm.client import LLMClient
 
-    # Test alt_api_key_envs resolution for Google Antigravity
+    monkeypatch.setattr(LLMClient, "_init_client", lambda self: None)
     monkeypatch.setenv("GOOGLE_API_KEY", "mock-google-key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    client = LLMClient()
     client.switch_model(preset_key="agy-flash-3.7")
     assert client.config.api_key == "mock-google-key"
-    monkeypatch.delenv("GOOGLE_API_KEY")
 
-    # Test Native Subscription Presets (Zero API Key)
-    msg = client.switch_model(preset_key="sub-google-antigravity", reasoning_effort="high")
-    assert "Google Antigravity (Logged-In Monthly Subscription)" in msg
-    assert client.config.provider == "google-sub"
-    assert client.config.reasoning_effort == "high"
 
-    msg = client.switch_model(preset_key="sub-claude-code")
-    assert "Claude Code (Logged-In Monthly Subscription)" in msg
-    assert client.config.provider == "anthropic-sub"
+def test_http_client_is_shared_across_clients_and_the_doctor(monkeypatch):
+    """A fresh httpx.Client per OpenAI() cost ~212ms of SSLContext/certifi setup
+    and leaked its connection pool on every /model switch (two rebuilds each)."""
+    import openai
+    from types import SimpleNamespace
 
-    msg = client.switch_model(preset_key="sub-openai-codex")
-    assert "OpenAI Codex (Logged-In Monthly Subscription)" in msg
-    assert client.config.provider == "openai-sub"
+    from agent.llm.client import LLMClient, get_http_client
+    from agent.llm.detector import ModelDoctor
+
+    captured = []
+
+    def fake_openai(**kwargs):
+        captured.append(kwargs.get("http_client"))
+        return object()
+
+    monkeypatch.setattr(openai, "OpenAI", fake_openai)
+
+    LLMClient(LLMConfig(timeout=300.0))
+    LLMClient(LLMConfig(timeout=300.0))
+    assert captured[0] is get_http_client(300.0)
+    assert captured[0] is captured[1]
+
+    # A different timeout gets its own pooled client, with the right budgets.
+    assert get_http_client(4.0) is not captured[0]
+    assert get_http_client(4.0).timeout.connect == 4.0
+    assert captured[0].timeout.connect == 10.0
+
+    # /doctor probes through the same shared 4s client instead of building one.
+    seen = []
+
+    def fake_get(url, **_kwargs):
+        seen.append(url)
+        return SimpleNamespace(status_code=500, text="")
+
+    monkeypatch.setattr(get_http_client(4.0), "get", fake_get)
+    ModelDoctor(base_url="http://localhost:9999/v1").inspect()
+    assert seen == ["http://localhost:9999/v1/models"]
 
 
 def test_subscription_bridge_prompt_formatting():
@@ -490,9 +520,7 @@ def test_harness_extended_tools(temp_workspace):
         "simulate_command",
         "read_url_content",
         "search_web",
-        "manage_subagents",
-        "ask_question",
-        "generate_artifact",
+        "find_symbol",
         "read_project_memory",
         "write_project_memory",
     ]
@@ -508,49 +536,22 @@ def test_harness_extended_tools(temp_workspace):
     res_r = registry.execute("read_project_memory", {"key": "conventions"})
     assert "Always test code before shipping." in res_r.output
 
-    # 2. Test Artifact Generation
-    res_art = registry.execute(
-        "generate_artifact",
-        {"title": "UI Mockup", "content": "<h1>Hello</h1>", "artifact_type": "html"},
-    )
-    assert not res_art.is_error
-    assert "ui_mockup.html" in res_art.output
-    assert (temp_workspace / ".agnostic" / "artifacts" / "ui_mockup.html").exists()
-
-    # 3. Subagent listing still works; the stub tools that only pretended to
-    #    work (define_subagent, send_message, schedule, manage_task) were
-    #    removed, and manage_subagents 'kill' now honestly reports NOT
-    #    IMPLEMENTED instead of returning a fake success.
-    from agent.tools.subagent import subagent_registry
-
-    subagent_registry.register_active("sub_001", "researcher")
-    res_list = registry.execute("manage_subagents", {"action": "list"})
-    assert "sub_001" in res_list.output
-
+    # 2. Tools that only pretended to work are gone: the old stubs
+    #    (define_subagent, send_message, schedule, manage_task) plus the three
+    #    the model could never use — ask_question had no input channel,
+    #    generate_artifact wrote files nothing reads, and manage_subagents
+    #    could only 'list'.
     registered = {t["function"]["name"] for t in registry.get_openai_tools()}
-    for removed in ("define_subagent", "send_message", "schedule", "manage_task"):
-        assert removed not in registered
-
-    res_kill = registry.execute(
-        "manage_subagents", {"action": "kill", "conversation_ids": ["sub_001"]}
-    )
-    assert res_kill.is_error or "NOT IMPLEMENTED" in res_kill.output.upper()
-
-    # 5. Test Interactive Ask Question
-    res_q = registry.execute(
+    for removed in (
+        "define_subagent",
+        "send_message",
+        "schedule",
+        "manage_task",
         "ask_question",
-        {
-            "questions": [
-                {
-                    "question": "Which database engine should we configure?",
-                    "options": ["PostgreSQL", "SQLite", "DuckDB"],
-                    "is_multi_select": False,
-                }
-            ]
-        },
-    )
-    assert not res_q.is_error
-    assert "Which database engine should we configure?" in res_q.output
+        "generate_artifact",
+        "manage_subagents",
+    ):
+        assert removed not in registered
 
 
 def test_dynamic_context_limits_and_image_expansion(temp_workspace, monkeypatch):
@@ -606,87 +607,88 @@ def test_web_companion_server_and_telemetry(temp_workspace):
     import urllib.request
     import urllib.error
     import json
-    from agent.web.server import (
-        start_companion_server,
-        companion_telemetry,
-    )
+    from agent.web import server as _companion_server
+    from agent.web.server import companion_telemetry
     from agent.loop import AgentLoop
     from agent.llm.client import LLMConfig
     from agent.tools.subagent import subagent_registry
 
-    # 1. Start companion server
-    # Port, not URL: 7843 may already be taken locally, and the server is allowed
-    # to walk up to the next free one.
-    ok, url = start_companion_server(7843)
+    # 1. Start companion server on an ephemeral port and always tear it down,
+    #    so the test neither fights a busy 7843 nor leaks a live server.
+    _companion_server._server_instance = None
+    _companion_server._server_thread = None
+    ok, url = _companion_server.start_companion_server(port=0)
     assert ok is True, url
-    assert re.fullmatch(r"http://127\.0\.0\.1:78(4[3-9]|5[0-2])", url), url
-
-    # 2. Test CompanionTelemetry logging and diffs
-    companion_telemetry.clear_logs()
-    companion_telemetry.log_event("tool_start", "edit_file(math_lib.py)")
-    companion_telemetry.log_event("tool_end", "Successfully edited math_lib.py")
-    companion_telemetry.set_diff(
-        "--- a/math_lib.py\n+++ b/math_lib.py\n@@ -1 +1 @@\n-old\n+new\n", "math_lib.py"
-    )
-
-    logs = companion_telemetry.get_logs()
-    assert len(logs) == 2
-    assert "edit_file(math_lib.py)" in logs[0]["message"]
-    assert "Successfully edited" in logs[1]["message"]
-    assert "+new" in companion_telemetry.get_active_diff()
-
-    # 3. Bind agent and verify dynamic context & model telemetry
-    dummy_agent = AgentLoop(
-        workspace_root=str(temp_workspace),
-        llm_config=LLMConfig(model="gemini-3.7-flash"),
-    )
-    dummy_agent.history.append({"role": "user", "content": "Test prompt"})
-    companion_telemetry.bind_agent(dummy_agent)
-
-    model_info = companion_telemetry.get_model_info()
-    assert model_info["model"] == "gemini-3.7-flash"
-
-    # 4. Register active subagents
-    subagent_registry.register_active("sub_live_01", "researcher", "branch")
-
-    # 5. Query /api/status HTTP endpoint
-    req = urllib.request.Request(f"{url}/api/status")
-    with urllib.request.urlopen(req, timeout=5) as response:
-        assert response.status == 200
-        data = json.loads(response.read().decode("utf-8"))
-        assert data["status"] == "online"
-        assert data["model"] == "gemini-3.7-flash"
-        assert data["context"]["used_tokens"] > 0
-        assert len(data["telemetry"]) >= 2
-        assert "+new" in data["active_diff"]
-        assert any(s["conversationId"] == "sub_live_01" for s in data["subagents"])
-
-    # 6. Test /api/clear_telemetry — now a token-gated, loopback-Origin POST
-    #    (bare GET mutation was the CSRF hole that got closed).
-    from agent.web import server as _companion_server
-
-    req_clear = urllib.request.Request(
-        f"{url}/api/clear_telemetry",
-        method="POST",
-        data=b"",
-        headers={
-            "X-Companion-Token": _companion_server.SESSION_TOKEN,
-            "Origin": url,
-        },
-    )
-    with urllib.request.urlopen(req_clear, timeout=5) as response:
-        assert response.status == 200
-        assert len(companion_telemetry.get_logs()) == 0
-
-    # A bare unauthenticated GET must NOT clear telemetry anymore.
-    companion_telemetry.log_event("post-clear", "still here")
     try:
-        urllib.request.urlopen(f"{url}/api/clear_telemetry", timeout=5)
-        rejected = False
-    except urllib.error.HTTPError as exc:
-        rejected = exc.code in (403, 405)
-    assert rejected
-    assert len(companion_telemetry.get_logs()) >= 1
+        # 2. Test CompanionTelemetry logging and diffs
+        companion_telemetry.clear_logs()
+        companion_telemetry.log_event("tool_start", "edit_file(math_lib.py)")
+        companion_telemetry.log_event("tool_end", "Successfully edited math_lib.py")
+        companion_telemetry.set_diff(
+            "--- a/math_lib.py\n+++ b/math_lib.py\n@@ -1 +1 @@\n-old\n+new\n", "math_lib.py"
+        )
+
+        logs = companion_telemetry.get_logs()
+        assert len(logs) == 2
+        assert "edit_file(math_lib.py)" in logs[0]["message"]
+        assert "Successfully edited" in logs[1]["message"]
+        assert "+new" in companion_telemetry.get_active_diff()
+
+        # 3. Bind agent and verify dynamic context & model telemetry
+        dummy_agent = AgentLoop(
+            workspace_root=str(temp_workspace),
+            llm_config=LLMConfig(model="gemini-3.7-flash"),
+        )
+        dummy_agent.history.append({"role": "user", "content": "Test prompt"})
+        companion_telemetry.bind_agent(dummy_agent)
+
+        model_info = companion_telemetry.get_model_info()
+        assert model_info["model"] == "gemini-3.7-flash"
+
+        # 4. Register active subagents
+        subagent_registry.register_active("sub_live_01", "researcher", "branch")
+
+        # 5. Query /api/status HTTP endpoint
+        req = urllib.request.Request(f"{url}/api/status")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 200
+            data = json.loads(response.read().decode("utf-8"))
+            assert data["status"] == "online"
+            assert data["model"] == "gemini-3.7-flash"
+            assert data["context"]["used_tokens"] > 0
+            assert len(data["telemetry"]) >= 2
+            assert "+new" in data["active_diff"]
+            assert any(s["conversationId"] == "sub_live_01" for s in data["subagents"])
+
+        # 6. Test /api/clear_telemetry — now a token-gated, loopback-Origin POST
+        #    (bare GET mutation was the CSRF hole that got closed).
+        req_clear = urllib.request.Request(
+            f"{url}/api/clear_telemetry",
+            method="POST",
+            data=b"",
+            headers={
+                "X-Companion-Token": _companion_server.SESSION_TOKEN,
+                "Origin": url,
+            },
+        )
+        with urllib.request.urlopen(req_clear, timeout=5) as response:
+            assert response.status == 200
+            assert len(companion_telemetry.get_logs()) == 0
+
+        # A bare unauthenticated GET must NOT clear telemetry anymore.
+        companion_telemetry.log_event("post-clear", "still here")
+        try:
+            urllib.request.urlopen(f"{url}/api/clear_telemetry", timeout=5)
+            rejected = False
+        except urllib.error.HTTPError as exc:
+            rejected = exc.code in (403, 405)
+        assert rejected
+        assert len(companion_telemetry.get_logs()) >= 1
+    finally:
+        _companion_server._server_instance.shutdown()
+        _companion_server._server_instance.server_close()
+        _companion_server._server_instance = None
+        _companion_server._server_thread = None
 
 
 def test_setup_packaging_discovers_all_subpackages():
@@ -817,3 +819,174 @@ def test_rollback_to_clean_reports_a_crashed_git(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sp, "run", boom)
     assert SandboxWatchdog(tmp_path).rollback_to_clean() is False
+
+
+def test_subscription_bridge_kills_a_hung_cli(monkeypatch):
+    """communicate(timeout=180) never even ran: the line-by-line stdout read
+    above it blocks until the child exits, so a wedged CLI hung the agent
+    forever and left the child process alive."""
+    import subprocess
+    import sys
+    import time as _time
+
+    from agent.llm.client import SubprocessSubscriptionBridge
+
+    real_popen = subprocess.Popen
+    spawned = []
+
+    def sleepy_popen(_cmd, **kwargs):
+        proc = real_popen([sys.executable, "-c", "import time; time.sleep(20)"], **kwargs)
+        spawned.append(proc)
+        return proc
+
+    monkeypatch.setattr(subprocess, "Popen", sleepy_popen)
+
+    started = _time.monotonic()
+    with pytest.raises(RuntimeError) as exc:
+        SubprocessSubscriptionBridge.execute_turn(
+            provider="anthropic-sub",
+            messages=[{"role": "user", "content": "hi"}],
+            timeout=1,
+        )
+    elapsed = _time.monotonic() - started
+
+    assert "terminated" in str(exc.value).lower(), str(exc.value)
+    assert elapsed < 10, f"the hung CLI was not cut off promptly ({elapsed:.1f}s)"
+    assert spawned[0].poll() is not None, "the child process was left running"
+
+
+def test_swarm_synthesis_survives_a_worker_returning_none(temp_workspace):
+    """A worker that reports nothing used to be pasted into the synthesis prompt
+    as the literal 'None', and a None synthesis body crashed on .strip()."""
+    from types import SimpleNamespace
+
+    from agent.workflows.swarm import SwarmCoordinator
+
+    class StubClient:
+        def __init__(self):
+            self.prompts = []
+
+        def chat_completion(self, messages, **_kwargs):
+            self.prompts.append(messages[-1]["content"])
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=None))])
+
+    class StubManager:
+        workspace_root = temp_workspace
+        confirm_callback = None
+
+        def spawn(self, role, prompt):
+            return None if role == "tester" else f"{role} report"
+
+    client = StubClient()
+    result = SwarmCoordinator(StubManager(), client).dispatch_swarm("do a thing")
+
+    assert result == ""
+    prompt = client.prompts[0]
+    assert "researcher report" in prompt
+    assert "None" not in prompt, prompt
+
+
+def test_two_schedules_in_the_same_second_get_distinct_ids(monkeypatch):
+    """Task ids came from a second-resolution clock, so the second /schedule
+    silently overwrote (and orphaned) the first."""
+    from agent.workflows import scheduler as sched_mod
+
+    monkeypatch.setattr(sched_mod.time, "time", lambda: 1_700_000_000)
+    sched = sched_mod.TaskScheduler()
+
+    first = sched.parse_and_schedule('/schedule every 1h "run pytest"', lambda p: None)
+    second = sched.parse_and_schedule('/schedule every 1h "check git"', lambda p: None)
+    assert "Scheduled task" in first and "Scheduled task" in second
+
+    assert len(sched.tasks) == 2, sched.tasks
+    assert {t.prompt for t in sched.tasks.values()} == {"run pytest", "check git"}
+
+    started = list(sched.tasks.values())
+    sched.cancel_all()
+    assert all(t.stop_event.is_set() for t in started)
+    assert sched.tasks == {}
+
+
+def test_list_sessions_caches_unchanged_files(temp_workspace, monkeypatch):
+    """The web companion polls list_sessions() at ~1 Hz; re-parsing every full
+    history on each poll is pure waste when nothing changed."""
+    sm = SessionManager(workspace_root=str(temp_workspace))
+    sm.save_session("one", [{"role": "user", "content": "hi"}])
+    sm.save_session("two", [{"role": "user", "content": "yo"}])
+
+    first = sm.list_sessions()
+    assert len(first) == 2
+
+    reads = []
+    original = Path.read_text
+
+    def counting_read_text(self, *args, **kwargs):
+        reads.append(self.name)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting_read_text)
+    assert sm.list_sessions() == first
+    assert reads == [], f"unchanged sessions were re-read: {reads}"
+
+    # A changed session must still be picked up.
+    sm.save_session(
+        "one", [{"role": "user", "content": "hi"}, {"role": "user", "content": "again"}]
+    )
+    updated = {s["name"]: s["turn_count"] for s in sm.list_sessions()}
+    assert updated["one"] == 2
+    assert reads == ["one.json"]
+
+
+# --- atomic writes: a crash mid-write must never truncate the previous file -------
+
+
+def _crashing_write_text(self, data, *args, **kwargs):
+    """Simulates a crash mid-write: the target is truncated, then the write dies."""
+    self.write_bytes(b"")
+    raise OSError("simulated crash mid-write")
+
+
+def test_record_lesson_crash_leaves_ladder_intact(tmp_path, monkeypatch):
+    learner = Learner(workspace_root=str(tmp_path))
+    learner.record_lesson("always read the file before editing it")
+    original = learner.candidates_file.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(Path, "write_text", _crashing_write_text)
+    with pytest.raises(OSError):
+        learner.record_lesson("a second lesson")
+
+    assert learner.candidates_file.read_text(encoding="utf-8") == original
+
+
+def test_save_session_crash_leaves_snapshot_intact(tmp_path, monkeypatch):
+    manager = SessionManager(workspace_root=str(tmp_path))
+    manager.save_session("demo", [{"role": "user", "content": "hi"}])
+    session_file = manager.sessions_dir / "demo.json"
+    original = session_file.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(Path, "write_text", _crashing_write_text)
+    ok, _msg = manager.save_session("demo", [{"role": "user", "content": "bye"}])
+
+    assert ok is False
+    assert session_file.read_text(encoding="utf-8") == original
+
+
+def test_reindex_only_purges_the_changed_file(tmp_path):
+    (tmp_path / "a.py").write_text("def alpha():\n    pass\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("def beta():\n    pass\n", encoding="utf-8")
+
+    indexer = CodebaseIndexer(workspace_root=str(tmp_path))
+    indexer.index_workspace(force=True)
+    assert {"alpha", "beta"} <= set(indexer.get_all_symbols())
+
+    (tmp_path / "a.py").write_text("def gamma():\n    pass\n", encoding="utf-8")
+    indexer.index_workspace(force=True)
+
+    symbols = set(indexer.get_all_symbols())
+    assert "gamma" in symbols
+    assert "alpha" not in symbols
+    assert "beta" in symbols  # untouched file keeps its symbols
+
+    (tmp_path / "b.py").unlink()
+    indexer.index_workspace()
+    assert "beta" not in set(indexer.get_all_symbols())

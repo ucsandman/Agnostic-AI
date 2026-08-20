@@ -67,10 +67,12 @@ agnostic > /commit
 ```
 
 - `@path` injects a file, `#symbol` injects one function or class from the
-  AST index (with fuzzy completion in the TUI).
-- Read-only tools (`read_file`, `grep_search`, `find_files`, `get_outline`)
-  run in parallel when the model asks for several at once; output over 120
-  lines is truncated to head and tail.
+  AST index. Tab completes both against the workspace index, in either shell.
+- Read-only tools (`read_file`, `grep_search`, `find_files`, `get_outline`,
+  `find_symbol`) run in parallel when the model asks for several at once.
+  `read_file` and `get_outline` truncate past 120 lines to head and tail (an
+  explicit line range is never truncated); `grep_search` and `find_files` stop
+  at 40 and 50 results and say so.
 - `/trust reads|tests|all` sets the session tier. Only `all` lets hard-stop
   commands run without a prompt; start with `--ask-permissions` to be asked
   instead of denied. Secret paths are blocked in every tier.
@@ -92,7 +94,7 @@ agnostic > /commit
 | `npm run distill` | Run the promotion ladder (observation → fact → rule) and the pruner; write a digest and proposal. Rules are only written into the SSOT when you approve them. |
 | `npm run dashboard` | Command center on 7842: candidates, rules, skills matrix, per-project recommendations, routines, governance settings, guard simulator. |
 | `npm run skills:consolidate` / `skills:recommend` | Gather skills from every client into one catalog; score them per project. |
-| `npm run parity` / `recall` / `errorlog` | Per-target sync status (7845), rule and memory search (7844), error snapshot. |
+| `npm run parity` / `recall` | Per-target sync status (7845), rule and memory search (7844). |
 | `npm run setup:default` | First-run onboarding (what `launch.py` calls). |
 | `npm run dashclaw:setup` / `dashclaw:status` | Optional governed autonomy via [DashClaw](https://github.com/ucsandman/DashClaw). |
 
@@ -120,13 +122,13 @@ from `targets.json`: [docs/targets.md](docs/targets.md).
 ```
 agent/          Python coding agent: tui.py (default), cli.py (legacy), loop.py,
                 llm/ (client, presets, endpoint detector), tools/ (registry, indexer,
-                subagents, MCP), governance/ (guard, audit, undo, context, sessions),
-                workflows/ (swarm, tester, planner, grill, pr_pilot, diagram), web/
+                subagents), governance/ (guard, audit, undo, context, sessions),
+                workflows/ (swarm, tester, pr_pilot, diagram, scheduler), web/
 core/           Single source of truth: rules/, traits/, safety/guards.json,
                 templates/targets.json, examples/
 engine/         Zero-dependency Node: sync/, hooks/, harvest/, distill/, ingest/,
                 skills/, audit/, setup/, docs/, tests/
-tools/          Local web UIs: dashboard/, errorlog/, recall/, sync/ (parity)
+tools/          Local web UIs: dashboard/, recall/, sync/ (parity)
 jobs/           PowerShell wrappers for scheduled sync and nightly distill
 tests/          pytest suite for the agent
 storage/        Runtime state (gitignored except .gitkeep); backups of every synced file

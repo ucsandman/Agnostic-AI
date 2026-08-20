@@ -92,6 +92,9 @@ class CodebaseIndexer:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or ".").resolve()
         self.symbols: Dict[str, List[SymbolInfo]] = {}
+        # Reverse index: which symbol names a file contributed. Without it,
+        # purging one changed file walks every symbol in the workspace.
+        self._symbols_by_file: Dict[Path, List[str]] = {}
         self._sorted_symbols: Optional[List[str]] = None
         self.indexed_files: List[str] = []
         self._file_mtimes: Dict[str, tuple] = {}
@@ -193,11 +196,16 @@ class CodebaseIndexer:
         self.indexed_files = current_files
 
     def _remove_symbols_for_file(self, file_path: Path):
+        names = self._symbols_by_file.pop(file_path, None)
+        if not names:
+            return
         self._sorted_symbols = None
-        for name in list(self.symbols.keys()):
-            self.symbols[name] = [sym for sym in self.symbols[name] if sym.file_path != file_path]
-            if not self.symbols[name]:
-                del self.symbols[name]
+        for name in set(names):
+            remaining = [sym for sym in self.symbols.get(name, []) if sym.file_path != file_path]
+            if remaining:
+                self.symbols[name] = remaining
+            else:
+                self.symbols.pop(name, None)
 
     def _index_python_file(self, file_path: Path):
         try:
@@ -254,9 +262,8 @@ class CodebaseIndexer:
 
     def _add_symbol(self, name: str, sym: SymbolInfo):
         self._sorted_symbols = None
-        if name not in self.symbols:
-            self.symbols[name] = []
-        self.symbols[name].append(sym)
+        self.symbols.setdefault(name, []).append(sym)
+        self._symbols_by_file.setdefault(sym.file_path, []).append(name)
 
     def get_indexed_files(self) -> List[str]:
         if not self.indexed_files:

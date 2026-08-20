@@ -62,7 +62,8 @@ only (see `targets.md`).
 ### Harvest and distill
 
 `engine/harvest/harvest.cjs` scans local agent logs (`~/.claude/error-log`,
-`~/.claude/corrections.jsonl`, meditation candidates, the learned-rules
+`~/.claude/corrections.jsonl`, `storage/corrections.jsonl` from the
+correction-tracker hook, meditation candidates, the learned-rules
 section of `global-rules.md`) and writes deduplicated records to
 `storage/candidates.jsonl`. Deleted candidates are tombstoned in
 `storage/deleted-candidates.json` so they do not reappear.
@@ -102,7 +103,6 @@ per-process token injected into the page, and reject non-loopback origins.
 | Tool | Port | What |
 |---|---|---|
 | `tools/dashboard` | 7842 | Command center: candidates, rules, skills matrix, project recommendations, routines, DashClaw settings, guard simulator. |
-| `tools/errorlog` | 7842 | Thin wrapper that opens the same dashboard; also a CLI data snapshot. |
 | `tools/recall` | 7844 | Search rules, memory files and decisions. |
 | `tools/sync/parity` | 7845 | Per-target sync status with a "sync now" button. |
 | `agent/web/server.py` | 7843 | Live companion for the coding agent: telemetry, diffs, context meter, run tests / distill. |
@@ -119,7 +119,7 @@ agent/cli.py (prompt_toolkit, legacy) ──┤→ agent/loop.py AgentLoop → a
                            │                   │                       ├─ OpenAI-compatible HTTP (LM Studio, Ollama, hosted)
 ui_common.py: arg parser,  │                   │                       └─ subscription bridge (agy / claude / codex CLIs)
 @file #symbol expansion,   │                   ▼
-slash list                 │      agent/tools/registry.py  (read_file, write, edit, bash, grep, find, outline, fetch_url ...)
+slash list                 │      agent/tools/registry.py  (read_file, write, edit, bash, grep, find, outline, find_symbol, fetch_url ...)
                            │                   │  read-only tools run in a ThreadPoolExecutor when a batch is all read-only
                            │                   ▼
                            │      agent/governance/guard.py  ← core/safety/guards.json (same policy as the hooks)
@@ -127,15 +127,17 @@ slash list                 │      agent/tools/registry.py  (read_file, write, 
                            │      session_manager.py, state.py (.agnostic/state.md), watchdog.py (git rollback)
                            └──→   agent/tools/indexer.py  (AST symbol index, mtime cache, honours DEFAULT_IGNORED_DIRS)
                                   agent/tools/subagent.py (researcher / tester / reviewer roles, optional git worktrees)
-                                  agent/workflows/  swarm, tester (/test /fix), planner, grill, pr_pilot, diagram
+                                  agent/workflows/  swarm, tester (/test /fix), pr_pilot, diagram, scheduler
 ```
 
 - **Trust tiers** (`/trust`): `strict`, `trust-reads`, `trust-tests`,
   `trust-all`. Secret paths stay blocked in every tier. Hard-stop commands are
   denied unless the agent was started with `--ask-permissions`, in which case
   you are prompted.
-- **Context**: large tool output is truncated to head/tail beyond 120 lines;
-  older turns are compacted automatically or with `/compact`.
+- **Context**: `run_command`, `read_file` and `get_outline` truncate output to
+  head/tail beyond 120 lines (an explicit `read_file` range is exempt), and the
+  search tools stop at their result cap and say so; older turns are compacted
+  automatically or with `/compact`.
 - **Checkpoints / undo**: `/undo` reverts the last file write; `/checkpoint`
   snapshots and restores groups of files.
 - **Swarm**: `/swarm <task>` runs three subagents (researcher, tester,

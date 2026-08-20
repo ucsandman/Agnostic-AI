@@ -6,6 +6,7 @@ Records tool calls, governance hard-stop decisions, file modifications, and comp
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from agent import __version__
 
 
 class AuditRecord:
@@ -17,7 +18,9 @@ class AuditRecord:
         approved: Optional[bool] = None,
     ):
         self.timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.event_type = event_type  # 'governance_hardstop', 'file_edit', 'tool_exec', 'lesson_learned'
+        self.event_type = (
+            event_type  # 'governance_hardstop', 'file_edit', 'tool_exec', 'lesson_learned'
+        )
         self.description = description
         self.details = details or {}
         self.approved = approved
@@ -69,9 +72,7 @@ class AuditManager:
 
         md.append("\n## 📝 File Modifications & Side Effects")
         edits = [
-            r
-            for r in self.audit_log
-            if r.event_type in ("file_edit", "file_write", "file_create")
+            r for r in self.audit_log if r.event_type in ("file_edit", "file_write", "file_create")
         ]
         if edits:
             for e in edits:
@@ -91,7 +92,7 @@ class AuditManager:
             for lesson in lessons:
                 md.append(f"- **[{lesson.timestamp}]** {lesson.description}")
 
-        md.append("\n---\n*Report compiled by Agnostic AI Harness v1.2.0*")
+        md.append(f"\n---\n*Report compiled by Agnostic AI Harness v{__version__}*")
         return "\n".join(md)
 
     def export_audit_file(self) -> Path:

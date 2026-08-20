@@ -55,8 +55,11 @@ function warnMalformed(file) {
   console.warn(`  ! ${file} is not valid JSON — left untouched; fix it by hand then re-run`);
 }
 
+// The backup worth keeping is the pristine pre-install config. A second run
+// would otherwise overwrite it with our own already-wired output, so an
+// existing .bak is never replaced.
 function backup(file) {
-  if (fs.existsSync(file)) {
+  if (fs.existsSync(file) && !fs.existsSync(`${file}.bak`)) {
     try {
       fs.copyFileSync(file, `${file}.bak`);
     } catch (_) {}
@@ -217,7 +220,7 @@ async function runFirstRunSetup() {
           installed: true,
           installedAt: new Date().toISOString(),
           root: ROOT,
-          version: '1.2.0',
+          version: require(path.join(ROOT, 'package.json')).version,
           defaultFor: ['claude', 'codex', 'agy', 'cursor', 'windsurf', 'cline', 'openhands', 'goose', 'continue', 'zed', 'trae', 'amazonq', 'cody', 'openclaw', 'hermes']
         };
         fs.writeFileSync(STATE_FILE, JSON.stringify(installState, null, 2), 'utf8');

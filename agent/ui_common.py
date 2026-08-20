@@ -10,6 +10,8 @@ definition of each so the two UIs cannot drift apart again.
 import argparse
 import os
 import re
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -19,40 +21,66 @@ from agent import __version__
 from agent.llm.detector import ModelDoctor
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 
-SLASH_COMMANDS = [
-    "/theme",
-    "/plan",
-    "/fix",
-    "/compact",
-    "/trust",
-    "/untrust",
-    "/session",
-    "/audit",
-    "/retro",
-    "/research",
-    "/review",
-    "/swarm",
-    "/diagram",
-    "/pr",
-    "/harvest",
-    "/test",
-    "/doctor",
-    "/model",
-    "/undo",
-    "/checkpoint",
-    "/commit",
-    "/learn",
-    "/grill-me",
-    "/schedule",
-    "/loop",
-    "/state",
-    "/distill",
-    "/web",
-    "/clear",
-    "/multiline",
-    "/help",
-    "/exit",
-]
+# command -> the one-line help both UIs print. Iterating the dict yields the
+# commands, so it doubles as the completion table (see docs/slash-commands.md —
+# a test keeps the two in sync).
+SLASH_COMMANDS = {
+    "/theme": "[name] — terminal colour theme; picker when no name is given",
+    "/plan": "<task> — ask the model for a step-by-step plan before touching code",
+    "/fix": "[cmd] — run the tests (or read the last trace), diagnose, fix in one turn",
+    "/compact": "condense older turns into a summary that keeps files, tests, symbols",
+    "/trust": "reads|tests|all — set the session trust tier",
+    "/untrust": "back to the strict trust tier",
+    "/session": "save|load|list <name> — snapshot / restore the conversation",
+    "/audit": "write a Markdown report of the session and export it",
+    "/retro": "alias of /audit",
+    "/research": "<topic> — spawn a researcher subagent and return its notes",
+    "/review": "spawn a reviewer subagent over git status / recent diffs",
+    "/swarm": "<task> — three subagents in parallel, then a combined summary",
+    "/diagram": "scan imports and print a Mermaid dependency diagram",
+    "/map": "alias of /diagram",
+    "/pr": "draft a pull-request title and body from the branch diff",
+    "/harvest": "run engine/harvest/harvest.cjs over local agent logs",
+    "/test": "[cmd] — loop fix-and-rerun until the tests pass or the retry cap",
+    "/doctor": "probe the endpoint: model id, context length, latency",
+    "/model": "[key|N] [effort] — list the presets, or switch model and effort",
+    "/undo": "revert the last file write / edit",
+    "/checkpoint": "save|restore|list [name] — named multi-file snapshots",
+    "/commit": "propose a conventional commit from git status + diff",
+    "/learn": "<lesson> — append a candidate rule for the distiller",
+    "/schedule": 'every 30s "prompt" | list | stop <id>|all — background routines',
+    "/loop": '<N> "prompt" — run a prompt N times in the background',
+    "/state": "show the persistent whiteboard (.agnostic/state.md)",
+    "/distill": "run the promotion ladder and pruner",
+    "/web": "start the web companion on http://127.0.0.1:7843",
+    "/clear": "clear the screen / output log, keep memory",
+    "/multiline": "paste mode for long logs and specs (legacy CLI)",
+    "/help": "this list",
+    "/exit": "quit",
+}
+
+
+def help_text() -> str:
+    """The /help body both UIs print, rendered from SLASH_COMMANDS — the two
+    hand-written copies drifted from the table and from each other."""
+    return "\n".join("  {:<12}{}".format(cmd, hint) for cmd, hint in SLASH_COMMANDS.items())
+
+
+def complete_token(query: str, candidates, limit: int = 8) -> list:
+    """Candidates for an @file / #symbol Tab completion: case-insensitive prefix
+    matches first, then substring matches, capped at `limit`."""
+    q = query.lower()
+    prefix = [c for c in candidates if c.lower().startswith(q)]
+    seen = set(prefix)
+    substr = [c for c in candidates if q in c.lower() and c not in seen]
+    return (prefix + substr)[:limit]
+
+
+def stream_tail(chunks, max_lines: int = 12) -> str:
+    """The live 'agent is typing' block: everything streamed so far, clipped to its
+    last `max_lines` lines so the growing block cannot push the input box off screen.
+    The full text is rendered into the log when the message finishes."""
+    return "\n".join("".join(chunks).splitlines()[-max_lines:])
 
 
 def parse_slash_command(line: str) -> Tuple[str, str]:
@@ -83,6 +111,118 @@ def safe_text(content: str, style: Optional[str] = None) -> Text:
     """
     text = str(content)
     return Text(text, style=style) if style else Text(text)
+
+
+class LineForwarder:
+    """File-like stdout sink that forwards each COMPLETE line to `emit` as soon as
+    it is written. Used by the TUI's background worker instead of io.StringIO —
+    StringIO only handed its contents over once fn() returned, so /test, /fix and
+    /swarm stayed silent for minutes. Call flush_remainder() when the redirect ends.
+    """
+
+    def __init__(self, emit):
+        self._emit = emit
+        self._buf = ""
+
+    def write(self, s: str) -> int:
+        self._buf += s
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            self._emit(line)
+        return len(s)
+
+    def flush(self) -> None:
+        """No-op: lines are emitted as they complete. Rich's Console calls this."""
+
+    def flush_remainder(self) -> None:
+        if self._buf:
+            self._emit(self._buf)
+            self._buf = ""
+
+
+def history_file_path() -> Path:
+    """The prompt history both UIs share (prompt_toolkit FileHistory format)."""
+    return Path.home() / ".agnostic" / "agent_history.txt"
+
+
+class PromptHistoryRing:
+    """Up/down prompt history for the TUI input, persisted in the very file the
+    legacy CLI's prompt_toolkit FileHistory uses — a '# <timestamp>' header per
+    entry with each of its lines prefixed by '+' — so both shells share one history.
+
+    `index == len(entries)` means "at the live line the user is typing".
+    """
+
+    CAP = 500
+
+    def __init__(self, path: Optional[Path] = None):
+        self.path = Path(path) if path else history_file_path()
+        self.entries = self._load()
+        self.index = len(self.entries)
+
+    def _load(self):
+        try:
+            raw = self.path.read_text(encoding="utf-8", errors="replace")
+        except OSError:  # no history file yet, or unreadable — start empty
+            return []
+        entries, current = [], []
+        for line in raw.splitlines():
+            if line.startswith("+"):
+                current.append(line[1:])
+            elif current:
+                entries.append("\n".join(current))
+                current = []
+        if current:
+            entries.append("\n".join(current))
+        return [e for e in entries if e.strip()][-self.CAP :]
+
+    def append(self, entry: str) -> None:
+        if entry.strip() and (not self.entries or self.entries[-1] != entry):
+            self.entries.append(entry)
+            del self.entries[: -self.CAP]
+            self._write(entry)
+        self.index = len(self.entries)
+
+    def _write(self, entry: str) -> None:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            # newline="\n": prompt_toolkit's FileHistory writes raw LF bytes and keeps
+            # whatever follows a '+' verbatim — a CRLF from Windows text mode would come
+            # back as a trailing '\r' on every entry the legacy CLI reloads.
+            with self.path.open("a", encoding="utf-8", newline="\n") as fh:
+                fh.write("\n# {}\n".format(datetime.now().isoformat()))
+                for line in entry.splitlines():
+                    fh.write("+{}\n".format(line))
+        except OSError:  # a read-only home must never break the prompt
+            pass
+
+    def prev(self) -> Optional[str]:
+        """The next-older entry, or None when there is nothing older."""
+        if self.index <= 0:
+            return None
+        self.index -= 1
+        return self.entries[self.index]
+
+    def next(self) -> Optional[str]:
+        """The next-newer entry, "" back at the live line, None if already there."""
+        if self.index >= len(self.entries):
+            return None
+        self.index += 1
+        return self.entries[self.index] if self.index < len(self.entries) else ""
+
+
+def parse_confirm_answer(answer: str) -> Tuple[bool, bool]:
+    """Reads a y/n answer to a hard-stop confirmation. Returns (approved, unrecognized).
+
+    Anything that is not y/yes/n/no is a denial — but flagged, so the caller can put
+    the text back in the input box instead of silently eating a typed prompt.
+    """
+    a = answer.strip().lower()
+    if a in ("y", "yes"):
+        return True, False
+    if a in ("n", "no"):
+        return False, False
+    return False, True
 
 
 def format_user_display(raw_input: str) -> str:
@@ -198,6 +338,56 @@ def detect_model(url: str, api_key: str, fallback_model: str):
     detection = doctor.inspect()
     detected_model = detection.get("active_model") or fallback_model
     return doctor, detected_model, detection
+
+
+def model_preset_rows(presets: dict, active_model: str, local_online: bool = False) -> list:
+    """Builds the /model table: one (number, active, key, name, context, effort,
+    availability) row per preset, in PRESETS order — so '/model <n>' can index it.
+
+    Availability is probed locally only: env var for hosted APIs, the bridged CLI on
+    PATH for subscription presets, the current doctor result for the local endpoint.
+    """
+    rows = []
+    for i, (key, p) in enumerate(presets.items(), 1):
+        provider = str(p.get("provider", "local"))
+        if provider.endswith("-sub"):
+            cli = str(p.get("base_url", "")).split("://")[-1] or key
+            avail = f"{cli} CLI ready" if shutil.which(cli) else f"{cli} CLI not on PATH"
+        elif provider == "local":
+            avail = "endpoint online" if local_online else "endpoint offline"
+        else:
+            envs = [p.get("api_key_env")] + list(p.get("alt_api_key_envs") or [])
+            found = next((e for e in envs if e and os.getenv(e)), None)
+            avail = f"{found} set" if found else "set {}".format(p.get("api_key_env") or "API key")
+        ctx = p.get("context_window") or 0
+        rows.append(
+            (
+                str(i),
+                "●" if p.get("model") == active_model else "",
+                key,
+                str(p.get("name", key)),
+                "{}k".format(ctx // 1000) if ctx else "?",
+                str(p.get("default_effort", "medium")),
+                avail,
+            )
+        )
+    return rows
+
+
+def endpoint_status_line(detection: dict, model: str) -> Tuple[str, str]:
+    """Honest two-state endpoint render shared by both UIs: (text, rich_style).
+
+    An offline endpoint must never be reported as a working model — the default
+    `--model local-model` is a placeholder, not a model that answered.
+    """
+    url = detection.get("base_url", "the configured endpoint")
+    if detection.get("status") == "online":
+        return f"✓ Connected to {url} (Model: {model})", "dim green"
+    return (
+        f"⚠️ Local endpoint offline at {url}\n"
+        "   Next: /doctor to inspect it, /model <preset> to switch, or restart with --url <endpoint>",
+        "dim yellow",
+    )
 
 
 def index_workspace() -> None:

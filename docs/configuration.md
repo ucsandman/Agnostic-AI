@@ -23,7 +23,7 @@ Nothing loads `.env` for you; export variables in your shell or CI.
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `DEEPSEEK_API_KEY` | hosted presets in `/model` | unset (preset refuses to start) |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | generic OpenAI-compatible preset | `http://localhost:1234/v1`, `local-model`, `lm-studio` |
 | `DASHCLAW_BASE_URL`, `DASHCLAW_API_KEY`, `DASHCLAW_AGENT_ID`, `DASHCLAW_AGENT_NAME` | `engine/hooks/dashclaw-setup.cjs` | unset; governance stays local |
-| `PORT` | dashboard / errorlog | 7842 (next free port if taken) |
+| `PORT` | dashboard | 7842 (next free port if taken) |
 | `RECALL_PORT` | recall | 7844 |
 | `PARITY_PORT` | parity | 7845 |
 | `AGNOSTIC_STORAGE` | harvest / distill / prune | `<repo>/storage` |
@@ -47,7 +47,7 @@ agnostic-legacy   (same flags, prompt_toolkit shell)
 | `--url` | OpenAI-compatible base URL (LM Studio `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`, ...). |
 | `--model` | Model id. `/doctor` can detect it from the endpoint. |
 | `--api-key` | Key for `--url`; defaults to `lm-studio`. |
-| `--full-prompt` | Send the full rules file as system prompt instead of the compact version sized for local context windows. |
+| `--full-prompt` | Send the whole compiled rules file as system prompt. Without it the agent runs on the same rules clipped to ~4 KB for small local context windows — never on a summary. |
 | `-p`, `--prompt` | Run one prompt and exit. |
 | `--ask-permissions` | Prompt y/n on hard-stop commands. **Without it hard stops are denied**, never auto-approved. |
 | `--web` | Start the companion UI on 7843 (next free port if taken). |
@@ -56,6 +56,17 @@ agnostic-legacy   (same flags, prompt_toolkit shell)
 
 Presets, effort levels and subscription bridges are chosen at runtime with
 `/model`; see [`slash-commands.md`](slash-commands.md).
+
+## System prompt
+
+The agent's system prompt is `storage/compiled/system_prompt.md`, compiled from
+`core/rules/global-rules.md` by `npm run sync` — it is gitignored, so run the
+sync once after cloning or the agent starts on a two-sentence stub and says so.
+
+Appended to it, if present in the workspace: the first of `AGENTS.md`,
+`CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, plus `.agnostic/state.md`, clipped to
+~6 KB under a `### [Project Agreement: <file>]` heading. Without `--full-prompt`
+the project agreement is dropped when it would push the prompt past ~8 KB.
 
 ## Trust tiers
 

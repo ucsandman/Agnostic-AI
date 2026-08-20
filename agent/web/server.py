@@ -310,6 +310,10 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="btn" onclick="triggerApi('/api/compact')">🧹 Compact Context</button>
                 <button class="btn" onclick="triggerApi('/api/distill')">🧠 Distill Rules</button>
                 <div id="action-status" style="margin-top: 8px; font-size: 12px; color: var(--yellow);"></div>
+                <details id="action-output" style="display:none; margin-top: 8px;">
+                    <summary style="cursor:pointer; font-size:12px; color: var(--text-dim);">Full output</summary>
+                    <pre id="action-output-pre" class="log-box" style="margin:6px 0 0; white-space:pre-wrap;"></pre>
+                </details>
             </div>
             <div class="card">
                 <h3>📊 Token & Context Budget</h3>
@@ -460,14 +464,31 @@ HTML_PAGE = """<!DOCTYPE html>
 
         async function triggerApi(endpoint) {
             const statusBox = document.getElementById('action-status');
-            statusBox.innerText = 'Triggering ' + endpoint + '...';
+            const outBox = document.getElementById('action-output');
+            // Inline onclick runs during dispatch, so currentTarget is the clicked button.
+            const btn = window.event && window.event.currentTarget;
+            const label = btn ? btn.innerHTML : '';
+            const started = Date.now();
+            const tick = setInterval(() => {
+                statusBox.innerText = `Running ${endpoint}... ${Math.round((Date.now() - started) / 1000)}s`;
+            }, 1000);
+            statusBox.innerText = `Running ${endpoint}... 0s`;
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Running...'; }
             try {
                 const res = await mutate(endpoint);
                 const data = await res.json();
                 statusBox.innerText = data.message || 'Done.';
+                // /api/test and /api/distill return the whole run log — a failing
+                // suite is useless without its traceback.
+                document.getElementById('action-output-pre').innerText = data.output || '';
+                outBox.style.display = data.output ? 'block' : 'none';
+                outBox.open = data.success === false;
                 fetchStatus();
             } catch(e) {
                 statusBox.innerText = 'Error: ' + e;
+            } finally {
+                clearInterval(tick);
+                if (btn) { btn.disabled = false; btn.innerHTML = label; }
             }
         }
 
@@ -530,7 +551,7 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def do_POST(self):  # noqa: vulture
+    def do_POST(self):
         if self.path not in MUTATING_ROUTES:
             self.send_response(404)
             self.end_headers()
@@ -679,7 +700,9 @@ _server_thread: Optional[threading.Thread] = None
 def start_companion_server(port: int = 7843):
     global _server_instance, _server_thread
     if _server_instance is not None:
-        return True, f"http://127.0.0.1:{port}"
+        # The running server may sit on a walked-up port; report where it really
+        # is, not where this call asked it to be.
+        return True, f"http://127.0.0.1:{_server_instance.server_address[1]}"
     try:
         # A busy port usually means another local app (or a second agent), not a
         # broken install — walk up until one is free rather than failing outright.

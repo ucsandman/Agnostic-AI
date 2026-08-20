@@ -23,9 +23,16 @@ const RULES_SOURCE = path.join(ROOT, 'core', 'rules', 'global-rules.md');
 const TRAITS_SOURCE = path.join(ROOT, 'core', 'traits', 'traits.md');
 const TARGETS_CONFIG = path.join(ROOT, 'core', 'templates', 'targets.json');
 
-const CHECK_ONLY = process.argv.includes('--check');
-const FORCE = process.argv.includes('--force');
-const TARGET_FILTER = process.argv.find((_, i, arr) => arr[i - 1] === '--target');
+// CLI flags are only read when sync.cjs IS the command being run. A caller that
+// requires it (dashboard, parity) passes {check, force, target} instead, so it
+// can never inherit a flag meant for the host process.
+const CLI = require.main === module
+  ? {
+    check: process.argv.includes('--check'),
+    force: process.argv.includes('--force'),
+    target: process.argv.find((_, i, arr) => arr[i - 1] === '--target')
+  }
+  : {};
 
 function sha(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
@@ -197,14 +204,15 @@ function run(opts = {}) {
   const source = loadSource();
   const targetsConfig = opts.targetsConfig || TARGETS_CONFIG;
   const storageDir = opts.storageDir || path.join(ROOT, 'storage');
-  const checkOnly = opts.check !== undefined ? opts.check : CHECK_ONLY;
-  const force = opts.force !== undefined ? opts.force : FORCE;
+  const checkOnly = opts.check !== undefined ? opts.check : Boolean(CLI.check);
+  const force = opts.force !== undefined ? opts.force : Boolean(CLI.force);
+  const targetFilter = opts.target !== undefined ? opts.target : CLI.target;
   const stateFile = path.join(storageDir, 'sync-state.json');
   const backupsDir = path.join(storageDir, 'backups');
   const state = loadSyncState(stateFile);
 
   const rawConfig = JSON.parse(fs.readFileSync(targetsConfig, 'utf8'));
-  const targets = rawConfig.targets.filter(t => !TARGET_FILTER || t.id === TARGET_FILTER);
+  const targets = rawConfig.targets.filter(t => !targetFilter || t.id === targetFilter);
 
   let outOfSyncCount = 0;
   let driftedCount = 0;
@@ -235,13 +243,21 @@ function run(opts = {}) {
       console.log(`  - Up to date: ${target.name}`);
     }
 
-    // Sync traits file if target defines a separate one
+    // Sync traits file if target defines a separate one. Its staleness counts
+    // too: core/traits/traits.md is compiled input, so a target whose traits
+    // file drifted is out of sync even when its rules file matches.
     let traitsRes = null;
     if (target.traitsFile && source.traits) {
-      traitsRes = writeGuarded(expandPath(target.traitsFile), source.traits, ctx);
-      if (traitsRes.drifted && !traitsRes.written && !checkOnly) {
-        driftedCount++;
-        console.log(`  ! SKIPPED (hand-edited): ${target.name} traits -> ${expandPath(target.traitsFile)}`);
+      const traitsPath = expandPath(target.traitsFile);
+      traitsRes = writeGuarded(traitsPath, source.traits, ctx);
+      if (traitsRes.stale) {
+        outOfSyncCount++;
+        if (checkOnly) {
+          console.log(`  ✗ Out of sync: ${target.name} traits (${traitsPath})`);
+        } else if (!traitsRes.written) {
+          driftedCount++;
+          console.log(`  ! SKIPPED (hand-edited): ${target.name} traits -> ${traitsPath}`);
+        }
       }
     }
 
@@ -294,4 +310,4 @@ if (require.main === module) {
   run();
 }
 
-module.exports = { run, compileTarget, loadSource, expandPath, linkSkillsDirectory };
+module.exports = { run, compileTarget, loadSource, expandPath, linkSkillsDirectory, backupTarget };

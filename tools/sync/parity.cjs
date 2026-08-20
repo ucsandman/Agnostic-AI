@@ -67,6 +67,13 @@ function getParityStatus() {
       } catch (_) {}
     }
 
+    // A target with its own traits file is only in sync when that file matches
+    // core/traits/traits.md too — otherwise editing traits reads as "IN SYNC".
+    if (inSync && target.traitsFile && source.traits) {
+      const traitsPath = expandPath(target.traitsFile);
+      inSync = fs.existsSync(traitsPath) && fs.readFileSync(traitsPath, 'utf8') === source.traits;
+    }
+
     let skillsLinked = false;
     if (target.skillsDir) {
       const sPath = expandPath(target.skillsDir);
@@ -111,6 +118,19 @@ function getParityStatus() {
   };
 }
 
+// parity.html and SESSION_TOKEN are both fixed for the life of the process:
+// read and inject once, not on every request. Lazily, so requiring this module
+// still touches no disk.
+let cachedPage;
+function renderPage() {
+  if (cachedPage === undefined) {
+    cachedPage = fs.existsSync(HTML_FILE)
+      ? fs.readFileSync(HTML_FILE, 'utf8').replace('__PARITY_TOKEN__', SESSION_TOKEN)
+      : null;
+  }
+  return cachedPage;
+}
+
 function serve() {
   const server = http.createServer((req, res) => {
     if (req.url === '/api/status') {
@@ -125,7 +145,8 @@ function serve() {
       }
       try {
         const { run } = require('../../engine/sync/sync.cjs');
-        const syncResult = run();
+        // Explicit: the button means "write the targets", never --check/--force.
+        const syncResult = run({ check: false, force: false });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true, result: syncResult }));
       } catch (err) {
@@ -137,9 +158,10 @@ function serve() {
     }
 
     if (req.url === '/' || req.url === '/index.html') {
-      if (fs.existsSync(HTML_FILE)) {
+      const page = renderPage();
+      if (page !== null) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        return res.end(fs.readFileSync(HTML_FILE, 'utf8').replace('__PARITY_TOKEN__', SESSION_TOKEN));
+        return res.end(page);
       }
     }
 

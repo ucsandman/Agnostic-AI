@@ -23,7 +23,8 @@ npm test                           # engine suite + sync + hook regression suite
 npm run docs:check                 # generated docs are current
 ```
 
-CI runs exactly these on Python 3.9 and 3.12. All four must pass.
+CI runs exactly these on Ubuntu (Python 3.9 and 3.12) and on Windows (3.12).
+All four must pass on every leg.
 
 ## Where things live
 

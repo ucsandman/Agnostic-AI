@@ -8,6 +8,7 @@ import json
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
+from agent import __version__
 from agent.llm.client import LLMClient, LLMConfig
 from agent.tools.registry import (
     READ_ONLY_TOOLS,
@@ -16,7 +17,19 @@ from agent.tools.registry import (
     parse_tool_args,
 )
 from agent.tools.subagent import SubagentManager
-from agent.tools.mcp_client import MCPBridge
+
+HARNESS_BADGE = f"🛡️ [Agnostic Harness v{__version__} | DashClaw Governed]"
+
+
+def _clip_at_line(text: str, limit: int, marker: str = "") -> str:
+    """Clip `text` to `limit` chars at a line boundary, appending `marker` if anything was cut."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    nl = head.rfind("\n")
+    if nl > limit // 2:  # drop the half-line, unless that throws away half the clip
+        head = head[:nl]
+    return head.rstrip() + marker
 
 
 class AgentLoop:
@@ -29,7 +42,15 @@ class AgentLoop:
     ):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.llm_client = LLMClient(llm_config or LLMConfig())
-        self.registry = ToolRegistry(workspace_root=str(self.workspace_root))
+        # Cooperative cancel: the UI sets it, the turn checks it between steps and
+        # tool calls, and run_command kills its child process when it is set.
+        self.cancel_event = threading.Event()
+        self.registry = ToolRegistry(
+            workspace_root=str(self.workspace_root),
+            cancel_event=self.cancel_event,
+            # Delegate, not the value: the TUI replaces output_callback after construction.
+            on_output=lambda line: self.output_callback("tool_chunk", line),
+        )
         self.confirm_callback = confirm_callback or self._default_confirm
         # Delegate, not the value: the TUI replaces confirm_callback after
         # construction and subagents must honour the replacement.
@@ -38,8 +59,6 @@ class AgentLoop:
             workspace_root=str(self.workspace_root),
             confirm_callback=lambda prompt: self.confirm_callback(prompt),
         )
-        self.mcp_bridge = MCPBridge(self.registry)  # noqa: vulture
-
         self.output_callback = output_callback or self._default_output
         self.history: List[Dict[str, Any]] = []
         self.turn_lock = threading.Lock()
@@ -81,7 +100,7 @@ class AgentLoop:
     def _register_subagent_tool(self):
         self.registry.register(
             name="invoke_subagent",
-            description="Spawn an isolated worker subagent (e.g. 'researcher', 'reviewer', 'tester') with its own context window and optional workspace isolation mode ('inherit', 'share', 'branch').",
+            description="Spawn an isolated worker subagent (e.g. 'researcher', 'reviewer', 'tester') with its own context window and optional workspace isolation mode ('inherit', 'branch').",
             parameters={
                 "type": "object",
                 "properties": {
@@ -99,8 +118,8 @@ class AgentLoop:
                     },
                     "workspace_mode": {
                         "type": "string",
-                        "enum": ["inherit", "share", "branch"],
-                        "description": "Workspace isolation mode: 'inherit' (shared root), 'share' (shallow clone), or 'branch' (isolated git worktree).",
+                        "enum": ["inherit", "branch"],
+                        "description": "Workspace isolation mode: 'inherit' (shared root) or 'branch' (isolated git worktree, falls back to 'inherit' when the repo has no worktree support).",
                     },
                 },
                 "required": ["role", "task_prompt"],
@@ -130,7 +149,11 @@ class AgentLoop:
     _parse_tool_args = staticmethod(parse_tool_args)
 
     def _load_harness_system_prompt(self, compact: bool = False):
-        """Loads compiled system prompt from agnostic-harness SSOT, with optional compact mode for small context local models."""
+        """Loads compiled system prompt from agnostic-harness SSOT.
+
+        Compact mode *clips* the rules for small-context local models — it never replaces
+        them with a summary: running under the compiled rules file is the whole point.
+        """
         # Check workspace storage first, then fall back to the agnostic-ai repository root
         prompt_candidates = [
             self.workspace_root / "storage" / "compiled" / "system_prompt.md",
@@ -148,35 +171,97 @@ class AgentLoop:
 
         if full_prompt:
             if compact:
-                # Include the core SSOT working agreement badge & distilled non-negotiables
                 system_prompt = (
-                    "🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]\n\n"
-                    "You are an autonomous AI coding agent bound to the Agnostic AI Harness SSOT.\n\n"
-                    "NON-NEGOTIABLES & CORE RULES:\n"
-                    "1. NEVER open or read secret env files (.env, .secrets.env). No exceptions.\n"
-                    "2. Minimal, surgical code changes. Do not overcomplicate or add unrequested abstractions.\n"
-                    "3. Think before coding: state assumptions, inspect existing repo style before modifying.\n"
-                    "4. Goal-driven execution: verify changes before claiming done. Evidence over assertions.\n"
-                    "5. Use tools (read_file, edit_file, write_file, run_command, grep_search, find_files, invoke_subagent) to execute tasks.\n"
+                    HARNESS_BADGE
+                    + "\n\n"
+                    + _clip_at_line(
+                        full_prompt,
+                        4096,  # ~4 KB of rules still fits a small local context window
+                        "\n\n[...clipped for small context; run with --full-prompt for all rules]",
+                    )
                 )
             else:
                 system_prompt = full_prompt
         else:
+            self.output_callback(
+                "system",
+                "[No compiled system prompt found: the agent is running on a stub, not on "
+                "core/rules/global-rules.md. Run 'npm run sync' in the agnostic-ai repo.]",
+            )
             system_prompt = (
-                "🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]\n"
+                HARNESS_BADGE + "\n"
                 "You are an elite, autonomous software engineering agent bound to the Agnostic AI Harness. "
                 "Use tools to inspect the repository, write code, run tests, and verify results."
             )
 
+        agreement = self._load_project_agreement()
+        # In compact mode the agreement only rides along if the prompt stays small.
+        if agreement and not (compact and len(system_prompt) + len(agreement) > 8192):
+            system_prompt += agreement
+
         self.history = [{"role": "system", "content": system_prompt}]
+
+    def _load_project_agreement(self) -> str:
+        """The workspace's own agent instructions: the first agreement file plus the state
+        whiteboard, clipped to ~6 KB."""
+        found = [
+            self.workspace_root / name
+            for name in ("AGENTS.md", "CLAUDE.md", "GEMINI.md", "CONVENTIONS.md")
+            if (self.workspace_root / name).is_file()
+        ][:1]
+        state_file = self.workspace_root / ".agnostic" / "state.md"
+        if state_file.is_file():
+            found.append(state_file)
+
+        blocks = []
+        for path in found:
+            try:
+                text = path.read_text(encoding="utf-8").strip()
+            except OSError:  # unreadable agreement file; the harness rules still stand
+                continue
+            if text:
+                name = path.relative_to(self.workspace_root).as_posix()
+                blocks.append("\n\n### [Project Agreement: {}]\n{}".format(name, text))
+
+        return _clip_at_line("".join(blocks), 6144, "\n\n[...project agreement clipped]")
 
     def run_turn(self, user_input: str, max_steps: int = 15) -> str:
         """Run a single interactive turn, processing tool calls iteratively until completion."""
         self.turn_lock.acquire()
+        self.cancel_event.clear()
         try:
             return self._run_turn(user_input, max_steps)
         finally:
+            self._repair_history()
             self.turn_lock.release()
+
+    def _cancelled(self) -> str:
+        """End a cancelled turn: answer the pending tool_calls, tell the operator."""
+        self._repair_history("[cancelled by user]")
+        self.output_callback("system", "⏹ cancelled")
+        return "[cancelled by user]"
+
+    def _repair_history(self, content: str = "[aborted]"):
+        """Backfill a placeholder tool result for every trailing tool_call that never got one.
+
+        An exception — or a KeyboardInterrupt, which the turn's `except Exception` does not
+        catch — between the assistant message and its tool results leaves the history ending
+        in unanswered tool_calls, which every OpenAI-compatible backend rejects on the next
+        turn. That bricks the session, so patch it on the way out.
+        """
+        for i in range(len(self.history) - 1, -1, -1):
+            msg = self.history[i]
+            if msg.get("role") != "assistant" or not msg.get("tool_calls"):
+                continue
+            answered = {
+                m.get("tool_call_id") for m in self.history[i + 1 :] if m.get("role") == "tool"
+            }
+            self.history.extend(
+                {"role": "tool", "tool_call_id": tc["id"], "content": content}
+                for tc in msg["tool_calls"]
+                if tc["id"] not in answered
+            )
+            return
 
     def _run_turn(self, user_input: str, max_steps: int) -> str:
         # 1. Check and trigger auto-compaction if context threshold is near
@@ -191,6 +276,8 @@ class AgentLoop:
         tools = self.registry.get_openai_tools()
 
         for _ in range(max_steps):
+            if self.cancel_event.is_set():
+                return self._cancelled()
             try:
                 response = self.llm_client.chat_completion(
                     messages=self.history,
@@ -261,6 +348,8 @@ class AgentLoop:
                 if all_read_only:
                     # Execute concurrently using ThreadPoolExecutor
                     def _exec_single(tc):
+                        if self.cancel_event.is_set():
+                            return tc, ToolResult("[cancelled by user]", is_error=True)
                         fn_name = tc.function.name
                         args, arg_error = self._parse_tool_args(tc.function.arguments)
                         if arg_error:
@@ -294,6 +383,8 @@ class AgentLoop:
                 else:
                     # Execute sequentially
                     for tc in msg.tool_calls:
+                        if self.cancel_event.is_set():
+                            break  # _cancelled() answers the calls we never dispatched
                         fn_name = tc.function.name
                         args, arg_error = self._parse_tool_args(tc.function.arguments)
                         if arg_error:
@@ -327,6 +418,9 @@ class AgentLoop:
                                 "content": res.output,
                             }
                         )
+
+                if self.cancel_event.is_set():
+                    return self._cancelled()
 
             except Exception as e:
                 err_str = str(e)
