@@ -107,6 +107,10 @@ per-process token injected into the page, and reject non-loopback origins.
 | `tools/sync/parity` | 7845 | Per-target sync status with a "sync now" button. |
 | `agent/web/server.py` | 7843 | Live companion for the coding agent: telemetry, diffs, context meter, run tests / distill. |
 
+Ports are defaults, not guarantees. If another local app already holds one, the
+server walks up to the next free port (10 tries) and logs the URL it bound. It
+never reuses an occupied port unless it can confirm the occupant is itself.
+
 ## Coding agent (`agent/`)
 
 ```

@@ -77,8 +77,8 @@ agnostic > /commit
 - `/undo`, `/checkpoint`, `/session`, `/compact`, `/swarm`, `/diagram`,
   `/pr`, `/learn` and the rest are in
   [docs/slash-commands.md](docs/slash-commands.md).
-- `agnostic --web` (or `/web`) starts a browser companion on 7843 with live
-  telemetry, diffs and a context meter.
+- `agnostic --web` (or `/web`) starts a browser companion on 7843 (next free
+  port if taken) with live telemetry, diffs and a context meter.
 - Prefer a classic readline shell? `agnostic-legacy` runs the same loop with
   prompt_toolkit.
 

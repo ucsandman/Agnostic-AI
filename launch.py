@@ -42,7 +42,7 @@ def main():
         ["node", "tools/dashboard/dashboard.cjs", "--open"], cwd=ROOT_DIR
     )
 
-    print("\nCommand Center running on http://127.0.0.1:7842")
+    # The server prints its own URL — it may not be 7842 if another app holds it.
     print("Press Ctrl+C to stop.")
 
     try:

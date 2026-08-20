@@ -5,6 +5,19 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
 
 ## 2026-08-20
 
+- **`launch.py` opened a different project's app.** Symptom: `python launch.py`
+  brought up an unrelated local UI (hooop) instead of the command center. Root
+  cause: another app already owned 7842, so `EADDRINUSE` took the dashboard's
+  "already running" branch, which trusted the port instead of identifying the
+  occupant, and `--open` launched a browser at it. Fix: every response carries
+  an `x-agnostic-dashboard` header, the collision path HEAD-probes for it, and
+  a foreign occupant means bind the next free port. The same fixed-port
+  assumption in `start_companion_server` (returned failure on a busy 7843) got
+  the same walk-up. Lesson: a hardcoded local port is a guess about someone
+  else's machine — verify the occupant before reusing a port, and never print a
+  URL you did not bind. This is the second time this bug shipped (see the
+  distill digest entry about 7842 vs a Next.js dev server).
+
 - **Dashboard POST routes were unauthenticated.** Symptom: nothing visible;
   found in a review. Root cause: the Python companion got an auth pass, the
   Node dashboard never did. Fix: token + loopback-origin gate on all POSTs,

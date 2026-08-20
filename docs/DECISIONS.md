@@ -3,6 +3,17 @@
 Durable architecture and product decisions, newest first. One entry per
 decision: what, why, what it rules out.
 
+## 2026-08-20 — Default ports are a starting guess, never an assumption
+
+Every local server here (`tools/dashboard` 7842, `agent/web/server.py` 7843,
+`tools/recall` 7844, `tools/sync/parity` 7845) shares a developer machine with
+other projects. So a default port is where a server starts looking, not where
+it must land: on collision it walks up to the next free port (10 tries) and
+reports the URL it actually bound. Reusing an occupied port is allowed only
+after confirming the occupant is the same program — the dashboard identifies
+itself with an `x-agnostic-dashboard` response header. Callers print the
+returned URL; no launcher, doc, or test hardcodes one it did not bind.
+
 ## 2026-08-20 — Mutating HTTP routes need a token and a loopback origin
 
 All local UIs (`tools/dashboard`, `tools/sync/parity`, `agent/web/server.py`)

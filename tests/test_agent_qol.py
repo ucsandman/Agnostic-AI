@@ -3,6 +3,8 @@ tests/test_agent_qol.py — Comprehensive Unit Tests for Agnostic Agent QoL Enha
 Tests AST symbol indexer, .agentignore, session manager, context compaction, trust tiers, and audit manager.
 """
 
+import re
+
 import pytest
 
 from agent.tools.indexer import CodebaseIndexer
@@ -613,9 +615,11 @@ def test_web_companion_server_and_telemetry(temp_workspace):
     from agent.tools.subagent import subagent_registry
 
     # 1. Start companion server
+    # Port, not URL: 7843 may already be taken locally, and the server is allowed
+    # to walk up to the next free one.
     ok, url = start_companion_server(7843)
-    assert ok is True
-    assert "http://127.0.0.1:7843" in url
+    assert ok is True, url
+    assert re.fullmatch(r"http://127\.0\.0\.1:78(4[3-9]|5[0-2])", url), url
 
     # 2. Test CompanionTelemetry logging and diffs
     companion_telemetry.clear_logs()

@@ -41,6 +41,15 @@ All notable changes to this project are documented here. The format follows
   `core/templates/targets.json` and checked in CI.
 - CI: ruff, Python 3.9 + 3.12 matrix, generated-docs check.
 
+### Fixed
+- Port collisions no longer hand you another app's UI. The command center used
+  to treat any `EADDRINUSE` on 7842 as "already running" and open a browser at
+  whatever was listening; it now probes for its own `x-agnostic-dashboard`
+  header and, if a foreign app owns the port, binds the next free one (10 tries)
+  and prints the URL it actually bound. `--port N` works as documented.
+- The web companion (`--web`, `/web`) walks up from 7843 to the next free port
+  instead of refusing to start when the port is taken.
+
 ### Changed
 - README rewritten to describe what the code actually does (swarm roles,
   worktrees off by default, all four local ports, every slash command and

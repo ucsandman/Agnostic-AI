@@ -184,7 +184,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--web",
         action="store_true",
-        help="Start the real-time visual web companion on port 7843",
+        help="Start the real-time visual web companion on port 7843 (next free port if taken)",
     )
     return parser
 

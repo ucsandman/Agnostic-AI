@@ -681,7 +681,15 @@ def start_companion_server(port: int = 7843):
     if _server_instance is not None:
         return True, f"http://127.0.0.1:{port}"
     try:
-        _server_instance = _CompanionServer(("127.0.0.1", port), CompanionHandler)
+        # A busy port usually means another local app (or a second agent), not a
+        # broken install — walk up until one is free rather than failing outright.
+        for candidate in range(port, port + 10) if port else [0]:
+            try:
+                _server_instance = _CompanionServer(("127.0.0.1", candidate), CompanionHandler)
+                break
+            except OSError:
+                if candidate == port + 9:
+                    raise
         bound_port = _server_instance.server_address[1]
         _server_thread = threading.Thread(
             # Short poll so shutdown() returns promptly instead of waiting out the

@@ -24,8 +24,30 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const HTML_FILE = path.join(__dirname, 'dashboard.html');
 const STORAGE = path.join(ROOT, 'storage');
 
-const PORT = parseInt(process.env.PORT || '7842', 10);
+const portArgIndex = process.argv.indexOf('--port');
+const PORT_ARG = portArgIndex > -1 ? parseInt(process.argv[portArgIndex + 1], 10) : NaN;
+let PORT = PORT_ARG || parseInt(process.env.PORT || '7842', 10);
 const OPEN_FLAG = process.argv.includes('--open');
+
+// Sent on every response so a second launch can tell "our dashboard is already
+// up" from "some other project owns this port". Without it, EADDRINUSE used to
+// open a browser at whatever app happened to be listening.
+const ID_HEADER = 'x-agnostic-dashboard';
+
+function isOurDashboard(port) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { host: '127.0.0.1', port, method: 'HEAD', path: '/', timeout: 1000 },
+      (res) => {
+        res.resume();
+        resolve(Boolean(res.headers[ID_HEADER]));
+      }
+    );
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+    req.end();
+  });
+}
 
 // Binding to 127.0.0.1 does not stop any web page the operator visits from
 // POSTing to this port. Same defence as agent/web/server.py: a per-process
@@ -469,6 +491,7 @@ function getDecisionsData() {
 
 function serveDashboard() {
   const server = http.createServer(async (req, res) => {
+    res.setHeader(ID_HEADER, '1');
     const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
     const pathname = parsedUrl.pathname;
     const query = Object.fromEntries(parsedUrl.searchParams);
@@ -690,29 +713,39 @@ function serveDashboard() {
     }
   });
 
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      const url = `http://127.0.0.1:${PORT}`;
+  const openBrowser = (url) => {
+    if (!OPEN_FLAG) return;
+    exec(process.platform === 'win32' ? `start ${url}` : `open ${url}`);
+  };
+
+  const firstPort = PORT;
+
+  server.on('error', async (err) => {
+    if (err.code !== 'EADDRINUSE') {
+      console.error('[Agnostic-Dashboard Server Error]', err);
+      process.exit(1);
+    }
+    const url = `http://127.0.0.1:${PORT}`;
+    if (await isOurDashboard(PORT)) {
       console.log(`[Agnostic-Dashboard] Command Center is already running at ${url}`);
-      if (OPEN_FLAG) {
-        const openCmd = process.platform === 'win32' ? `start ${url}` : `open ${url}`;
-        exec(openCmd);
-      }
+      openBrowser(url);
       // Keep alive for launch.py child process monitoring
       setInterval(() => {}, 10000);
       return;
     }
-    console.error('[Agnostic-Dashboard Server Error]', err);
-    process.exit(1);
+    if (PORT - firstPort >= 10) {
+      console.error(`[Agnostic-Dashboard] Ports ${firstPort}-${PORT} are all taken by other apps.`);
+      process.exit(1);
+    }
+    console.log(`[Agnostic-Dashboard] Port ${PORT} belongs to another app; trying ${PORT + 1}.`);
+    PORT += 1;
+    server.listen(PORT, '127.0.0.1');
   });
 
   server.listen(PORT, '127.0.0.1', () => {
     const url = `http://127.0.0.1:${PORT}`;
     console.log(`[Agnostic-Dashboard] Command Center live at ${url}`);
-    if (OPEN_FLAG) {
-      const openCmd = process.platform === 'win32' ? `start ${url}` : `open ${url}`;
-      exec(openCmd);
-    }
+    openBrowser(url);
   });
 }
 
@@ -720,4 +753,4 @@ if (require.main === module) {
   serveDashboard();
 }
 
-module.exports = { serveDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData, getDashClawFullConfig, saveDashClawConfig, simulateGuard, getDecisionsData, authorized, SESSION_TOKEN };
+module.exports = { serveDashboard, isOurDashboard, getOverviewData, getErrorsData, getRulesData, getRoutinesData, getDashClawFullConfig, saveDashClawConfig, simulateGuard, getDecisionsData, authorized, SESSION_TOKEN };

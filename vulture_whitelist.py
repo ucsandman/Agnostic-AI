@@ -22,6 +22,7 @@ from agent.tools.subagent import SubagentManager
 from agent.workflows.planner import ExecutionPlan
 from agent.workflows.pr_pilot import PRAutoPilot
 from agent.workflows.scheduler import TaskScheduler
+from agent import ui_common
 
 # Whitelist methods
 AuditRecord.to_dict
@@ -65,3 +66,13 @@ TaskManager.send_input
 TaskManager.kill_task
 TaskManager.schedule
 task_manager
+
+# Shared UI entry points: cli.py and tui.py use these, but the pre-commit
+# vulture pass sees only the staged files, so it calls them dead otherwise.
+ui_common.SLASH_COMMANDS
+ui_common.parse_slash_command
+ui_common.safe_text
+ui_common.format_user_display
+ui_common.build_arg_parser
+ui_common.detect_model
+ui_common.maybe_start_web_companion

@@ -56,4 +56,4 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 | `/learn <lesson>` | both | Append a candidate rule to `storage/candidates.jsonl` (tier 0) for the distiller. |
 | `/harvest` | both | Run the cross-agent harvester over local transcripts and error logs. |
 | `/distill` | both | Run the promotion ladder and pruner; write the digest and proposal. |
-| `/web` | both | Start the web companion on `http://127.0.0.1:7843`: telemetry, diffs, context meter, run tests / distill from the browser. |
+| `/web` | both | Start the web companion on `http://127.0.0.1:7843` (next free port if taken): telemetry, diffs, context meter, run tests / distill from the browser. |

@@ -519,6 +519,24 @@ async function run() {
     );
   });
 
+  await test('Dashboard Port Probe: a foreign app on the port is not mistaken for us', async () => {
+    const http = require('http');
+    const listen = (handler) => new Promise((resolve) => {
+      const s = http.createServer(handler);
+      s.listen(0, '127.0.0.1', () => resolve(s));
+    });
+
+    const impostor = await listen((req, res) => { res.writeHead(200); res.end('some other project'); });
+    const ours = await listen((req, res) => { res.setHeader('x-agnostic-dashboard', '1'); res.writeHead(200); res.end(); });
+    try {
+      assert.strictEqual(await dashboard.isOurDashboard(impostor.address().port), false, 'Foreign server must not be treated as our dashboard');
+      assert.strictEqual(await dashboard.isOurDashboard(ours.address().port), true, 'Our dashboard must be recognised by its ID header');
+    } finally {
+      impostor.close();
+      ours.close();
+    }
+  });
+
   await test('Dashboard Guard Simulator: verdicts come from core/safety/guards.json', () => {
     const destructive = dashboard.simulateGuard('rm -rf /', 'run_command');
     assert.strictEqual(destructive.verdict, 'REQUIRE_APPROVAL', 'rm -rf / must require human approval');
