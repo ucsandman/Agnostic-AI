@@ -19,6 +19,7 @@ from rich.text import Text
 
 from agent import __version__
 from agent.llm.detector import ModelDoctor
+from agent.llm.usage import format_model_stats
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 
 # command -> the one-line help both UIs print. Iterating the dict yields the
@@ -43,21 +44,32 @@ SLASH_COMMANDS = {
     "/harvest": "run engine/harvest/harvest.cjs over local agent logs",
     "/test": "[cmd] — loop fix-and-rerun until the tests pass or the retry cap",
     "/doctor": "probe the endpoint: model id, context length, latency",
+    "/mcp": "[reload] — list configured MCP servers, their tools and any error",
     "/model": "[key|N] [sub-model] [effort] — interactive picker, or switch preset/model/effort",
     "/undo": "revert the last file write / edit",
+    "/diff": "[turn] — unified diff of every file changed since a turn (picker when bare)",
     "/checkpoint": "save|restore|list [name] — named multi-file snapshots",
     "/commit": "propose a conventional commit from git status + diff",
     "/learn": "<lesson> — append a candidate rule for the distiller",
+    "/memory": "[list|show|save|forget] — what the agent remembers across sessions",
     "/schedule": 'every 30s "prompt" | list | stop <id>|all — background routines',
     "/loop": '<N> "prompt" — run a prompt N times in the background',
     "/state": "show the persistent whiteboard (.agnostic/state.md)",
     "/distill": "run the promotion ladder and pruner",
     "/web": "start the web companion on http://127.0.0.1:7843",
     "/clear": "clear the screen / output log, keep memory",
-    "/multiline": "paste mode for long logs and specs (legacy CLI)",
+    "/notify": "on|off — bell + toast when a long turn ends while the terminal is unfocused",
+    "/multiline": "how to type a newline: Shift+Enter / Alt+Enter / Ctrl+J",
     "/help": "this list",
     "/exit": "quit",
 }
+
+
+# The /memory usage line, printed by both UIs for an unknown subcommand.
+MEMORY_USAGE = (
+    "Usage: /memory [list] · /memory show <name> · "
+    "/memory save <name> -- <text> · /memory forget <name>"
+)
 
 
 def help_text() -> str:
@@ -110,15 +122,39 @@ def busy_verbs(env: Optional[dict] = None) -> tuple[str, ...]:
     return verbs or BUSY_VERBS
 
 
+def _clock(s: float) -> str:
+    """Elapsed seconds as '12s' / '2m14s'. Never negative — a clock that runs
+    backwards on a rounding error is worse than one that reads 0s."""
+    s = max(0, int(s))
+    return f"{s}s" if s < 60 else f"{s // 60}m{s % 60:02d}s"
+
+
 def busy_indicator(elapsed_s: float, verb: str) -> str:
     """The live busy fragment: '∴ Percolating… 47s · esc to cancel'.
 
     Pure and monotonic-clock-agnostic — the caller passes an elapsed duration, so
     this never reads the wall clock and renders identically for the same inputs.
     """
-    s = max(0, int(elapsed_s))
-    clock = f"{s}s" if s < 60 else f"{s // 60}m{s % 60:02d}s"
-    return f"∴ {verb}… {clock} · esc to cancel"
+    return f"∴ {verb}… {_clock(elapsed_s)} · esc to cancel"
+
+
+def should_notify(enabled: bool, focused: bool, duration_s: float, min_s: float = 5.0) -> bool:
+    """Whether a finished turn earns a bell + toast.
+
+    Deliberately has no 'always' mode: a bell on every 2-second turn is the thing
+    users switch off once and never switch back on.
+    """
+    return bool(enabled) and not focused and duration_s >= min_s
+
+
+def turn_summary(files_changed: int, duration_s: float) -> str:
+    """The toast body: '3 files changed · 2m14s' / 'no files changed · 12s'."""
+    n = int(files_changed)
+    if not n:
+        files = "no files changed"
+    else:
+        files = f"{n} file{'' if n == 1 else 's'} changed"
+    return f"{files} · {_clock(duration_s)}"
 
 
 def fold_summary(text: str, limit: int = 600) -> Tuple[str, int]:
@@ -165,6 +201,62 @@ def context_segment(st: dict, width: int = 10) -> Tuple[str, str]:
         f"({_short(st['used_tokens'])}/{_short(st['max_tokens'])})",
         style,
     )
+
+
+def usage_segment(summary: dict, model: str) -> Tuple[str, str]:
+    """(text, rich_style) for the status bar's spend/latency segment: '$ 0.42 - p50 12.3s'.
+
+    Takes an already-computed UsageLog.summarize(days=1) result — the caller does
+    that scan on a worker thread, never on a repaint. ('', 'dim') when nothing has
+    been recorded, so an untouched workspace shows no segment at all.
+
+    The money half is dropped when the known spend is 0.00 *and* something in the
+    window had no price: an unpriced model must not claim $0.00 of spend. The p50
+    half is dropped when there is no latency for this model yet.
+    """
+    totals = (summary or {}).get("totals") or {}
+    if not totals.get("calls"):
+        return "", "dim"
+    parts = []
+    cost = float(totals.get("cost_known_usd") or 0.0)
+    if cost or not totals.get("cost_unknown"):
+        parts.append(f"$ {cost:.2f}")
+    # format_model_stats owns the p50 rendering ('p50 12.3s | $0.42 today'); the
+    # money half of it is per-model, and the bar reports the whole window instead.
+    latency = format_model_stats(summary, model).split("|")[0].strip()
+    if latency and latency != "p50 n/a":
+        parts.append(latency)
+    return " - ".join(parts), "dim"
+
+
+MCP_STATE_STYLES = {"running": "green", "error": "bold red", "skipped": "yellow"}
+
+
+def mcp_table(rows: list):
+    """The /mcp view both UIs print: a Table of ToolRegistry.mcp_status() rows, or a
+    dim line when nothing is configured. Every cell is a Text, never a markup string —
+    a server error message routinely contains '['."""
+    from rich import box
+    from rich.table import Table
+
+    if not rows:
+        return Text(
+            "No MCP servers configured. Add one to .agnostic/mcp.json or .mcp.json "
+            "(see docs/mcp.md).",
+            style="dim",
+        )
+    table = Table(title=None, box=box.SIMPLE)
+    for column in ("Server", "State", "Tools", "Error"):
+        table.add_column(column)
+    for row in rows:
+        state = str(row.get("state", ""))
+        table.add_row(
+            Text(str(row.get("server", ""))),
+            Text(state, style=MCP_STATE_STYLES.get(state, "dim")),
+            Text(str(row.get("tool_count", 0))),
+            Text(str(row.get("error") or "")),
+        )
+    return table
 
 
 def parse_slash_command(line: str) -> Tuple[str, str]:
@@ -399,7 +491,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Force loading full 14KB system prompt",
     )
-    parser.add_argument("--prompt", "-p", help="Single prompt execution mode")
+    parser.add_argument("--prompt", "-p", help="Single prompt execution mode ('-' reads stdin)")
+    # Same dest as --prompt: `--print` is what every other agent CLI calls this.
+    parser.add_argument("--print", dest="prompt", help="Alias of --prompt")
+    parser.add_argument(
+        "--output-format",
+        choices=("text", "json"),
+        default="text",
+        help="Headless (-p) output: the answer as plain text, or one JSON object",
+    )
+    parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Headless (-p) only: approve hard-stop confirmations instead of denying them",
+    )
     parser.add_argument(
         "--ask-permissions",
         action="store_true",

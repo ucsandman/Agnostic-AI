@@ -84,9 +84,7 @@ def test_hard_stops_loaded_from_policy(workspace):
     assert requires_approval is True
 
     guard.set_trust_tier("all")
-    _, requires_approval_all, _ = guard.check_command_safety(
-        "git push origin main --force"
-    )
+    _, requires_approval_all, _ = guard.check_command_safety("git push origin main --force")
     assert requires_approval_all is False
 
 
@@ -108,9 +106,7 @@ def test_malformed_policy_fails_closed(workspace, tmp_path):
 
 
 def test_missing_policy_fails_closed(workspace, tmp_path):
-    guard = SafetyGuard(
-        workspace_root=str(workspace), policy_path=str(tmp_path / "nope.json")
-    )
+    guard = SafetyGuard(workspace_root=str(workspace), policy_path=str(tmp_path / "nope.json"))
     assert guard.policy_error is not None
 
     blocked, _, _ = guard.check_command_safety("sed -n 1p .secrets.env")

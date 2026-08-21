@@ -15,6 +15,8 @@ from types import SimpleNamespace
 from typing import List, Dict, Any, Optional, Tuple
 import httpx
 
+from agent.llm.usage import UsageLog
+
 
 @lru_cache(maxsize=None)
 def get_http_client(timeout: float) -> httpx.Client:
@@ -595,6 +597,9 @@ class LLMConfig:
         self.retry_backoff = retry_backoff
         # Concrete model handed to a subscription CLI (--model); None = CLI default.
         self.sub_model: Optional[str] = None
+        # The preset this config came from, for the usage journal's per-preset
+        # bucket. None whenever the model was set by hand rather than by preset.
+        self.preset_key: Optional[str] = None
 
     @classmethod
     def sub_models(cls, preset_key: str) -> List[str]:
@@ -621,6 +626,9 @@ class LLMClient:
         # Continuity for subscription CLIs; it re-keys itself on provider/model
         # changes, so /model switches need no explicit reset here.
         self.bridge_session = BridgeSession()
+        # ponytail: cwd-scoped; thread a workspace_root through if the agent ever
+        # runs outside it. Both entrypoints are chdir-free, so cwd == workspace root.
+        self.usage = UsageLog()
         self._init_client()
 
     def _init_client(self):
@@ -741,6 +749,7 @@ class LLMClient:
                 )
 
             self.config.model = preset["model"]
+            self.config.preset_key = preset_key
             self.config.base_url = preset["base_url"]
             self.config.provider = preset["provider"]
             self.config.context_window = preset.get("context_window", 32768)
@@ -760,6 +769,9 @@ class LLMClient:
 
         if model:
             self.config.model = model
+            # A hand-set model is no longer that preset — the journal must not keep
+            # billing the old preset's bucket for it.
+            self.config.preset_key = None
         if base_url:
             self.config.base_url = base_url
         if api_key:
@@ -768,6 +780,22 @@ class LLMClient:
             self.config.reasoning_effort = reasoning_effort
         self._init_client()
         return f"Updated model configuration: {self.config.model} ({self._effort_note()})"
+
+    def _record(self, t0: float, response: Any, ok: bool = True, error: Optional[str] = None):
+        """Append this call to .agnostic/usage.jsonl. Every path through
+        chat_completion — success or failure, API or subscription bridge — ends
+        here, and a broken journal must never take a turn down with it."""
+        try:
+            self.usage.record_response(
+                getattr(self.config, "preset_key", None),
+                self.config,
+                response,
+                time.monotonic() - t0,
+                ok=ok,
+                error=error,
+            )
+        except Exception:
+            pass
 
     def chat_completion(
         self,
@@ -779,15 +807,22 @@ class LLMClient:
     ):
         """Invoke chat completion with tool calling, live streaming, and reasoning effort support."""
         if self.config.provider.endswith("-sub"):
-            return SubprocessSubscriptionBridge.execute_turn(
-                provider=self.config.provider,
-                messages=messages,
-                tools=tools,
-                reasoning_effort=self.config.reasoning_effort,
-                model=self.config.sub_model,
-                stream_callback=stream_callback,
-                session=self.bridge_session,
-            )
+            t0 = time.monotonic()
+            try:
+                resp = SubprocessSubscriptionBridge.execute_turn(
+                    provider=self.config.provider,
+                    messages=messages,
+                    tools=tools,
+                    reasoning_effort=self.config.reasoning_effort,
+                    model=self.config.sub_model,
+                    stream_callback=stream_callback,
+                    session=self.bridge_session,
+                )
+            except Exception as e:
+                self._record(t0, None, ok=False, error=str(e)[:200])
+                raise
+            self._record(t0, resp)
+            return resp
 
         kwargs: Dict[str, Any] = {
             "model": self.config.model,
@@ -806,62 +841,88 @@ class LLMClient:
             kwargs["tool_choice"] = tool_choice
 
         if stream or stream_callback is not None:
-            # Stream tokens live.
-            # ponytail: retry covers request setup only; a mid-stream drop is surfaced
-            # to the caller rather than replayed (would duplicate emitted tokens).
-            response_stream = self._with_retry(
-                lambda: self.client.chat.completions.create(stream=True, **kwargs)
-            )
-            collected_chunks = []
-            tool_calls_dict = {}
-            finish_reason = None
-
-            for chunk in response_stream:
-                if not chunk.choices or len(chunk.choices) == 0:
-                    continue
-                if chunk.choices[0].finish_reason:
-                    finish_reason = chunk.choices[0].finish_reason
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    collected_chunks.append(delta.content)
-                    if stream_callback:
-                        stream_callback(delta.content)
-
-                if delta.tool_calls:
-                    for tc in delta.tool_calls:
-                        idx = tc.index
-                        if idx not in tool_calls_dict:
-                            tool_calls_dict[idx] = {
-                                "id": tc.id or f"call_{idx}",
-                                "name": tc.function.name if tc.function else "",
-                                "arguments": tc.function.arguments or "" if tc.function else "",
-                            }
-                        else:
-                            if tc.function and tc.function.name:
-                                tool_calls_dict[idx]["name"] += tc.function.name
-                            if tc.function and tc.function.arguments:
-                                tool_calls_dict[idx]["arguments"] += tc.function.arguments
-
-            full_content = "".join(collected_chunks)
-            tool_calls_list = []
-            for idx in sorted(tool_calls_dict.keys()):
-                tc_data = tool_calls_dict[idx]
-                tool_calls_list.append(
-                    SimpleNamespace(
-                        id=tc_data["id"],
-                        function=SimpleNamespace(
-                            name=tc_data["name"],
-                            arguments=tc_data["arguments"],
-                        ),
-                    )
+            # Ask for the trailing usage chunk — without it a streamed turn records
+            # zero tokens and no cost. LM Studio / Ollama builds reject unknown
+            # request fields outright, so local endpoints never see it.
+            if self.config.provider != "local":
+                kwargs["stream_options"] = {"include_usage": True}
+            t0 = time.monotonic()
+            try:
+                # Stream tokens live.
+                # ponytail: retry covers request setup only; a mid-stream drop is surfaced
+                # to the caller rather than replayed (would duplicate emitted tokens).
+                response_stream = self._with_retry(
+                    lambda: self.client.chat.completions.create(stream=True, **kwargs)
                 )
+                collected_chunks = []
+                tool_calls_dict = {}
+                finish_reason = None
+                stream_usage = None
 
-            msg_obj = SimpleNamespace(
-                content=full_content,
-                tool_calls=tool_calls_list if tool_calls_list else None,
-            )
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=msg_obj, finish_reason=finish_reason)]
-            )
-        else:
-            return self._with_retry(lambda: self.client.chat.completions.create(**kwargs))
+                for chunk in response_stream:
+                    # BEFORE the empty-choices guard on purpose: OpenAI-compatible
+                    # servers send the usage chunk with an EMPTY choices list, so
+                    # skipping it first threw the token counts away.
+                    if getattr(chunk, "usage", None):
+                        stream_usage = chunk.usage
+                    if not chunk.choices or len(chunk.choices) == 0:
+                        continue
+                    if chunk.choices[0].finish_reason:
+                        finish_reason = chunk.choices[0].finish_reason
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        collected_chunks.append(delta.content)
+                        if stream_callback:
+                            stream_callback(delta.content)
+
+                    if delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            idx = tc.index
+                            if idx not in tool_calls_dict:
+                                tool_calls_dict[idx] = {
+                                    "id": tc.id or f"call_{idx}",
+                                    "name": tc.function.name if tc.function else "",
+                                    "arguments": tc.function.arguments or "" if tc.function else "",
+                                }
+                            else:
+                                if tc.function and tc.function.name:
+                                    tool_calls_dict[idx]["name"] += tc.function.name
+                                if tc.function and tc.function.arguments:
+                                    tool_calls_dict[idx]["arguments"] += tc.function.arguments
+
+                full_content = "".join(collected_chunks)
+                tool_calls_list = []
+                for idx in sorted(tool_calls_dict.keys()):
+                    tc_data = tool_calls_dict[idx]
+                    tool_calls_list.append(
+                        SimpleNamespace(
+                            id=tc_data["id"],
+                            function=SimpleNamespace(
+                                name=tc_data["name"],
+                                arguments=tc_data["arguments"],
+                            ),
+                        )
+                    )
+
+                msg_obj = SimpleNamespace(
+                    content=full_content,
+                    tool_calls=tool_calls_list if tool_calls_list else None,
+                )
+                response = SimpleNamespace(
+                    choices=[SimpleNamespace(message=msg_obj, finish_reason=finish_reason)],
+                    usage=stream_usage,
+                )
+            except Exception as e:
+                self._record(t0, None, ok=False, error=str(e)[:200])
+                raise
+            self._record(t0, response)
+            return response
+
+        t0 = time.monotonic()
+        try:
+            response = self._with_retry(lambda: self.client.chat.completions.create(**kwargs))
+        except Exception as e:
+            self._record(t0, None, ok=False, error=str(e)[:200])
+            raise
+        self._record(t0, response)
+        return response

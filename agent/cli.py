@@ -35,9 +35,12 @@ from agent.governance.context import context_manager
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
 from agent.governance.session_manager import session_manager
+from agent.governance.memory import MemoryStore
+from agent.tools.diff_viewer import DiffViewer
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
 from agent.ui_common import (
+    MEMORY_USAGE,
     SLASH_COMMANDS,
     build_arg_parser,
     detect_model,
@@ -47,6 +50,7 @@ from agent.ui_common import (
     help_text,
     history_file_path,
     maybe_start_web_companion,
+    mcp_table,
     parse_slash_command,
     safe_text,
 )
@@ -336,6 +340,13 @@ def main(argv: Optional[List[str]] = None):
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
+    # Headless first: `-p` must not print a banner or start a companion — its
+    # stdout belongs to whoever is parsing it (see agent/headless.py).
+    if args.prompt:
+        from agent.headless import run_headless
+
+        sys.exit(run_headless(args))
+
     # 1. Auto-discover active model from endpoint
     doctor, detected_model, detection = detect_model(args.url, args.api_key, args.model)
 
@@ -367,14 +378,6 @@ def main(argv: Optional[List[str]] = None):
         ok, web_url = maybe_start_web_companion(agent)
         if ok:
             console.print(f"[bold green]🌐 Live Visual Companion active at: {web_url}[/bold green]")
-
-    if args.prompt:
-        expanded_prompt = expand_prompt_references(args.prompt, code_indexer)
-        with console.status(
-            f"[bold cyan]Thinking ({detected_model})...[/bold cyan]", spinner="dots"
-        ):
-            agent.run_turn(expanded_prompt)
-        sys.exit(0)
 
     print_banner()
     status_text, status_style = endpoint_status_line(detection, detected_model)
@@ -604,6 +607,18 @@ def main(argv: Optional[List[str]] = None):
                         border_style="cyan",
                     )
                 )
+                continue
+
+            elif cmd == "mcp":
+                sub = cmd_args.strip().lower()
+                if sub == "reload":
+                    console.print(
+                        f"[bold green]MCP reloaded: {agent.registry.reload_mcp()}[/bold green]"
+                    )
+                elif sub in ("", "list"):
+                    console.print(mcp_table(agent.registry.mcp_status()))
+                else:
+                    console.print("[yellow]Usage: /mcp [[reload]][/yellow]")
                 continue
 
             elif user_input.startswith("/model"):
@@ -859,6 +874,79 @@ def main(argv: Optional[List[str]] = None):
                 console.print(f"[bold green]🧠 {msg}[/bold green]")
                 continue
 
+            elif cmd == "memory":
+                # No modal in the legacy shell, so a bare /memory prints the list.
+                store = MemoryStore(agent.workspace_root)
+                parts = cmd_args.split(None, 1)
+                sub = parts[0].lower() if parts else "list"
+                rest = parts[1].strip() if len(parts) > 1 else ""
+
+                if sub == "list" and not rest:
+                    memories = store.list()
+                    if not memories:
+                        console.print("[dim]No memories saved yet.[/dim]")
+                    else:
+                        console.print("[bold cyan]Saved memories:[/bold cyan]")
+                        for m in reversed(memories):
+                            console.print(
+                                safe_text(
+                                    f"• {m.name}  {m.type} · {m.created}  {m.description[:60]}"
+                                )
+                            )
+                elif sub == "show":
+                    try:
+                        memory = store.get(rest)
+                    except (ValueError, OSError) as e:
+                        console.print(safe_text(str(e), style="yellow"))
+                        continue
+                    if memory is None:
+                        console.print(
+                            safe_text(f'No memory named "{rest}". Try /memory.', style="dim")
+                        )
+                    else:
+                        console.print(
+                            Panel(
+                                safe_text(memory.body),
+                                title=safe_text(
+                                    f"🧠 {memory.name} ({memory.type}, saved {memory.created})"
+                                ),
+                                title_align="left",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 1),
+                            )
+                        )
+                elif sub == "save":
+                    name, sep, body = rest.partition("--")
+                    name, body = name.strip(), body.strip()
+                    if not sep or not name or not body:
+                        console.print(
+                            "[yellow]Usage: /memory save <name> -- <the thing to remember>[/yellow]"
+                        )
+                        continue
+                    first = next((ln for ln in body.splitlines() if ln.strip()), "")[:120]
+                    try:
+                        store.save(name, first, body)
+                    except (ValueError, OSError) as e:
+                        console.print(safe_text(str(e), style="yellow"))
+                        continue
+                    console.print(
+                        safe_text(f'🧠 Saved memory "{name}" (project).', style="bold green")
+                    )
+                elif sub == "forget":
+                    try:
+                        gone = store.delete(rest)
+                    except (ValueError, OSError) as e:
+                        console.print(safe_text(str(e), style="yellow"))
+                        continue
+                    if gone:
+                        console.print(safe_text(f'Forgot "{rest}".', style="bold green"))
+                    else:
+                        console.print(safe_text(f'No memory named "{rest}".', style="yellow"))
+                else:
+                    console.print(safe_text(MEMORY_USAGE, style="yellow"))
+                continue
+
             elif user_input.startswith(("/schedule", "/loop")):
                 from agent.workflows.scheduler import scheduler
 
@@ -950,6 +1038,42 @@ def main(argv: Optional[List[str]] = None):
                         title="Harvest Results",
                         border_style="cyan",
                     )
+                )
+                continue
+
+            elif cmd == "diff":
+                # No picker here: the legacy shell lists the checkpoint names and
+                # takes one as an argument. Same panels, same in-memory snapshots.
+                target = cmd_args.split()[0] if cmd_args.split() else ""
+                if not target:
+                    if not undo_manager.checkpoints:
+                        console.print("[dim]No turns yet.[/dim]")
+                    else:
+                        console.print("[bold cyan]Checkpoints:[/bold cyan]")
+                        for name in undo_manager.checkpoints:
+                            n = len(undo_manager.changed_since(name))
+                            console.print(f"• [bold green]{name}[/bold green] ({n} files changed)")
+                    continue
+                changes = undo_manager.changed_since(target)
+                if not changes:
+                    console.print(f"[dim]No file changes since {target}.[/dim]")
+                    continue
+                for path, before, after in changes:
+                    try:
+                        label = path.relative_to(agent.workspace_root).as_posix()
+                    except ValueError:
+                        label = path.name
+                    # ponytail: DiffViewer parses its title as Rich markup; a '[' in a
+                    # filename would raise — escape it if that ever happens in the wild
+                    console.print(DiffViewer.render_diff(label, before or "", after, max_lines=60))
+                continue
+
+            elif cmd == "notify":
+                # Honest no-op: this shell has no toast surface and no focus events
+                # to hang a bell off, so it says so instead of pretending.
+                console.print(
+                    "[yellow]Notifications are a TUI feature — run `agnostic` "
+                    "for the turn-done bell and toast.[/yellow]"
                 )
                 continue
 

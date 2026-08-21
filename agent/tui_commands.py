@@ -20,14 +20,19 @@ from rich.markdown import Markdown
 from rich import box
 
 from agent.llm.client import LLMConfig
+from agent.tools.diff_viewer import DiffViewer
 from agent.governance.undo import undo_manager, theme_manager
 from agent.governance.context import context_manager
 from agent.governance.guard import guard
 from agent.governance.audit import audit_manager
 from agent.governance.session_manager import session_manager
+from agent.governance.memory import MemoryStore
+from agent.governance.state import state_manager
 from agent.ui_common import (
+    MEMORY_USAGE,
     help_text,
     maybe_start_web_companion,
+    mcp_table,
     parse_model_args,
     parse_slash_command,
     safe_text,
@@ -65,6 +70,53 @@ class SlashCommandMixin:
             self._write_output(Text(f"❌ {msg}", style="bold red"))
         self._update_status_bar()
 
+    def _show_turn_diff(self, name) -> None:
+        """Picker/`/diff <turn>` result -> one unified-diff panel per file that turn
+        changed. The snapshots hold both texts, so nothing is read from disk and
+        nothing needs a background worker. name is None when the picker was cancelled."""
+        if not name:
+            return
+        changes = undo_manager.changed_since(name)
+        if not changes:
+            self._write_output(Text(f"No file changes since {name}.", style="dim"))
+            return
+        for path, before, after in changes:
+            try:
+                label = path.relative_to(self.agent.workspace_root).as_posix()
+            except ValueError:
+                label = path.name
+            # ponytail: DiffViewer parses its title as Rich markup; a '[' in a filename
+            # would raise — escape it if that ever happens in the wild
+            self._write_output(DiffViewer.render_diff(label, before or "", after, max_lines=60))
+
+    def _show_memory(self, name) -> None:
+        """Picker/`/memory show` result -> the whole body in a panel. name is None
+        when the picker was cancelled."""
+        if not name:
+            return
+        try:
+            memory = MemoryStore(self.agent.workspace_root).get(name)
+        except (ValueError, OSError) as e:
+            self._write_output(Text(str(e), style="yellow"))
+            return
+        if memory is None:
+            self._write_output(
+                Text(f'No memory named "{name}". Try /memory to list them.', style="dim")
+            )
+            return
+        self._write_output(
+            Panel(
+                # Bodies are code snippets as often as prose: neither the body nor
+                # the user-chosen name may reach Rich's markup parser.
+                safe_text(memory.body),
+                title=safe_text(f"🧠 {memory.name} ({memory.type}, saved {memory.created})"),
+                title_align="left",
+                border_style="cyan",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+        )
+
     def _handle_slash_command(self, user_input: str) -> bool:
         """Handle slash commands. Returns True if handled, False to fall through to agent."""
         cmd, args = parse_slash_command(user_input)
@@ -93,12 +145,12 @@ class SlashCommandMixin:
             return True
 
         elif user_input == "/multiline":
-            # Textual's Input is single-line and collapses a pasted newline, so there
-            # is nothing to toggle here — be honest instead of silently doing nothing.
+            # No mode to toggle any more: the composer is a TextArea, so it is always
+            # multi-line. The command survives as the place people look for the keys.
             self._write_output(
                 Text(
-                    "The TUI prompt is a single-line input and cannot accept multi-line "
-                    "text. Run `agnostic-legacy` and use /multiline there.",
+                    "The prompt is multi-line: Shift+Enter (or Alt+Enter / Ctrl+J) "
+                    "inserts a newline, Enter sends. Pasted text keeps its line breaks.",
                     style="yellow",
                 )
             )
@@ -295,6 +347,9 @@ class SlashCommandMixin:
                     ModelPickerScreen(
                         self.agent.llm_client.config.model,
                         local_online=self.detection.get("status") == "online",
+                        # Cached by _refresh_usage_bg — reading the journal here
+                        # would block the UI thread every time /model opens.
+                        usage_summary=self._usage_summary,
                     ),
                     callback=self._apply_model_pick,
                 )
@@ -432,8 +487,6 @@ class SlashCommandMixin:
             return True
 
         elif user_input.startswith("/state"):
-            from agent.governance.state import state_manager
-
             self._write_output(
                 Panel(
                     safe_text(state_manager.read_state()),
@@ -471,6 +524,120 @@ class SlashCommandMixin:
                 else f"Companion server failed to start: {web_url}"
             )
             self._write_output(Text(msg, style="bold green" if ok else "yellow"))
+            return True
+
+        elif cmd == "mcp":
+            sub = args.strip().lower()
+            if sub == "reload":
+                # Stops and re-spawns child processes: must not run on the UI thread.
+                self._dispatch_background(
+                    lambda: Text(
+                        "MCP reloaded: " + self.agent.registry.reload_mcp(),
+                        style="bold green",
+                    )
+                )
+            elif sub in ("", "list"):
+                # mcp_status() is an in-memory read — cheap enough to render inline.
+                self._write_output(mcp_table(self.agent.registry.mcp_status()))
+            else:
+                self._write_output(Text("Usage: /mcp [reload]", style="yellow"))
+            return True
+
+        elif cmd == "memory":
+            # Every form is a read (or one atomic write) over at most 200 small
+            # local files — cheap enough to render inline, like /mcp list.
+            store = MemoryStore(self.agent.workspace_root)
+            parts = args.split(None, 1)
+            sub = parts[0].lower() if parts else "list"
+            rest = parts[1].strip() if len(parts) > 1 else ""
+
+            if sub == "list" and not rest:
+                from agent.tui_memory import MemoryPickerScreen
+
+                self.push_screen(MemoryPickerScreen(store.list()), callback=self._show_memory)
+            elif sub == "show":
+                self._show_memory(rest)
+            elif sub == "save":
+                name, sep, body = rest.partition("--")
+                name, body = name.strip(), body.strip()
+                if not sep or not name or not body:
+                    self._write_output(
+                        Text(
+                            "Usage: /memory save <name> -- <the thing to remember>",
+                            style="yellow",
+                        )
+                    )
+                    return True
+                first = next((ln for ln in body.splitlines() if ln.strip()), "")[:120]
+                try:
+                    store.save(name, first, body)
+                except (ValueError, OSError) as e:
+                    # MemoryStore's own messages are already written for a human.
+                    self._write_output(Text(str(e), style="yellow"))
+                    return True
+                self._write_output(Text(f'🧠 Saved memory "{name}" (project).', style="bold green"))
+            elif sub == "forget":
+                try:
+                    gone = store.delete(rest)
+                except (ValueError, OSError) as e:
+                    self._write_output(Text(str(e), style="yellow"))
+                    return True
+                if gone:
+                    self._write_output(Text(f'Forgot "{rest}".', style="bold green"))
+                else:
+                    self._write_output(Text(f'No memory named "{rest}".', style="yellow"))
+            else:
+                self._write_output(Text(MEMORY_USAGE, style="yellow"))
+            return True
+
+        elif cmd == "diff":
+            # Read-only, so no _agent_busy guard (unlike /session): looking at what an
+            # earlier turn wrote while the current one runs is exactly the point.
+            if not self._turn_marks:
+                self._write_output(Text("No turns yet.", style="dim"))
+                return True
+            if args.strip():
+                self._show_turn_diff(args.split()[0])
+                return True
+            from agent.tui_diff import DiffPickerScreen
+
+            marks = list(self._turn_marks)
+            # Counted here, not in the screen: the picker does no undo/filesystem work.
+            counts = {name: len(undo_manager.changed_since(name)) for name, _clock, _h in marks}
+            self.push_screen(DiffPickerScreen(marks, counts), callback=self._show_turn_diff)
+            return True
+
+        elif cmd == "notify":
+            sub = args.strip().lower()
+            if sub in ("on", "off"):
+                self._notify_enabled = sub == "on"
+                try:
+                    state_manager.set_setting("notify", self._notify_enabled)
+                    note = ""
+                except OSError:
+                    # A read-only workspace is not a reason to refuse the toggle —
+                    # it is a reason to say the toggle will not survive the session.
+                    note = " (for this session only — .agnostic is not writable)"
+                self._write_output(
+                    Text(
+                        f"notifications: {sub}{note}",
+                        style="bold green" if sub == "on" else "yellow",
+                    )
+                )
+                return True
+            # The second half is the difference between a feature and a bug report:
+            # on a terminal that never reports focus, 'on' would be a lie.
+            self._write_output(
+                Text(
+                    "notifications: {} ({})".format(
+                        "on" if self._notify_enabled else "off",
+                        "this terminal reports focus"
+                        if self._saw_focus_event
+                        else "this terminal never reported focus — notifications will not fire",
+                    ),
+                    style="dim",
+                )
+            )
             return True
 
         elif user_input == "/help":

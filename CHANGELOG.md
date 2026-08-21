@@ -7,6 +7,27 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Turn-done notification: a terminal bell plus a toast (`3 files changed · 2m14s`) when a turn
+  that ran 5 seconds or longer finishes while the terminal is unfocused, for agent turns and for
+  /test, /fix and the other background workers. Safe-off on terminals that never report focus,
+  toggled and persisted with `/notify on|off` (new workspace settings file
+  `.agnostic/settings.json` via StateManager.get_setting/set_setting).
+- /diff: a turn browser over the automatic per-turn checkpoints — bare `/diff` in the TUI
+  opens a picker (newest turn first, each row saying how many files it changed) and prints a
+  unified diff per file from the write snapshots, `/diff <turn>` skips the picker, and the
+  legacy CLI lists the checkpoint names. Read-only, and usable while a turn is running
+  (agent/tui_diff.py, UndoManager.changed_since).
+- Multi-line composer: the TUI prompt is a TextArea (agent/tui_composer.py) instead of a
+  single-line Input — Enter sends, Shift+Enter / Alt+Enter / Ctrl+J insert a newline, the box
+  grows to 8 lines then scrolls, and a pasted block keeps every line (Input kept only the
+  first one and silently threw away the rest of a stack trace).
+- /memory: a picker over the saved memories (bare `/memory` in the TUI, ↑/↓, Space/Enter to
+  print one in full), plus `/memory show|save|forget <name>` in both shells — the store was
+  writable only by the model until now (agent/tui_memory.py, docs/memory.md).
+- Headless mode: `agnostic -p "..."` (aliases `--prompt`, `--print`, `-` reads stdin) now runs
+  one turn with no TUI through agent/headless.py — the answer alone on stdout (or one object
+  with `--output-format json`), tool/system/error chatter on stderr, exit 1 when the turn
+  errored, and hard stops denied unless `--yes` is passed (docs/configuration.md).
 - Persistent auto-memory: workspace store in .agnostic/memory/ (MEMORY.md index +
   one markdown file per memory), injected into the system prompt as
   "## Memory (auto-recalled)", with save_memory / recall_memory tools (agent/governance/memory.py).
@@ -14,6 +35,10 @@ All notable changes to this project are documented here. The format follows
   .mcp.json (Claude Code format) or ~/.agnostic/mcp.json register as
   mcp__<server>__<tool> and run through the governed execute() path;
   registry.mcp_status() reports state (agent/tools/mcp.py).
+- /mcp: a Server / State / Tools / Error table of the configured MCP servers, /mcp reload
+  to restart them and re-read the config files without leaving the session, and a red
+  `!mcp` badge in the TUI status bar while any server is in the error state — a
+  misconfigured server used to fail silently into the log.
 - Subscription bridges rewritten: every fenced tool call parsed (not just one),
   claude -p session continuity via --session-id/--resume with delta sends,
   --output-format json preferred, codex resume when supported, usage surfaced
@@ -21,6 +46,12 @@ All notable changes to this project are documented here. The format follows
 - Usage / cost / latency log: .agnostic/usage.jsonl with p50/p95 and cost
   summaries; agent/llm/pricing.json ships with explicit nulls for the user to
   fill in — costs are never invented (agent/llm/usage.py, docs/usage.md).
+- Every LLM call is now journalled: `LLMClient.chat_completion` writes one
+  `.agnostic/usage.jsonl` entry per call on every path (API, streaming,
+  subscription bridge; success and failure), streamed turns keep the usage chunk
+  that arrives with an empty `choices` list, and the numbers surface as a dim
+  `$ 0.42 - p50 12.3s` segment in the TUI status bar and a `p50 12.3s | $0.42
+  today` column in the `/model` picker.
 - A bare `/session` in the TUI opens an arrow-key resume picker of this
   workspace's saved sessions (newest first, with turn count, timestamp and
   notes) and loads the chosen one; `/session save|load|list <name>` is

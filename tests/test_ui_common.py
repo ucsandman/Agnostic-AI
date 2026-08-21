@@ -946,6 +946,26 @@ def test_busy_indicator_is_pure_so_a_repaint_cannot_flicker():
     assert busy_indicator(12.7, "Noodling") == busy_indicator(12.7, "Noodling")
 
 
+def test_busy_indicator_is_byte_identical_after_the_clock_extraction():
+    """The '{s}s' / '{m}m{s:02d}s' two-liner moved into ui_common._clock so the
+    turn-done toast could reuse it. The status bar must not have shifted by a byte:
+    these are the exact strings busy_indicator produced before that extraction."""
+    from agent.ui_common import busy_indicator
+
+    frozen = {
+        (0, "Percolating"): "∴ Percolating… 0s · esc to cancel",
+        (9.9, "Noodling"): "∴ Noodling… 9s · esc to cancel",
+        (59, "Noodling"): "∴ Noodling… 59s · esc to cancel",
+        (60, "Noodling"): "∴ Noodling… 1m00s · esc to cancel",
+        (65, "X"): "∴ X… 1m05s · esc to cancel",
+        (134.6, "Wrangling"): "∴ Wrangling… 2m14s · esc to cancel",
+        (3600, "X"): "∴ X… 60m00s · esc to cancel",
+        (-3.0, "X"): "∴ X… 0s · esc to cancel",
+    }
+    for (elapsed, verb), expected in frozen.items():
+        assert busy_indicator(elapsed, verb) == expected
+
+
 def test_busy_indicator_verb_pool_honours_the_env_override():
     from agent.ui_common import BUSY_VERBS, busy_verbs
 
@@ -1101,8 +1121,6 @@ def test_bang_prefix_runs_the_command_without_spending_a_turn(monkeypatch):
     import threading
     from types import SimpleNamespace
 
-    from textual.widgets import Input
-
     calls = []
     turns = []
 
@@ -1123,7 +1141,7 @@ def test_bang_prefix_runs_the_command_without_spending_a_turn(monkeypatch):
     async def drive():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.query_one("#prompt-input", Input).value = "!echo hi"
+            app.query_one("#prompt-input").value = "!echo hi"
             await pilot.press("enter")
             for _ in range(200):
                 await pilot.pause()
@@ -1565,3 +1583,75 @@ def test_force_exit_releases_a_worker_blocked_on_a_hard_stop_confirm(monkeypatch
     asyncio.run(drive())
 
     assert answers == [False], "an exit is not an approval"
+
+
+# --- Ctrl+C beats the composer's inherited copy-on-select binding ----------------
+
+
+def test_ctrl_c_cancels_even_with_a_selection_in_the_composer(monkeypatch):
+    """TextArea binds ctrl+c to copy. Without priority=True on the App binding the
+    copy won whenever the prompt box held a selection, so Ctrl+C silently did
+    nothing while a turn was running."""
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from textual.widgets.text_area import Selection
+
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+    )
+    app = _pilot_tui(agent, monkeypatch)
+
+    async def drive():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            box = app.query_one("#prompt-input")
+            box.value = "type-ahead while it thinks"
+            box.selection = Selection((0, 0), (0, 9))
+            box.focus()
+            await pilot.pause()
+            app._agent_busy = True  # a turn is running: Ctrl+C takes the cancel branch
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+
+    asyncio.run(drive())
+
+    assert agent.cancel_event.is_set(), "Ctrl+C was swallowed by the composer's copy"
+
+
+# --- /model never reads the usage journal on the UI thread ----------------------
+
+
+def test_model_picker_uses_the_cached_summary_instead_of_reading_the_journal(monkeypatch):
+    """summarize() walks the whole of .agnostic/usage.jsonl; on_mount runs on the UI
+    thread, so the picker must use the summary _refresh_usage_bg already cached."""
+    import asyncio
+    from textual.app import App
+    from agent.llm import usage as usage_mod
+    from agent.tui_model_picker import ModelPickerScreen
+
+    def boom(*a, **kw):
+        raise AssertionError("the picker read the journal on the UI thread")
+
+    monkeypatch.setattr(usage_mod.UsageLog, "summarize", boom)
+
+    class Host(App):
+        def on_mount(self):
+            self.push_screen(ModelPickerScreen("claude-code-subscription", usage_summary={}))
+
+    async def drive():
+        app = Host()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.pause()
+            assert app.screen.query_one("#picker-list").option_count > 0
+
+    asyncio.run(drive())
+
+
+def test_tui_hands_its_cached_usage_summary_to_the_picker():
+    src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
+    assert "usage_summary=self._usage_summary" in src

@@ -71,28 +71,43 @@ percentiles of `latency_s`), `prompt_tokens`, `completion_tokens`,
 `total_tokens`, `cost_known_usd`, `cost_unknown` and `cost_usd` (`None` as soon
 as one call in the bucket had no price).
 
-## Wiring it up
+## How it is wired
 
 The client records; the UI only reads.
 
-```python
-# agent/llm/client.py — around the real call in LLMClient.chat_completion
-t0 = time.monotonic()
-try:
-    response = ...
-except Exception as e:
-    self.usage.record_response(preset_key, self.config, None,
-                               time.monotonic() - t0, ok=False, error=str(e))
-    raise
-self.usage.record_response(preset_key, self.config, response, time.monotonic() - t0)
-```
+`LLMClient` owns one `UsageLog()` (`self.usage`, resolved against the cwd, which
+is the workspace root for both entrypoints) and every path through
+`chat_completion` writes exactly one entry through a single `_record` helper:
+the subscription bridge, the streaming call and the plain call, on success and
+on failure alike. Latency is `time.monotonic()`; a failure records
+`ok: false` with the first 200 characters of the exception and then re-raises.
+Journalling is wrapped in `try/except` throughout — bookkeeping never kills a
+turn.
 
-`record_response` tolerates a response with no `.usage` (the subscription CLI
-bridge and the streaming path both return bare `SimpleNamespace` objects) and
-records zero tokens rather than failing a turn. Token counts and dict-shaped
-usage payloads are both read.
+Two details worth knowing:
 
-- **Status bar:** `f"${usage.today_cost():.2f}"`.
-- **`/model` availability column:** `summary = usage.summarize(days=1)` once,
-  then `format_model_stats(summary, preset["model"])` per row. The literal
-  "today" in that string assumes `days=1`.
+- The streaming path asks for `stream_options={"include_usage": True}` on every
+  provider **except `local`** (LM Studio / Ollama builds reject unknown request
+  fields). The usage chunk that comes back carries an **empty `choices` list**,
+  so it is read before the empty-choices guard that skips content-less chunks —
+  otherwise a streamed turn records zero tokens.
+- `record_response` tolerates a response with no `.usage` (an older CLI envelope,
+  a server that sends no usage chunk) and records zero tokens rather than failing
+  a turn. Token counts and dict-shaped usage payloads are both read.
+
+`LLMConfig.preset_key` carries the preset a config came from, so the `presets`
+buckets are filled in; switching by bare model id clears it.
+
+### Where it shows up
+
+- **TUI status bar:** a dim `$ 0.42 - p50 12.3s` segment after the context gauge,
+  from `ui_common.usage_segment(summary, model)`. It renders nothing at all until
+  something has been recorded, and drops the money half when the window's known
+  spend is `0.00` but some call had no price — an unpriced model must not claim
+  `$0.00` of spend. `AgnosticTUI._refresh_usage_bg` recomputes it every 10s on a
+  worker thread; `summarize()` reads the whole journal and must never run on a
+  repaint.
+- **`/model` picker:** `UsageLog().summarize(days=1)` once for the whole list,
+  then `format_model_stats(summary, preset["model"])` per row, appended as a dim
+  `p50 12.3s | $0.42 today` after the availability column. The literal "today" in
+  that string assumes `days=1`.

@@ -42,6 +42,20 @@ class UndoManager:
         self.checkpoints[name] = list(self.history)
         return f"Checkpoint '{name}' created with {len(self.history)} active history entries."
 
+    def changed_since(self, name: str) -> List[Tuple[Path, Optional[str], str]]:
+        """(path, content_at_checkpoint, content_now) per file written since `name`,
+        in first-touched order. content_at_checkpoint is None for a file the turn created."""
+        if name not in self.checkpoints:
+            return []
+        base = len(self.checkpoints[name])
+        # First snapshot's 'before' + last snapshot's 'after' collapses N writes to
+        # one file into the single net change; the dict keeps first-touched order.
+        touched: dict[Path, Tuple[Optional[str], str]] = {}
+        for snap in self.history[base:]:
+            before, _ = touched.get(snap.file_path, (snap.previous_content, ""))
+            touched[snap.file_path] = (before, snap.new_content)
+        return [(p, before, after) for p, (before, after) in touched.items() if before != after]
+
     def rollback_to_checkpoint(self, name: str) -> Tuple[bool, str]:
         """Rolls back all file changes made since the named checkpoint."""
         if name not in self.checkpoints:

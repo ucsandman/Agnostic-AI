@@ -35,9 +35,7 @@ class PRAutoPilot:
                 )
                 return True
             else:
-                console.print(
-                    f"[red]Error creating branch: {escape(res.stderr.strip())}[/red]"
-                )
+                console.print(f"[red]Error creating branch: {escape(res.stderr.strip())}[/red]")
                 return False
         except Exception as e:
             console.print(f"[red]Git branch error: {escape(str(e))}[/red]")

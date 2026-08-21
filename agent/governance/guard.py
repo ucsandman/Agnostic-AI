@@ -61,12 +61,8 @@ class SafetyGuard:
                 raise FileNotFoundError("core/safety/guards.json not found")
             guards = json.loads(self.policy_path.read_text(encoding="utf-8"))["guards"]
             secret_scan = guards["secretScan"]
-            self.secret_regexes = [
-                re.compile(p) for p in secret_scan["secretPathRegexes"]
-            ]
-            self.blocked_globs = [
-                _glob_to_regex(g) for g in secret_scan.get("blockedFiles", [])
-            ]
+            self.secret_regexes = [re.compile(p) for p in secret_scan["secretPathRegexes"]]
+            self.blocked_globs = [_glob_to_regex(g) for g in secret_scan.get("blockedFiles", [])]
             self.hard_stops = [
                 re.compile(p) for p in guards["hardStops"]["requireApprovalPatterns"]
             ]

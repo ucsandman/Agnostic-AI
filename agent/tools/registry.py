@@ -273,6 +273,23 @@ class ToolRegistry:
             rows.append(row)
         return rows
 
+    def reload_mcp(self) -> str:
+        """Stop every server, drop every mcp__* tool, re-attach from the config files.
+
+        AgentLoop._run_turn snapshots registry.get_openai_tools() once per turn, so a
+        reload takes effect on the NEXT turn, never mid-turn.
+        """
+        from agent.tools.mcp import stop_all
+
+        stop_all(list(self._mcp_servers.values()))
+        self._tools = {n: t for n, t in self._tools.items() if not n.startswith("mcp__")}
+        self._mcp_servers.clear()
+        self._mcp_status.clear()
+        if not self.read_only:
+            self.attach_mcp()
+        tools = sum(1 for n in self._tools if n.startswith("mcp__"))
+        return f"{len(self._mcp_servers)} server(s), {tools} tool(s)"
+
     def _register_default_tools(self):
         # 1. run_command
         self.register(

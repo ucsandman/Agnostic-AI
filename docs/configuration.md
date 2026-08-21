@@ -38,7 +38,8 @@ another local app, and prints the URL it actually bound.
 
 ```
 agnostic [--url URL] [--model NAME] [--api-key KEY] [--full-prompt]
-         [--prompt TEXT | -p TEXT] [--ask-permissions] [--web] [--version]
+         [--prompt TEXT | -p TEXT | --print TEXT] [--output-format text|json]
+         [--yes] [--ask-permissions] [--web] [--version]
 agnostic-legacy   (same flags, prompt_toolkit shell)
 ```
 
@@ -48,7 +49,9 @@ agnostic-legacy   (same flags, prompt_toolkit shell)
 | `--model` | Model id. `/doctor` can detect it from the endpoint. |
 | `--api-key` | Key for `--url`; defaults to `lm-studio`. |
 | `--full-prompt` | Send the whole compiled rules file as system prompt. Without it the agent runs on the same rules clipped to ~4 KB for small local context windows — never on a summary. |
-| `-p`, `--prompt` | Run one prompt and exit. |
+| `-p`, `--prompt`, `--print` | Run one prompt headlessly and exit — see [Headless / scripting](#headless--scripting). `-` reads the prompt from stdin. |
+| `--output-format` | `text` (default) or `json`, for `-p` runs. |
+| `-y`, `--yes` | `-p` only: approve hard stops instead of denying them. |
 | `--ask-permissions` | Prompt y/n on hard-stop commands. **Without it hard stops are denied**, never auto-approved. |
 | `--web` | Start the companion UI on 7843 (next free port if taken). |
 | `--legacy` | (`agnostic` only) Run the prompt_toolkit shell instead of the TUI; same as `agnostic-legacy`. |
@@ -56,6 +59,41 @@ agnostic-legacy   (same flags, prompt_toolkit shell)
 
 Presets, effort levels and subscription bridges are chosen at runtime with
 `/model`; see [`slash-commands.md`](slash-commands.md).
+
+## Headless / scripting
+
+`-p` (aliases `--prompt`, `--print`) runs exactly one turn with no TUI:
+
+- **stdout** — the final assistant text and nothing else (or one JSON object with
+  `--output-format json`), so it pipes.
+- **stderr** — every tool, system and error line, prefixed `[tool_start]`, `[error]`, ...
+- **exit code** — `0` on a clean turn, `1` if the turn emitted an error (including the
+  max-steps cap), `2` for an empty prompt.
+- Hard-stop confirmations are **denied** unless you pass `--yes`; `--ask-permissions`
+  does nothing here because there is no terminal to answer on.
+- `--model <preset key>` switches preset (e.g. `--model sub-claude-code`); any other
+  value is a model id. `--web` still starts the companion, but never opens a browser.
+
+```bash
+agnostic -p 'summarise README.md' 2>/dev/null          # answer only
+git diff | agnostic -p - --output-format json          # prompt from stdin
+agnostic -p 'how many python files?' --output-format json | jq -r .result
+```
+
+The JSON object:
+
+```json
+{
+  "result": "37",
+  "tool_calls": [{"name": "run_command", "preview": "run_command({\"command\": \"...\"})"}],
+  "usage": {"prompt_tokens": 5123, "completion_tokens": 88, "cost_usd": 0.02, "calls": 2},
+  "model": "claude-opus-5",
+  "ok": true
+}
+```
+
+`usage` is `null` when the run recorded nothing in `.agnostic/usage.jsonl`, and
+`cost_usd` is `null` when any call in the run had no price (see [`usage.md`](usage.md)).
 
 ## System prompt
 

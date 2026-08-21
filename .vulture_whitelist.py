@@ -18,8 +18,11 @@ from agent.tools.registry import ToolRegistry, ToolResult
 from agent.tools.subagent import SubagentManager, SubagentWorker
 from agent.governance.memory import MemoryStore
 from agent.tui import AgnosticTUI
+from agent.tui_composer import PromptArea
 from agent.tui_model_picker import ModelPickerScreen
+from agent.tui_memory import MemoryPickerScreen
 from agent.tui_picker import PickerScreen
+from agent.tui_diff import DiffPickerScreen
 from agent.tui_rewind import RewindScreen
 from agent.tui_sessions import SessionPickerScreen
 from textual.widgets import OptionList
@@ -38,8 +41,12 @@ ContextManager.auto_compact
 CodeInterceptor.run_quick_lint
 ThemeManager.format_badge
 UndoManager.get_history_summary
+UndoManager.changed_since
 SessionManager.delete_session
 StateManager.update_whiteboard
+# Called from agent/tools/registry.py — dead only when that file is not staged.
+StateManager.read_memory
+StateManager.write_memory
 SandboxWatchdog.get_clean_snapshot_hash
 SandboxWatchdog.rollback_to_clean
 watchdog
@@ -66,8 +73,15 @@ AgnosticTUI.action_complete_slash
 AgnosticTUI.action_quit_safe
 AgnosticTUI.action_cycle_trust
 AgnosticTUI.action_expand_output
+AgnosticTUI.on_app_blur
+AgnosticTUI.on_app_focus
 AgnosticTUI.on_input_submitted
+AgnosticTUI.on_text_area_changed
 AgnosticTUI.on_mount
+# The composer: Textual calls _on_key, tui.py reads/writes the Input-shaped shims.
+PromptArea._on_key
+PromptArea.value
+PromptArea.cursor_position
 AgnosticTUI.display
 
 # http.server / socketserver read these class attributes and method names.
@@ -99,6 +113,8 @@ ui_common.LineForwarder.flush  # file-like protocol: Rich Console calls it
 PickerScreen.DEFAULT_CSS
 PickerScreen.action_pick
 PickerScreen.action_back
+DiffPickerScreen.on_option_list_option_selected
+MemoryPickerScreen.on_option_list_option_selected
 ModelPickerScreen.on_option_list_option_selected
 RewindScreen.on_option_list_option_selected
 SessionPickerScreen.on_option_list_option_selected
@@ -123,3 +139,17 @@ MemoryStore.save
 MemoryStore.delete
 MemoryStore.index_text
 MemoryStore.recall
+MemoryStore.get
+MemoryStore.list
+ui_common.MEMORY_USAGE
+# Callers live in files not staged alongside these (staged-scope vulture pass).
+SafetyGuard.get_trust_tier  # noqa: F821
+PRAutoPilot.generate_pr_summary
+AutoTestRunner.quick_fix  # noqa: F821
+AutoTestRunner.auto_repair_loop  # noqa: F821
+parse_tool_args  # noqa: F821
+cost_usd  # noqa: F821
+selection  # noqa: F821
+# PickerScreen subclasses override the class attr; Textual reads it, not our code.
+DiffPickerScreen.FOOTER_KEYS  # noqa: F821
+MemoryPickerScreen.FOOTER_KEYS  # noqa: F821

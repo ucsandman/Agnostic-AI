@@ -104,9 +104,7 @@ class AutoTestRunner:
         self.agent_loop_func(prompt)
         return True
 
-    def auto_repair_loop(
-        self, custom_command: Optional[str] = None, max_attempts: int = 4
-    ):
+    def auto_repair_loop(self, custom_command: Optional[str] = None, max_attempts: int = 4):
         """Runs tests and loops repairs until tests pass or max attempts are reached."""
         for attempt in range(1, max_attempts + 1):
             console.print(

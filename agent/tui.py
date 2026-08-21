@@ -34,10 +34,12 @@ from agent.llm.client import LLMConfig
 from agent.llm.detector import ModelDoctor
 from agent.governance.context import context_manager
 from agent.governance.guard import guard
+from agent.governance.state import state_manager
 from agent.governance.undo import undo_manager
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 from agent.workflows.tester import AutoTestRunner
 from agent.tui_commands import SlashCommandMixin
+from agent.tui_composer import PROMPT_PLACEHOLDER, PromptArea
 from agent.tui_rewind import RewindScreen
 from agent.ui_common import (
     SLASH_COMMANDS,
@@ -56,8 +58,12 @@ from agent.ui_common import (
     maybe_start_web_companion,
     parse_confirm_answer,
     safe_text,
+    should_notify,
     stream_tail,
+    turn_summary,
+    usage_segment,
 )
+from agent.llm.usage import UsageLog
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -96,7 +102,8 @@ Screen {
 
 #input-container {
     height: auto;
-    max-height: 8;
+    /* 8 text lines + the composer's 2 border rows + this container's border-top. */
+    max-height: 11;
     dock: bottom;
     border-top: heavy $accent;
     padding: 0 1;
@@ -113,9 +120,12 @@ Screen {
 
 #prompt-input {
     width: 1fr;
+    /* content-box so every height here counts LINES OF TEXT: under the default
+       border-box the round border ate two of them and an 8-line paste showed 6. */
+    box-sizing: content-box;
     height: auto;
     min-height: 1;
-    max-height: 5;
+    max-height: 8;
     border: round $accent;
     background: $surface-darken-2;
     padding: 0 1;
@@ -163,7 +173,10 @@ class AgnosticTUI(SlashCommandMixin, App):
     CSS = TUI_CSS
 
     BINDINGS = [
-        Binding("ctrl+c", "quit_safe", "Cancel/Exit", show=True),
+        # priority: TextArea binds ctrl+c to copy, so with a selection in the
+        # composer the plain App binding never fired and Ctrl+C silently copied
+        # instead of cancelling/exiting.
+        Binding("ctrl+c", "quit_safe", "Cancel/Exit", show=True, priority=True),
         Binding("escape", "cancel_turn", "Cancel", show=True),
         Binding("ctrl+l", "clear_output", "Clear ×2", show=True),
         # priority: without it the Screen's default focus_next binding swallows Tab
@@ -218,6 +231,13 @@ class AgnosticTUI(SlashCommandMixin, App):
         self._tool_outputs: deque[tuple[str, float, str]] = deque(maxlen=10)
         self._tool_name = ""
         self._tool_t0 = 0.0
+        # Turn-done notification. SAFE-OFF by default: _focused starts True, so a
+        # terminal that never reports focus (older conhost, tmux without
+        # focus-events) never rings at all — the alternative is a bell that fires
+        # while the user is watching and cannot be explained.
+        self._focused = True
+        self._saw_focus_event = False
+        self._notify_enabled = bool(state_manager.get_setting("notify", True))
         # The context-limit nudge fires once per fill cycle; re-armed whenever a
         # compaction (manual or automatic) frees the window again.
         self._ctx_warned = False
@@ -232,6 +252,12 @@ class AgnosticTUI(SlashCommandMixin, App):
         # _refresh_git_status) — `git rev-parse` + `git status` on the UI thread
         # stalled the app on every 3s tick.
         self._git_status = ""
+        # Same deal for spend/latency: rendered by the UI thread, recomputed every
+        # 10s by _refresh_usage_bg (summarize() reads the whole journal).
+        self._usage_fragment: str = ""
+        # The raw summary behind that fragment, handed to the /model picker so it
+        # never reads the journal on the UI thread. Empty until the first refresh.
+        self._usage_summary: dict = {}
 
         # Human-in-the-loop confirmation for hard-stop commands. Blocks the calling
         # worker thread via this event until the human answers in the input box.
@@ -255,7 +281,16 @@ class AgnosticTUI(SlashCommandMixin, App):
         yield RichLog(id="output-log", highlight=True, markup=True, wrap=True, max_lines=5000)
         with Horizontal(id="input-container"):
             yield Static("❯ ", id="prompt-label")
-            yield Input(placeholder="Type a message... (Enter to send)", id="prompt-input")
+            yield PromptArea(
+                id="prompt-input",
+                placeholder=PROMPT_PLACEHOLDER,
+                soft_wrap=True,
+                show_line_numbers=False,
+                compact=True,
+                # 'indent' would swallow Tab AND remap Escape to focus_next, killing
+                # both the Tab completion binding and the Esc-Esc rewind.
+                tab_behavior="focus",
+            )
             yield Static("", id="queue-indicator")
         # The live reply grows in this one block; the finished reply is written to
         # the log as a single panel and the block is emptied again.
@@ -271,7 +306,7 @@ class AgnosticTUI(SlashCommandMixin, App):
         self._print_banner()
         self._set_stream_view("")
         self._update_status_bar()
-        self.query_one("#prompt-input", Input).focus()
+        self.query_one("#prompt-input", PromptArea).focus()
         if not self.detection:
             self._detect_model_bg()
         # Periodic status bar update (render only — git shells out on a worker)
@@ -281,6 +316,8 @@ class AgnosticTUI(SlashCommandMixin, App):
         self.set_interval(1.0, self._tick_busy)
         self._refresh_git_status()
         self.set_interval(3.0, self._refresh_git_status)
+        self._refresh_usage_bg()
+        self.set_interval(10.0, self._refresh_usage_bg)
         self._index_workspace_bg()
 
     @work(thread=True, group="detector")
@@ -342,6 +379,39 @@ class AgnosticTUI(SlashCommandMixin, App):
             return
         text, style = endpoint_status_line(self.detection, self.detected_model)
         self._write_output(Text(text, style=style))
+
+    def on_app_blur(self, event: events.AppBlur) -> None:
+        """The terminal lost focus. Textual's Windows and Linux drivers both enable
+        DECSET 1004 focus reporting, so this arrives on any terminal that speaks it —
+        and its arrival is the only proof we have that this terminal reports focus
+        at all, which is what /notify tells the user."""
+        self._focused = False
+        self._saw_focus_event = True
+
+    def on_app_focus(self, event: events.AppFocus) -> None:
+        """The terminal got focus back — the user is looking, so nothing rings."""
+        self._focused = True
+        self._saw_focus_event = True
+
+    def _notify_turn_done(self, duration_s: float, ok: bool = True) -> None:
+        """Bell + toast when a long turn ends while the terminal is unfocused.
+
+        Called once from each worker's `finally`, so /test and /fix announce
+        themselves too. notify() is thread-safe; bell() writes straight to the
+        driver, so it goes through _post().
+        """
+        if not should_notify(self._notify_enabled, self._focused, duration_s):
+            return
+        # _run_background can run a command that never marked a turn (a queue drain
+        # racing an empty deque) — no mark simply means nothing to count.
+        files = len(undo_manager.changed_since(self._turn_marks[-1][0])) if self._turn_marks else 0
+        self._post(self.bell)
+        self.notify(
+            turn_summary(files, duration_s),
+            title="Turn complete",
+            severity="information" if ok else "warning",
+            timeout=10,
+        )
 
     def _mark_busy(self) -> None:
         """The ONE place _agent_busy flips True. Every busy-entry point routes here
@@ -424,6 +494,16 @@ class AgnosticTUI(SlashCommandMixin, App):
                         style="yellow",
                     )
                 )
+            # Cached by _refresh_usage_bg; empty until a call has been journalled.
+            if self._usage_fragment:
+                line.append("  │  ")
+                line.append(self._usage_fragment, style="dim")
+            # A dead MCP server only logs, so missing tools look like an idle model.
+            # getattr: a SimpleNamespace agent (tests) has no registry.
+            mcp_status = getattr(getattr(self.agent, "registry", None), "mcp_status", None)
+            if mcp_status and any(r.get("state") == "error" for r in mcp_status()):
+                line.append("  │  ")
+                line.append("!mcp", style="bold red")
             queue_count = len(self._prompt_queue)
             if queue_count:
                 line.append(f"  │  📬 {queue_count} queued", style="yellow")
@@ -464,6 +544,25 @@ class AgnosticTUI(SlashCommandMixin, App):
             pass
         if git_str != self._git_status:
             self._git_status = git_str
+            self._post(self._update_status_bar)
+
+    @work(thread=True, exclusive=True, group="usage")
+    def _refresh_usage_bg(self) -> None:
+        """Builds the spend/latency fragment off the UI thread and caches it.
+
+        summarize() scans the whole of .agnostic/usage.jsonl — doing that on the
+        1s busy repaint would put a growing file read in the render path."""
+        fragment = ""
+        try:
+            config = self.agent.llm_client.config
+            # The journal aggregates on the model actually executed, which for a
+            # subscription preset is the sub-model, not the CLI placeholder.
+            self._usage_summary = UsageLog().summarize(days=1)
+            fragment, _ = usage_segment(self._usage_summary, config.sub_model or config.model)
+        except Exception:  # a missing/locked/corrupt journal must not kill the bar
+            fragment = ""
+        if fragment != self._usage_fragment:
+            self._usage_fragment = fragment
             self._post(self._update_status_bar)
 
     def _write_output(self, *args, **kwargs) -> None:
@@ -666,16 +765,18 @@ class AgnosticTUI(SlashCommandMixin, App):
         an unchanged '❯' prompt gave no hint that the next Enter answers y/n."""
         try:
             self.query_one("#prompt-label", Static).update("approve? [y/n] " if on else "❯ ")
-            self.query_one("#prompt-input", Input).set_class(on, "confirm")
+            self.query_one("#prompt-input", PromptArea).set_class(on, "confirm")
         except NoMatches:
             pass
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in the input box."""
         user_input = event.value.strip()
+        # Cleared before the early return too: a box holding only blank lines would
+        # otherwise stay dirty and the next Enter would resubmit nothing forever.
+        event.input.value = ""
         if not user_input:
             return
-        event.input.value = ""
 
         if self._awaiting_confirm:
             approved, unrecognized, reason = parse_confirm_answer(user_input)
@@ -717,6 +818,12 @@ class AgnosticTUI(SlashCommandMixin, App):
             return
 
         self._process_input(user_input)
+
+    def on_text_area_changed(self, event) -> None:
+        """Grow the composer with its content, up to 8 lines, then let it scroll.
+        TextArea has no auto-height in Textual 8.1.1 (its DEFAULT_CSS is height: 1fr),
+        so the height is set here on every edit and paste."""
+        event.text_area.styles.height = max(1, min(8, event.text_area.document.line_count))
 
     def _update_queue_indicator(self) -> None:
         """Update the visual queue indicator next to the input."""
@@ -807,9 +914,11 @@ class AgnosticTUI(SlashCommandMixin, App):
         @file/#symbol expansion happens here, not on the UI thread: a #symbol miss
         triggers a full workspace index and froze the app for over a second."""
         start_time = time.time()
+        ok = True
         try:
             self.agent.run_turn(expand_prompt_references(raw_input, self.code_indexer))
         except Exception as e:
+            ok = False
             self._post(
                 self._write_output,
                 Panel(
@@ -830,6 +939,7 @@ class AgnosticTUI(SlashCommandMixin, App):
                 Text(f"⏱ Turn completed in {duration:.2f}s", style="dim"),
             )
             self._agent_busy = False
+            self._notify_turn_done(duration, ok)
             self._post(self._update_status_bar)
             # Process next queued prompt if any
             self._post(self._process_queue)
@@ -850,12 +960,15 @@ class AgnosticTUI(SlashCommandMixin, App):
         it is printed rather than in one dump when fn() finally returns.
         """
         sink = LineForwarder(lambda line: self._post(self._write_output, safe_text(line)))
+        start = time.monotonic()
+        ok = True
         try:
             with contextlib.redirect_stdout(sink):
                 result = fn()
             if result is not None:
                 self._post(self._write_output, result)
         except Exception as e:
+            ok = False
             self._post(
                 self._write_output,
                 Panel(
@@ -870,6 +983,7 @@ class AgnosticTUI(SlashCommandMixin, App):
         finally:
             sink.flush_remainder()
             self._agent_busy = False
+            self._notify_turn_done(time.monotonic() - start, ok)
             self._post(self._update_status_bar)
             self._post(self._process_queue)
 
@@ -949,7 +1063,7 @@ class AgnosticTUI(SlashCommandMixin, App):
             return
         # Idle, empty input, second Esc within 800ms: rewind. Anything typed keeps
         # Esc harmless, so clearing a half-written prompt can never open a modal.
-        inp = self.query_one("#prompt-input", Input)
+        inp = self.query_one("#prompt-input", PromptArea)
         if inp.value.strip() or not self._double_tap("rewind", 0.8):
             return
         self.push_screen(RewindScreen(list(self._turn_marks)), callback=self._apply_rewind)
@@ -1025,7 +1139,7 @@ class AgnosticTUI(SlashCommandMixin, App):
         """Only walks from the start of the line, or while already walking, so
         editing a line you typed yourself still works."""
         try:
-            inp = self.query_one("#prompt-input", Input)
+            inp = self.query_one("#prompt-input", PromptArea)
         except NoMatches:
             return
         walking = self._history.index < len(self._history.entries)
@@ -1042,7 +1156,7 @@ class AgnosticTUI(SlashCommandMixin, App):
         same table — restores the tab-completion the TUI had lost), or an
         @file/#symbol token against the workspace index."""
         try:
-            inp = self.query_one("#prompt-input", Input)
+            inp = self.query_one("#prompt-input", PromptArea)
         except NoMatches:
             return
         val = inp.value
@@ -1106,6 +1220,13 @@ def main():
         legacy_main([a for a in sys.argv[1:] if a != "--legacy"])
         return
 
+    # Headless first: `-p` must not print a banner, start a companion or build a
+    # single Textual widget — its stdout belongs to whoever is parsing it.
+    if args.prompt:
+        from agent.headless import run_headless
+
+        sys.exit(run_headless(args))
+
     # The endpoint probe is a 4s-timeout HTTP GET: the TUI runs it on a worker
     # (AgnosticTUI._detect_model_bg) so a dead endpoint cannot delay the first frame.
     doctor = ModelDoctor(base_url=args.url, api_key=args.api_key)
@@ -1140,18 +1261,6 @@ def main():
 
     if args.web:
         maybe_start_web_companion(agent)
-
-    # Single prompt mode: run without TUI. No frame to keep responsive here, so
-    # probe synchronously — `-p` must talk to the model the endpoint actually serves.
-    if args.prompt:
-        agent.llm_client.config.model = doctor.inspect().get("active_model") or detected_model
-        expanded_prompt = expand_prompt_references(args.prompt, code_indexer)
-        # Use the old-style output callback for single-prompt
-        from agent.cli import rich_output_callback
-
-        agent.output_callback = rich_output_callback
-        agent.run_turn(expanded_prompt)
-        sys.exit(0)
 
     # Set context window limit
     if hasattr(config, "context_window") and config.context_window:

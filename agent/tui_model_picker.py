@@ -14,6 +14,7 @@ from rich.text import Text
 from textual.widgets import OptionList
 
 from agent.llm.client import LLMClient, LLMConfig
+from agent.llm.usage import UsageLog, format_model_stats
 from agent.tui_picker import PickerScreen
 from agent.ui_common import EFFORT_LEVELS, model_preset_rows
 
@@ -25,10 +26,18 @@ _EFFORT_BLURB = {
 
 
 class ModelPickerScreen(PickerScreen):
-    def __init__(self, active_model: str, local_online: bool = False) -> None:
+    def __init__(
+        self,
+        active_model: str,
+        local_online: bool = False,
+        usage_summary: Optional[dict] = None,
+    ) -> None:
         super().__init__()
         self._active_model = active_model
         self._local_online = local_online
+        # The caller passes the summary its background worker already computed —
+        # summarize() reads the whole journal and on_mount runs on the UI thread.
+        self._usage_summary = usage_summary
         self._preset_key: Optional[str] = None
         self._sub_model: Optional[str] = None
 
@@ -38,6 +47,13 @@ class ModelPickerScreen(PickerScreen):
     # ── steps ────────────────────────────────────────────────────────────────
     def _show_presets(self) -> None:
         rows = model_preset_rows(LLMConfig.PRESETS, self._active_model, self._local_online)
+        summary = self._usage_summary
+        if summary is None:  # standalone use: no cached summary was handed to us
+            try:
+                # Once for the whole list, never per row — it reads the whole journal.
+                summary = UsageLog().summarize(days=1)
+            except Exception:  # no journal yet, or unreadable — the column stays empty
+                summary = {}
         options = []
         for num, active, key, name, ctx, effort, avail in rows:
             label = Text()
@@ -47,6 +63,11 @@ class ModelPickerScreen(PickerScreen):
             label.append(
                 avail, style="green" if avail.endswith(("ready", "set", "online")) else "yellow"
             )
+            # Appended AFTER `avail`, never folded into it: the green/yellow choice
+            # above keys on how that string ends.
+            stats = format_model_stats(summary, str(LLMConfig.PRESETS[key]["model"]))
+            if stats:
+                label.append(f"  {stats}", style="dim")
             options.append((key, label))
         current = next((r[2] for r in rows if r[1]), None)
         self._fill("Model presets", options, highlight=current)

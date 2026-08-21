@@ -3,6 +3,8 @@ agent/governance/state.py — State Whiteboard & Persistent Workspace Memory
 Maintains a clean .agnostic/state.md whiteboard across long sessions, allowing task resumption.
 """
 
+import json
+import os
 from pathlib import Path
 from typing import Optional, List
 
@@ -12,6 +14,35 @@ class StateManager:
         self.workspace_root = Path(workspace_root or ".").resolve()
         self.state_dir = self.workspace_root / ".agnostic"
         self.state_file = self.state_dir / "state.md"
+        # The one workspace settings file. UI preferences live here, not in a
+        # second store invented per feature.
+        self.settings_file = self.state_dir / "settings.json"
+
+    def get_setting(self, key: str, default=None):
+        """One key from .agnostic/settings.json. A missing, unreadable or corrupt
+        file reads as the default — a settings file must never be what stops the
+        UI from starting."""
+        try:
+            data = json.loads(self.settings_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return default
+        return data.get(key, default) if isinstance(data, dict) else default
+
+    def set_setting(self, key: str, value) -> None:
+        """Merge one key in, atomically. Raises OSError on a read-only workspace;
+        the caller decides whether that is fatal (for a UI toggle it is not)."""
+        try:
+            data = json.loads(self.settings_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        data[key] = value
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.settings_file.with_name(self.settings_file.name + ".tmp")
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        os.replace(tmp, self.settings_file)
 
     def read_state(self) -> str:
         if not self.state_file.exists():
