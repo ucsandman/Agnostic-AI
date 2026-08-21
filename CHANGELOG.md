@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-20
+
 ### Added
 - Turn-done notification: a terminal bell plus a toast (`3 files changed · 2m14s`) when a turn
   that ran 5 seconds or longer finishes while the terminal is unfocused, for agent turns and for

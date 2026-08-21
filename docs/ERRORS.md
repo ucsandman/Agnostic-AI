@@ -87,3 +87,17 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
 - **`tools/errorlog --selftest` could not fail** (printed a check mark next to
   a literal `false`, exited 0). Fixed at the time; the tool has since been
   deleted — the command center is the only error surface.
+
+## 2026-08-20 - CI py3.9 leg failed on a 3.10-only kwarg
+
+- **Symptom:** 11 tests/test_memory.py failures on the Ubuntu py3.9 leg only:
+  TypeError: write_text() got an unexpected keyword argument 'newline'.
+- **Root cause:** Path.write_text(newline=...) exists only on Python 3.10+;
+  the code was written and verified on 3.12.
+- **Fix:** open(tmp, "w", encoding="utf-8", newline="
+") (commit 4f4d40a).
+- **Lesson:** the support floor is 3.9 (pyproject + CI matrix). New code must
+  avoid 3.10+ APIs; the local suite passing on 3.12 proves nothing about it.
+- Also: git staging survives a blocked pre-commit hook, so a later narrow
+  commit swept up everything staged by the earlier failed attempt - check
+  git status before re-committing after a hook block (2e45beb was amended).

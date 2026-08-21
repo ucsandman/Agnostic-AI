@@ -88,3 +88,20 @@ scripts only and is never published.
 `storage/` holds only `.gitkeep`. Manifests, prune reports and tombstones are
 rebuilt by the engines on each machine; tracking them made a clean clone
 describe files that did not exist there.
+
+## 2026-08-20 - MCP is back, as a real client, not a stub
+
+The old MCP stub was deleted under the "no half-built capabilities" rule. It
+returns as a working zero-dependency stdio JSON-RPC client (agent/tools/mcp.py):
+servers from .agnostic/mcp.json / .mcp.json / ~/.agnostic/mcp.json register as
+mcp__<server>__<tool> and run through the governed registry.execute path, so
+guard, audit and hard-stop confirms apply to remote tools exactly as to local
+ones. http/sse transports are deliberately unsupported (stdio only) - the rule
+stands: a listed tool must be able to return a real result.
+
+## 2026-08-20 - Costs are never invented
+
+agent/llm/pricing.json ships with null prices and a fill-me-in note.
+UsageLog reports cost as unknown rather than estimating from made-up numbers;
+subscription and local calls are 0.0 by definition. Latency (p50/p95) comes
+from the local .agnostic/usage.jsonl journal only.

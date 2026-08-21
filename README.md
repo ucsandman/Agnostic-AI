@@ -18,9 +18,13 @@ that runs against local or hosted models under the same safety policy.
   candidate rules, which you approve from a local dashboard.
 - **Agent.** `agnostic` is a Textual TUI coding agent with file / shell /
   search tools, subagents, an AST symbol index, checkpoints, a test-and-fix
-  loop and a `/model` picker covering LM Studio and Ollama, hosted Gemini /
-  Claude / GPT / DeepSeek presets, and logged-in `claude` / `codex` / `agy`
-  CLIs with no API key.
+  loop and an arrow-key `/model` picker covering LM Studio and Ollama, hosted
+  Gemini / Claude / GPT / DeepSeek presets, and logged-in `claude` / `codex` /
+  `agy` CLIs with no API key (with per-subscription model pinning and session
+  continuity). It has persistent auto-memory, MCP tool servers (`.mcp.json`),
+  per-model cost/latency tracking, a multi-line composer, double-Esc rewind,
+  a `/diff` turn browser, `!cmd` shell escape and a headless `agnostic -p`
+  mode for scripting it as a subagent.
 - **Policy.** `core/safety/guards.json` is read by the Python guard, the Node
   hooks and the dashboard. Secret paths are always blocked; hard-stop commands
   need a human unless you opt in; a missing or unreachable policy fails closed.
