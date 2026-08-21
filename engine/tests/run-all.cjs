@@ -367,6 +367,14 @@ async function run() {
     const fixtureTarget = { id: 'fixture-target', name: 'Fixture Target', preamble: '# Fixture\n', dialect: 'generic' };
     const compiled = compileTarget(fixtureTarget, source);
 
+    // Badge version is single-sourced: compiled rules carry package.json's version,
+    // never a stale literal or an unsubstituted placeholder. (Bit 2026-08-21: badge sat at v1.2.0 two releases late.)
+    const pkgVersion = require('../../package.json').version;
+    assert(compiled.includes(`[Agnostic Harness v${pkgVersion} | DashClaw Governed]`), `Badge should read v${pkgVersion}`);
+    assert(!compiled.includes('{{VERSION}}'), 'Compiled rules must not leak the {{VERSION}} placeholder');
+    const pyVersion = (fs.readFileSync(path.join(ROOT, 'agent', '__init__.py'), 'utf8').match(/__version__\s*=\s*"([^"]+)"/) || [])[1];
+    assert.strictEqual(pyVersion, pkgVersion, `agent/__init__.py (${pyVersion}) and package.json (${pkgVersion}) must agree`);
+
     const tmpDir = makeTmpDir('agnostic-parity-fixture-');
     try {
       const fixtureFile = path.join(tmpDir, 'fixture-rules.md');

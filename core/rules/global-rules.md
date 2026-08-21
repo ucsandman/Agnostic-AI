@@ -1,12 +1,12 @@
 # 🛡️ Agnostic AI Universal Harness — ACTIVE
 
-> **Harness Status:** `[AGNOSTIC-HARNESS v1.2.0: ACTIVE & GOVERNED]`
+> **Harness Status:** `[AGNOSTIC-HARNESS v{{VERSION}}: ACTIVE & GOVERNED]`
 > **Single Source of Truth:** Agnostic AI Engine (18-Target Parity Engine)
 > **Governance Provider:** DashClaw Governed Autonomy / Local Fallback
 
 **Operator Visibility Requirement:**
 At the start of any new session or when first replying to the operator, prepend the session badge:
-`🛡️ [Agnostic Harness v1.2.0 | DashClaw Governed]`
+`🛡️ [Agnostic Harness v{{VERSION}} | DashClaw Governed]`
 This proves that the active session is correctly initialized and bound to the Agnostic AI Harness.
 
 ---

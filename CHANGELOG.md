@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Session badge version is now single-sourced: `core/rules/global-rules.md` carries a
+  `{{VERSION}}` placeholder that `npm run sync` fills from `package.json`, and sync refreshes
+  `storage/harness-installed.json` to the live version. `package.json` bumped 1.3.0 -> 1.4.0
+  (it was left behind at the 1.4.0 release, and the badge literal at 1.2.0). A parity test
+  asserts the compiled badge, `package.json` and `agent/__init__.py` agree.
+
 ## [1.4.0] - 2026-08-20
 
 ### Added

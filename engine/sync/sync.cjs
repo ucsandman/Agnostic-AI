@@ -81,9 +81,23 @@ function loadSource() {
   if (!fs.existsSync(RULES_SOURCE)) {
     throw new Error(`Missing source rules file: ${RULES_SOURCE}`);
   }
-  const rules = fs.readFileSync(RULES_SOURCE, 'utf8').trim();
+  // Badge version is single-sourced from package.json so a release bump can't leave it stale.
+  const version = require(path.join(ROOT, 'package.json')).version;
+  const rules = fs.readFileSync(RULES_SOURCE, 'utf8').trim().replace(/\{\{VERSION\}\}/g, version);
   const traits = fs.existsSync(TRAITS_SOURCE) ? fs.readFileSync(TRAITS_SOURCE, 'utf8').trim() : '';
-  return { rules, traits };
+  return { rules, traits, version };
+}
+
+// Keep storage/harness-installed.json honest about which version is live.
+function refreshInstalledVersion(version) {
+  const marker = path.join(ROOT, 'storage', 'harness-installed.json');
+  if (!fs.existsSync(marker)) return;
+  try {
+    const state = JSON.parse(fs.readFileSync(marker, 'utf8'));
+    if (state.version === version) return;
+    state.version = version;
+    fs.writeFileSync(marker, JSON.stringify(state, null, 2) + '\n', 'utf8');
+  } catch (_) { /* marker is advisory */ }
 }
 
 const DROP_SECTIONS_FOR_NON_CLAUDE = ['Delegation and Model Routing'];
@@ -210,6 +224,7 @@ function run(opts = {}) {
   const stateFile = path.join(storageDir, 'sync-state.json');
   const backupsDir = path.join(storageDir, 'backups');
   const state = loadSyncState(stateFile);
+  if (!checkOnly && !opts.storageDir) refreshInstalledVersion(source.version);
 
   const rawConfig = JSON.parse(fs.readFileSync(targetsConfig, 'utf8'));
   const targets = rawConfig.targets.filter(t => !targetFilter || t.id === targetFilter);
