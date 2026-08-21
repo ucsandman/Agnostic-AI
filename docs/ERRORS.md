@@ -94,10 +94,28 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
   TypeError: write_text() got an unexpected keyword argument 'newline'.
 - **Root cause:** Path.write_text(newline=...) exists only on Python 3.10+;
   the code was written and verified on 3.12.
-- **Fix:** open(tmp, "w", encoding="utf-8", newline="
-") (commit 4f4d40a).
+- **Fix:** `open(tmp, "w", encoding="utf-8", newline="\n")` (commit 4f4d40a).
+  (That line itself arrived here with a real newline in place of the escape —
+  the heredoc-mangling bug two entries up, biting the entry that logs it.)
 - **Lesson:** the support floor is 3.9 (pyproject + CI matrix). New code must
   avoid 3.10+ APIs; the local suite passing on 3.12 proves nothing about it.
 - Also: git staging survives a blocked pre-commit hook, so a later narrow
   commit swept up everything staged by the earlier failed attempt - check
   git status before re-committing after a hook block (2e45beb was amended).
+
+## 2026-08-20 - CI py3.9 leg failed on widgets built outside an event loop
+
+- **Symptom:** 3 failures on the py3.9 leg only (two in test_tui_composer.py,
+  one in test_tui_memory.py): RuntimeError: There is no current event loop in
+  thread 'MainThread', raised from asyncio/locks.py inside Widget.__init__.
+- **Root cause:** on 3.9 asyncio.Lock() calls get_event_loop() at construction,
+  and every Textual widget builds one; asyncio.run() sets the thread's loop to
+  None when it returns, so the first test to construct a widget outside a
+  running app after any pilot test blew up. Order-dependent, which is why only
+  3 of 432 tests tripped and why no single-file run reproduced it.
+- **Fix:** tests/conftest.py hands every test a current event loop and closes
+  what it opened. No-op on 3.10+, where Lock() no longer touches the policy.
+- **Lesson:** second py3.9 break in two ships, same shape as the write_text one
+  - the floor is 3.9 and 3.12-only verification keeps missing it. A real 3.9
+  interpreter is one `uv venv --python 3.9` away; use it before pushing when a
+  change touches asyncio, pathlib, or typing.
