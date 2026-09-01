@@ -328,6 +328,10 @@ class SubprocessSubscriptionBridge:
                     proc.stdin.close()
                 except (BrokenPipeError, OSError):
                     pass  # child died early; the read loop will surface why
+                # POSIX communicate() registers self.stdin with a selector when
+                # it is not None — on a closed file that raises 'I/O operation
+                # on closed file'. Detach it so communicate() skips stdin.
+                proc.stdin = None
             # The read loop blocks until the child closes stdout, so the deadline
             # has to kill the child — a communicate(timeout=) below it never runs.
             expired = []
@@ -816,7 +820,7 @@ class LLMClient:
         except Exception:
             pass
 
-    def chat_completion(
+    def chat_completion(  # noqa: vulture — called by AgentLoop/subagents; single-file scans miss it
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
