@@ -8,6 +8,7 @@ definition of each so the two UIs cannot drift apart again.
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -529,6 +530,78 @@ def detect_model(url: str, api_key: str, fallback_model: str):
     detection = doctor.inspect()
     detected_model = detection.get("active_model") or fallback_model
     return doctor, detected_model, detection
+
+
+def slash_hints(text: str, limit: int = 4) -> list:
+    """Live composer menu: [(command, help)] for what's typed so far.
+
+    Only while the composer holds a single-line slash token with no arguments
+    yet — the moment a space or newline lands, the menu is out of the way."""
+    if not text.startswith("/") or "\n" in text or " " in text:
+        return []
+    return [(c, h) for c, h in SLASH_COMMANDS.items() if c.startswith(text)][:limit]
+
+
+def settings_path() -> Path:
+    return Path.home() / ".agnostic" / "settings.json"
+
+
+def load_settings() -> dict:
+    try:
+        data = json.loads(settings_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_settings(**updates) -> None:
+    """Merge-and-write ~/.agnostic/settings.json. Never lets a disk error kill a turn."""
+    try:
+        path = settings_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = load_settings()
+        data.update(updates)
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def preset_available(preset: dict) -> bool:
+    """Can this preset answer right now, judged without any network call?
+    Subscription: its CLI is on PATH. API: its key env is set. Local: never —
+    it is the explicit fallback, not something to auto-default to."""
+    provider = str(preset.get("provider", "local"))
+    if provider.endswith("-sub"):
+        cli = str(preset.get("base_url", "")).split("://")[-1]
+        return bool(cli and shutil.which(cli))
+    if provider == "local":
+        return False
+    envs = [preset.get("api_key_env")] + list(preset.get("alt_api_key_envs") or [])
+    return any(e and os.getenv(e) for e in envs)
+
+
+# First-run preference, ranked by how well each CLI cooperates with the bridge:
+# claude (json envelope + resume), codex (resume), agy (one-shot re-flatten).
+_SUB_PRESET_ORDER = ("sub-claude-code", "sub-openai-codex", "sub-google-antigravity")
+
+
+def pick_default_preset(presets: dict) -> Optional[Tuple[str, Optional[str], Optional[str]]]:
+    """(preset_key, sub_model, effort) to start on, or None to stay on local.
+
+    The last /model choice (persisted in ~/.agnostic/settings.json) wins while it
+    is still available; otherwise the best available subscription CLI, then the
+    first API-key preset with its key set. Local is only ever the fallback."""
+    saved = load_settings()
+    key = saved.get("preset")
+    if key in presets and preset_available(presets[key]):
+        return key, saved.get("sub_model") or None, saved.get("effort") or None
+    for key in _SUB_PRESET_ORDER:
+        if key in presets and preset_available(presets[key]):
+            return key, None, None
+    for key, p in presets.items():
+        if preset_available(p):
+            return key, None, None
+    return None
 
 
 def model_preset_rows(presets: dict, active_model: str, local_online: bool = False) -> list:

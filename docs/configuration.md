@@ -47,6 +47,13 @@ agnostic-legacy   (same flags, prompt_toolkit shell)
 |---|---|
 | `--url` | OpenAI-compatible base URL (LM Studio `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`, ...). |
 | `--model` | Model id. `/doctor` can detect it from the endpoint. |
+
+With `--url` and `--model` untouched, startup does **not** assume a local
+endpoint: it picks the last `/model` choice (persisted in
+`~/.agnostic/settings.json`), else the best installed subscription CLI
+(`claude`, then `codex`, then `agy`), else the first API-key preset whose env
+var is set, and only then falls back to the local endpoint.
+
 | `--api-key` | Key for `--url`; defaults to `lm-studio`. |
 | `--full-prompt` | Send the whole compiled rules file as system prompt. Without it the agent runs on the same rules clipped to ~4 KB for small local context windows — never on a summary. |
 | `-p`, `--prompt`, `--print` | Run one prompt headlessly and exit — see [Headless / scripting](#headless--scripting). `-` reads the prompt from stdin. |

@@ -37,7 +37,7 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 | `/clear` | both | Clear the screen / output log, keep memory. |
 | `/help` | both | Command list. |
 | `/exit` | both | Quit. |
-| `/multiline` | both | In the legacy CLI, enter a paste mode for long logs and specs; submit with `Ctrl+Z` + `Enter`. The TUI prompt is always multi-line, so there the command just names the keys: `Shift+Enter` (or `Alt+Enter` / `Ctrl+J`) for a newline, `Enter` to send. |
+| `/multiline` | both | In the legacy CLI, enter a paste mode for long logs and specs; submit with `Ctrl+Z` + `Enter`. The TUI prompt is always multi-line, so there the command just names the keys: `Shift+Enter` (or `Alt+Enter` / `Ctrl+J`) for a newline, `Enter` to send. A paste taller than 12 lines collapses to a `[Pasted text #N +X lines]` marker and is expanded back into the message on send; typing a bare slash prefix shows a live menu of matching commands under the composer. |
 
 ## Safety and governance
 

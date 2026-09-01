@@ -119,3 +119,27 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
   - the floor is 3.9 and 3.12-only verification keeps missing it. A real 3.9
   interpreter is one `uv venv --python 3.9` away; use it before pushing when a
   change touches asyncio, pathlib, or typing.
+
+## 2026-08-31 - Subscription bridge died on Windows argv limits
+
+- **Symptom:** every codex-sub turn answered only "The command line is too
+  long." (0.04s turns, no model call).
+- **Root cause:** the bridge passed the whole flattened transcript as one argv
+  argument; `codex.cmd` runs through cmd.exe, whose command line caps at 8,191
+  chars, and the harness prompt alone exceeds it. claude/agy were the same bug
+  waiting at the 32K .exe limit.
+- **Fix:** prompt rides stdin (`codex exec -`, piped `claude -p`); regression
+  test asserts no argv element reaches 8,191 chars.
+- **Lesson:** anything that puts model-scale text on a child argv is broken by
+  design on Windows - pipe stdin or write a temp file, always.
+
+## 2026-08-31 - Two Textual gotchas cost a test round each
+
+- Overriding `_on_paste` and calling `super()._on_paste()` inserts pastes twice:
+  the message pump dispatches `_on_paste` once per MRO class, so the base
+  handler runs anyway. Fall through instead of delegating; block the base with
+  `event.prevent_default()` when you handled it.
+- Same-edge `dock:` siblings OVERLAP (they only reserve space from non-docked
+  siblings). Measured regions proved #hint-bar and #input-container shared
+  y=26. A widget that must sit above/below the composer goes INSIDE the one
+  docked container, in flow layout.

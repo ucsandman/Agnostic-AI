@@ -105,3 +105,13 @@ agent/llm/pricing.json ships with null prices and a fill-me-in note.
 UsageLog reports cost as unknown rather than estimating from made-up numbers;
 subscription and local calls are 0.0 by definition. Latency (p50/p95) comes
 from the local .agnostic/usage.jsonl journal only.
+
+## 2026-08-31 - Startup default is availability-ranked, never assumed local
+
+With --url/--model untouched, startup picks: the persisted last /model choice
+(home-level ~/.agnostic/settings.json - global preference, distinct from the
+workspace .agnostic/settings.json state file), else subscription CLIs ranked by
+how well each cooperates with the bridge (claude: json envelope + resume;
+codex: resume; agy: one-shot re-flatten), else the first API-key preset with
+its env var set, else local. Local is the explicit fallback because a dead
+localhost:1234 probe was the worst first-run experience the harness had.

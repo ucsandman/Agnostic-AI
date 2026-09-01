@@ -253,6 +253,11 @@ class SubprocessSubscriptionBridge:
         new_session_id: Optional[str] = None
         # claude -p can hand back a parseable result envelope; the others cannot.
         json_mode = provider == "anthropic-sub"
+        # The transcript rides stdin wherever the CLI allows it: argv dies at
+        # 8,191 chars on Windows .cmd shims ("The command line is too long")
+        # and 32K for .exe, and a real conversation blows both. agy's print
+        # mode documents no plain-text stdin path, so it keeps argv.
+        stdin_text: Optional[str] = None
 
         if provider == "google-sub":
             # `agy --print` is one-shot — it exposes no session/resume flag — so
@@ -269,14 +274,15 @@ class SubprocessSubscriptionBridge:
             if model:
                 cmd.extend(["--model", model])
         elif provider == "anthropic-sub":
+            # No positional prompt: `claude -p` reads it from piped stdin.
             cmd = [
                 "claude.exe" if os.name == "nt" else "claude",
                 "-p",
-                prompt_text,
                 "--dangerously-skip-permissions",
                 "--output-format",
                 "json",
             ]
+            stdin_text = prompt_text
             if resume_id:
                 cmd.extend(["--resume", resume_id])
             else:
@@ -288,9 +294,13 @@ class SubprocessSubscriptionBridge:
             cmd = ["codex.cmd" if os.name == "nt" else "codex", "exec"]
             if resume_id:
                 cmd.extend(["resume", resume_id])
-            cmd.extend([prompt_text, CODEX_BYPASS_FLAG])
+            # `-` = read the prompt from stdin (both exec and exec resume).
+            cmd.extend(["-", CODEX_BYPASS_FLAG])
+            stdin_text = prompt_text
             if model:
                 cmd.extend(["-m", model])
+            if reasoning_effort in ("low", "medium", "high"):
+                cmd.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
         else:
             raise ValueError(f"Unknown subscription provider: {provider}")
 
@@ -301,6 +311,7 @@ class SubprocessSubscriptionBridge:
         try:
             proc = subprocess.Popen(
                 cmd,
+                stdin=subprocess.PIPE if stdin_text is not None else None,
                 stdout=subprocess.PIPE,
                 # Merged rather than a second pipe: stdout was streamed line by
                 # line while stderr sat unread, so a chatty CLI filled the stderr
@@ -311,6 +322,12 @@ class SubprocessSubscriptionBridge:
                 errors="replace",
                 bufsize=1,
             )
+            if stdin_text is not None and proc.stdin:
+                try:
+                    proc.stdin.write(stdin_text)
+                    proc.stdin.close()
+                except (BrokenPipeError, OSError):
+                    pass  # child died early; the read loop will surface why
             # The read loop blocks until the child closes stdout, so the deadline
             # has to kill the child — a communicate(timeout=) below it never runs.
             expired = []
@@ -652,6 +669,8 @@ class LLMClient:
         """True when (provider, model) actually forwards reasoning effort to the backend."""
         if provider == "google-sub":
             return True  # passed as `--effort` to the agy CLI
+        if provider == "openai-sub":
+            return True  # passed as `-c model_reasoning_effort=...` to codex exec
         if provider.endswith("-sub"):
             return False
         return model.startswith(cls.EFFORT_MODEL_PREFIXES)

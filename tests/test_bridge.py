@@ -20,13 +20,29 @@ from agent.llm.client import BridgeSession, SubprocessSubscriptionBridge
 # --- Test doubles ---------------------------------------------------------
 
 
+class FakeStdin:
+    """Captures what the bridge pipes to the CLI; on close, appends it to the
+    recorded argv as a trailing `<stdin>` marker so prompt_of can find it."""
+
+    def __init__(self, cmd):
+        self._cmd = cmd
+        self._data = []
+
+    def write(self, s):
+        self._data.append(s)
+
+    def close(self):
+        self._cmd.extend(["<stdin>", "".join(self._data)])
+
+
 class FakeProc:
     """Popen stand-in: yields one canned stdout chunk, exits clean."""
 
     returncode = 0
 
-    def __init__(self, output: str):
+    def __init__(self, output: str, cmd=None):
         self.stdout = iter([output])
+        self.stdin = FakeStdin(cmd) if cmd is not None else None
 
     def communicate(self):
         return "", ""
@@ -40,9 +56,10 @@ def fake_cli(monkeypatch, *outputs):
     seen = []
     queue = list(outputs)
 
-    def fake_popen(cmd, **_kwargs):
+    def fake_popen(cmd, **kwargs):
         seen.append(cmd)
-        return FakeProc(queue.pop(0) if queue else "")
+        piped = kwargs.get("stdin") is subprocess.PIPE
+        return FakeProc(queue.pop(0) if queue else "", cmd if piped else None)
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     return seen
@@ -55,13 +72,12 @@ def claude_json(result, session_id="sess-abc", **extra):
 
 
 def prompt_of(cmd):
-    """The prompt string in a recorded argv (claude -p / agy --print / codex exec)."""
-    for flag in ("-p", "--print"):
-        if flag in cmd:
-            return cmd[cmd.index(flag) + 1]
-    for i, arg in enumerate(cmd):  # codex: the prompt sits before the bypass flag
-        if arg.startswith("--dangerously-bypass-approvals"):
-            return cmd[i - 1]
+    """The prompt a recorded invocation carried: piped stdin (claude/codex) or
+    the argv positional (agy --print)."""
+    if "<stdin>" in cmd:
+        return cmd[cmd.index("<stdin>") + 1]
+    if "--print" in cmd:
+        return cmd[cmd.index("--print") + 1]
     return cmd[-1]
 
 
@@ -308,6 +324,22 @@ def test_codex_gets_the_approval_flag_current_builds_actually_accept(monkeypatch
     assert "--dangerously-bypass-approvals-and-sandbox" in seen[0]
 
 
+def test_claude_and_codex_prompts_ride_stdin_never_argv(monkeypatch):
+    """A real transcript exceeds Windows' 8,191-char cmd.exe argv limit, so a
+    prompt in argv is 'The command line is too long' on the first big turn."""
+    seen = fake_cli(monkeypatch, claude_json("ok"), "ok")
+    big = "x" * 20_000
+
+    SubprocessSubscriptionBridge.execute_turn("anthropic-sub", [{"role": "user", "content": big}])
+    SubprocessSubscriptionBridge.execute_turn("openai-sub", [{"role": "user", "content": big}])
+
+    for cmd in seen:
+        marker = cmd.index("<stdin>")
+        assert big in cmd[marker + 1]
+        assert all(len(arg) < 8191 for arg in cmd[:marker]), "prompt leaked into argv"
+    assert "-" in seen[1], "codex was not told to read stdin"
+
+
 def test_agy_always_re_sends_the_whole_transcript(monkeypatch):
     """`agy --print` exposes no session flag, so there is nothing to resume."""
     seen = fake_cli(monkeypatch, "answer one", "answer two")
@@ -340,3 +372,14 @@ def test_the_client_hands_its_own_session_to_the_bridge(monkeypatch):
     client.chat_completion([{"role": "user", "content": "hi"}])
 
     assert seen["session"] is client.bridge_session
+
+
+def test_codex_receives_the_reasoning_effort_as_a_config_override(monkeypatch):
+    """The status line used to say 'Effort: HIGH (not supported ... ignored)' for
+    codex — but `codex exec -c model_reasoning_effort=...` has accepted it all along."""
+    seen = fake_cli(monkeypatch, "ok")
+
+    SubprocessSubscriptionBridge.execute_turn(
+        "openai-sub", [{"role": "user", "content": "hi"}], reasoning_effort="high"
+    )
+    assert 'model_reasoning_effort="high"' in seen[0][seen[0].index("-c") + 1]

@@ -1655,3 +1655,116 @@ def test_model_picker_uses_the_cached_summary_instead_of_reading_the_journal(mon
 def test_tui_hands_its_cached_usage_summary_to_the_picker():
     src = inspect.getsource(tui.AgnosticTUI._handle_slash_command)
     assert "usage_summary=self._usage_summary" in src
+
+
+# --- default preset pick (settings + availability) -------------------------
+
+
+def test_pick_default_preset_prefers_saved_then_best_cli_then_api_key(monkeypatch, tmp_path):
+    import shutil as shutil_mod
+
+    from agent import ui_common
+    from agent.llm.client import LLMConfig
+
+    monkeypatch.setattr(ui_common, "settings_path", lambda: tmp_path / "settings.json")
+
+    # Nothing installed, no keys -> stay on local (None).
+    monkeypatch.setattr(shutil_mod, "which", lambda _cli: None)
+    for env in (
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "DEEPSEEK_API_KEY",
+    ):
+        monkeypatch.delenv(env, raising=False)
+    assert ui_common.pick_default_preset(LLMConfig.PRESETS) is None
+
+    # An API key set -> its preset.
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-x")
+    key, _, _ = ui_common.pick_default_preset(LLMConfig.PRESETS)
+    assert LLMConfig.PRESETS[key]["api_key_env"] == "DEEPSEEK_API_KEY"
+
+    # A subscription CLI on PATH beats an API key; claude outranks codex.
+    monkeypatch.setattr(
+        shutil_mod, "which", lambda cli: "/bin/" + cli if cli in ("claude", "codex") else None
+    )
+    assert ui_common.pick_default_preset(LLMConfig.PRESETS)[0] == "sub-claude-code"
+
+    # The saved /model choice beats everything while its CLI is still there.
+    ui_common.save_settings(preset="sub-openai-codex", sub_model="gpt-5.6-sol", effort="")
+    assert ui_common.pick_default_preset(LLMConfig.PRESETS) == (
+        "sub-openai-codex",
+        "gpt-5.6-sol",
+        None,
+    )
+
+    # ...but a saved preset whose CLI vanished falls through to the next best.
+    monkeypatch.setattr(shutil_mod, "which", lambda cli: "/bin/claude" if cli == "claude" else None)
+    assert ui_common.pick_default_preset(LLMConfig.PRESETS)[0] == "sub-claude-code"
+
+
+def test_model_switch_is_persisted_for_next_startup():
+    src = inspect.getsource(tui_commands.SlashCommandMixin._apply_model_pick)
+    assert "save_settings(" in src
+
+
+# --- composer: paste collapse + live slash hints ---------------------------
+
+
+def test_slash_hints_menu_matches_and_hides():
+    from agent.ui_common import slash_hints, SLASH_COMMANDS
+
+    assert slash_hints("/mo") == [("/model", SLASH_COMMANDS["/model"])]
+    assert [c for c, _ in slash_hints("/m")] == [c for c in SLASH_COMMANDS if c.startswith("/m")][
+        :4
+    ]
+    assert len(slash_hints("/")) == 4, "a bare '/' shows the first few, capped"
+    assert slash_hints("/model 2") == [], "arguments typed -> menu out of the way"
+    assert slash_hints("hello") == []
+    assert slash_hints("/te\nst") == []
+
+
+def test_tall_paste_collapses_to_a_marker_and_expands_on_send(monkeypatch):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from textual import events
+
+    sent = []
+    agent = SimpleNamespace(
+        confirm_callback=None,
+        output_callback=None,
+        history=[],
+        cancel_event=threading.Event(),
+        run_turn=sent.append,
+    )
+    app = _pilot_tui(agent, monkeypatch)
+    blob = "\n".join(f"line-{i}" for i in range(40))
+
+    async def drive():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            box = app.query_one("#prompt-input")
+            box.post_message(events.Paste(blob))
+            await pilot.pause()
+            await pilot.pause()
+            # The composer shows one marker line, not 40 pasted lines.
+            assert box.text == "[Pasted text #1 +40 lines]"
+            assert box.document.line_count == 1
+            # And what is sent is the real paste, not the marker.
+            assert box.expand_pastes(box.text) == blob
+
+    asyncio.run(drive())
+
+
+def test_small_paste_stays_inline():
+    from agent.tui_composer import PASTE_COLLAPSE_LINES, PromptArea
+
+    area = PromptArea()
+    assert PASTE_COLLAPSE_LINES >= 5
+    # expand_pastes on text without markers is the identity.
+    assert area.expand_pastes("just words") == "just words"
+    # An unknown marker (typed by hand) stays literal instead of KeyError-ing.
+    assert area.expand_pastes("[Pasted text #9 +100 lines]") == "[Pasted text #9 +100 lines]"

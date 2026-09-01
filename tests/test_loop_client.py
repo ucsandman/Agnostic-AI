@@ -846,6 +846,7 @@ def test_subscription_bridge_passes_the_pinned_model_to_each_cli(monkeypatch):
 
     class FakeProc:
         returncode = 0
+        stdin = None
         stdout = iter(["ok\n"])
 
         def communicate(self):
@@ -866,6 +867,6 @@ def test_subscription_bridge_passes_the_pinned_model_to_each_cli(monkeypatch):
     SubprocessSubscriptionBridge.execute_turn("anthropic-sub", msgs)
 
     assert seen[0][-2:] == ["--model", "claude-fable-5"]
-    assert seen[1][-2:] == ["-m", "gpt-5.6-sol"]
+    assert seen[1][seen[1].index("-m") + 1] == "gpt-5.6-sol"
     assert seen[2][-2:] == ["--model", "gemini-3.1-pro"]
     assert "--model" not in seen[3], "no pin -> CLI default"

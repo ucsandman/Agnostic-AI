@@ -21,7 +21,12 @@ from agent.llm.client import LLMConfig
 from agent.llm.usage import UsageLog
 from agent.loop import AgentLoop
 from agent.tools.indexer import code_indexer
-from agent.ui_common import detect_model, expand_prompt_references, maybe_start_web_companion
+from agent.ui_common import (
+    detect_model,
+    expand_prompt_references,
+    maybe_start_web_companion,
+    pick_default_preset,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -95,6 +100,14 @@ def run_headless(args) -> int:
     """Run exactly one turn with no UI. Returns the process exit code."""
     prompt = _read_prompt(args.prompt or "")
 
+    # Same default as the TUI: an untouched --url/--model means "pick the best
+    # available preset", not "assume LM Studio is running".
+    sub_model = effort = None
+    if args.model == "local-model" and args.url == "http://localhost:1234/v1":
+        pick = pick_default_preset(LLMConfig.PRESETS)
+        if pick:
+            args.model, sub_model, effort = pick
+
     preset = LLMConfig.PRESETS.get(args.model)
     config = LLMConfig(base_url=args.url, api_key=args.api_key, model=args.model)
     if not preset:
@@ -113,7 +126,12 @@ def run_headless(args) -> int:
         output_callback=callback,
     )
     if preset:
-        callback("system", agent.llm_client.switch_model(preset_key=args.model))
+        callback(
+            "system",
+            agent.llm_client.switch_model(
+                preset_key=args.model, sub_model=sub_model, reasoning_effort=effort
+            ),
+        )
     agent._load_harness_system_prompt(compact=not args.full_prompt)
 
     if getattr(args, "web", False):

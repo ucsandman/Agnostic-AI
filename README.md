@@ -46,7 +46,8 @@ pip install -e .
 npm run sync:check     # what would change (exit 1 if stale)
 npm run sync           # write, with a backup of every file it overwrites
 
-# Start the coding agent (LM Studio default endpoint)
+# Start the coding agent (auto-picks your last /model choice, else the best
+# installed subscription CLI, else an API-key preset, else local LM Studio)
 agnostic
 agnostic --url http://localhost:11434/v1 --model qwen2.5-coder   # Ollama
 agnostic -p "explain #CodebaseIndexer in @agent/tools/indexer.py"  # one shot

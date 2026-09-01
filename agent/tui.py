@@ -17,7 +17,7 @@ from typing import List, Optional
 from collections import deque
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Static, Input, RichLog
 from textual.binding import Binding
 from textual import events, work
@@ -57,6 +57,8 @@ from agent.ui_common import (
     index_workspace,
     maybe_start_web_companion,
     parse_confirm_answer,
+    pick_default_preset,
+    slash_hints,
     safe_text,
     should_notify,
     stream_tail,
@@ -102,12 +104,17 @@ Screen {
 
 #input-container {
     height: auto;
-    /* 8 text lines + the composer's 2 border rows + this container's border-top. */
-    max-height: 11;
+    /* 8 text lines + the composer's 2 border rows + border-top + 5 hint rows. */
+    max-height: 16;
     dock: bottom;
     border-top: heavy $accent;
     padding: 0 1;
     background: $surface-darken-1;
+}
+
+#input-row {
+    height: auto;
+    max-height: 10;
 }
 
 #prompt-label {
@@ -161,6 +168,13 @@ Screen {
     padding: 0 0 0 1;
     content-align: left middle;
 }
+
+#hint-bar {
+    height: auto;
+    max-height: 5;
+    padding: 0 2;
+    background: $surface-darken-1;
+}
 """
 
 # The four tiers SafetyGuard.set_trust_tier normalises to, in escalation order.
@@ -199,9 +213,13 @@ class AgnosticTUI(SlashCommandMixin, App):
         test_runner: AutoTestRunner,
         require_confirmation: bool = False,
         detection: Optional[dict] = None,
+        startup_model_msg: Optional[str] = None,
     ):
         super().__init__()
         self.agent = agent
+        # Set when startup auto-picked a non-local preset; replaces the local
+        # endpoint probe line under the banner.
+        self.startup_model_msg = startup_model_msg
         self.code_indexer = code_indexer_inst
         self.detected_model = detected_model
         self.detection = detection or {}
@@ -279,19 +297,26 @@ class AgnosticTUI(SlashCommandMixin, App):
     def compose(self) -> ComposeResult:
         yield Static(id="status-bar")
         yield RichLog(id="output-log", highlight=True, markup=True, wrap=True, max_lines=5000)
-        with Horizontal(id="input-container"):
-            yield Static("❯ ", id="prompt-label")
-            yield PromptArea(
-                id="prompt-input",
-                placeholder=PROMPT_PLACEHOLDER,
-                soft_wrap=True,
-                show_line_numbers=False,
-                compact=True,
-                # 'indent' would swallow Tab AND remap Escape to focus_next, killing
-                # both the Tab completion binding and the Esc-Esc rewind.
-                tab_behavior="focus",
-            )
-            yield Static("", id="queue-indicator")
+        # A Vertical, not the old bare Horizontal: same-edge docked siblings
+        # OVERLAP in Textual, so the hint bar must live inside the one docked
+        # container to get flow layout under the composer row.
+        with Vertical(id="input-container"):
+            with Horizontal(id="input-row"):
+                yield Static("❯ ", id="prompt-label")
+                yield PromptArea(
+                    id="prompt-input",
+                    placeholder=PROMPT_PLACEHOLDER,
+                    soft_wrap=True,
+                    show_line_numbers=False,
+                    compact=True,
+                    # 'indent' would swallow Tab AND remap Escape to focus_next, killing
+                    # both the Tab completion binding and the Esc-Esc rewind.
+                    tab_behavior="focus",
+                )
+                yield Static("", id="queue-indicator")
+            # The live slash-command menu, directly under the composer;
+            # display:none whenever there is nothing to hint.
+            yield Static("", id="hint-bar")
         # The live reply grows in this one block; the finished reply is written to
         # the log as a single panel and the block is emptied again.
         yield Static("", id="stream-view")
@@ -307,7 +332,9 @@ class AgnosticTUI(SlashCommandMixin, App):
         self._set_stream_view("")
         self._update_status_bar()
         self.query_one("#prompt-input", PromptArea).focus()
-        if not self.detection:
+        # Probing localhost:1234 is only meaningful when the session is actually
+        # on the local provider — a subscription default has no endpoint to probe.
+        if not self.detection and self.agent.llm_client.config.provider == "local":
             self._detect_model_bg()
         # Periodic status bar update (render only — git shells out on a worker)
         self.set_interval(3.0, self._update_status_bar)
@@ -372,8 +399,12 @@ class AgnosticTUI(SlashCommandMixin, App):
         log.write("")
 
     def _show_endpoint_status(self) -> None:
-        """The endpoint line under the banner: 'probing' until _detect_model_bg
-        answers, then the honest online/offline line."""
+        """The endpoint line under the banner: the auto-picked preset when startup
+        chose one, else 'probing' until _detect_model_bg answers, then the honest
+        online/offline line."""
+        if self.startup_model_msg:
+            self._write_output(Text(f"🧠 {self.startup_model_msg}", style="bold green"))
+            return
         if not self.detection:
             self._write_output(Text(f"… probing {self.doctor.base_url}", style="dim"))
             return
@@ -824,6 +855,25 @@ class AgnosticTUI(SlashCommandMixin, App):
         TextArea has no auto-height in Textual 8.1.1 (its DEFAULT_CSS is height: 1fr),
         so the height is set here on every edit and paste."""
         event.text_area.styles.height = max(1, min(8, event.text_area.document.line_count))
+        self._update_hint_bar(event.text_area.text)
+
+    def _update_hint_bar(self, text: str) -> None:
+        """The live slash-command menu above the composer: matching commands while
+        a bare '/token' is being typed, hidden the rest of the time."""
+        try:
+            bar = self.query_one("#hint-bar", Static)
+        except NoMatches:
+            return
+        hints = slash_hints(text)
+        bar.display = bool(hints)
+        if hints:
+            menu = Text()
+            for i, (cmd, blurb) in enumerate(hints):
+                if i:
+                    menu.append("\n")
+                menu.append(cmd, style="bold cyan")
+                menu.append(f"  {blurb}", style="dim")
+            bar.update(menu)
 
     def _update_queue_indicator(self) -> None:
         """Update the visual queue indicator next to the input."""
@@ -1255,6 +1305,18 @@ def main():
     if use_compact:
         agent._load_harness_system_prompt(compact=True)
 
+    # Auto-pick the best available preset (last /model choice, else best
+    # subscription CLI, else first API key) — local is only the last resort, and
+    # only when the user didn't point us somewhere with --url/--model.
+    startup_model_msg = None
+    if args.url == "http://localhost:1234/v1" and args.model == "local-model":
+        pick = pick_default_preset(LLMConfig.PRESETS)
+        if pick:
+            key, sub_model, effort = pick
+            startup_model_msg = agent.llm_client.switch_model(
+                preset_key=key, sub_model=sub_model, reasoning_effort=effort
+            )
+
     from agent.web.server import companion_telemetry
 
     companion_telemetry.bind_agent(agent)
@@ -1279,6 +1341,7 @@ def main():
         doctor=doctor,
         test_runner=test_runner,
         require_confirmation=require_confirmation,
+        startup_model_msg=startup_model_msg,
     )
     app.run()
 

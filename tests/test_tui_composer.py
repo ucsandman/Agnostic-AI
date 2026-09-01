@@ -185,7 +185,7 @@ def test_enter_posts_the_input_submitted_message_the_tui_already_handles():
     """AgnosticTUI.on_input_submitted is the one entry point for a typed prompt.
     Renaming the message here would silently disconnect the whole composer."""
     src = inspect.getsource(PromptArea._on_key)
-    assert "Input.Submitted(self, self.text)" in src
+    assert "Input.Submitted(self, self.expand_pastes(self.text))" in src
     assert 'if event.key == "enter"' in src
     assert "NEWLINE_KEYS" in src
     assert tui_composer.NEWLINE_KEYS == ("shift+enter", "alt+enter", "ctrl+j")

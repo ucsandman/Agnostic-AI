@@ -6,7 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Smart startup default: with `--url`/`--model` untouched the agent no longer assumes a local
+  LM Studio endpoint — it starts on the last `/model` choice (persisted in the new home-level
+  `~/.agnostic/settings.json`, distinct from the workspace `.agnostic/settings.json`), else the
+  best installed subscription CLI (claude → codex → agy), else the first API-key preset whose
+  env var is set, and only then falls back to local. Wired into the TUI and headless `-p`;
+  the localhost probe now only runs when the session is actually on the local provider.
+- Composer: a paste taller than 12 lines collapses to a `[Pasted text #N +X lines]` marker and
+  is expanded back into the message on send; typing a bare `/prefix` shows a live menu of
+  matching slash commands with their help lines directly under the composer.
+- Codex reasoning effort: the openai-sub bridge passes `/model` effort to the CLI as
+  `-c model_reasoning_effort=...` — the status line used to claim effort was unsupported there.
+
 ### Fixed
+- "The command line is too long" on Windows: the subscription bridge passed the whole flattened
+  transcript as one argv argument, and `codex.cmd` goes through cmd.exe's 8,191-char limit, so
+  any real conversation died on the first turn. The prompt now rides stdin (`codex exec -`,
+  piped `claude -p`); `agy --print` keeps argv (no plain-text stdin path) but is an .exe with
+  the larger 32K limit.
 - Session badge version is now single-sourced: `core/rules/global-rules.md` carries a
   `{{VERSION}}` placeholder that `npm run sync` fills from `package.json`, and sync refreshes
   `storage/harness-installed.json` to the live version. `package.json` bumped 1.3.0 -> 1.4.0

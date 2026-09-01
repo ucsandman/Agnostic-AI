@@ -36,6 +36,7 @@ from agent.ui_common import (
     parse_model_args,
     parse_slash_command,
     safe_text,
+    save_settings,
 )
 
 
@@ -54,6 +55,9 @@ class SlashCommandMixin:
             preset_key=key, sub_model=sub_model, reasoning_effort=effort
         )
         ok = msg.startswith(("Switched", "Updated"))
+        if ok and key:
+            # Remembered across sessions: startup re-picks this preset first.
+            save_settings(preset=key, sub_model=sub_model or "", effort=effort or "")
         self._write_output(Text(f"🧠 {msg}", style="bold green" if ok else "bold yellow"))
         self._update_status_bar()
 
