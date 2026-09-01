@@ -145,10 +145,10 @@ If something goes sideways mid-task, stop and re-plan instead of pushing through
 ## Delegation and Model Routing
 
 - **Opus runs the main loop** and owns planning, orchestration, and integration.
-- **Fable is for four escalations only:** architecture decisions, security-sensitive reviews, cross-project synthesis, and root-cause work after two failed fixes. Cap 3 Fable spawns per session.
+- **Fable is for five escalations only:** architecture decisions, security-sensitive reviews, cross-project synthesis, root-cause work after two failed fixes, and the final synthesizer/judge of a large dynamic Workflow. Cap 3 Fable spawns per session.
 - **Route by task:** Searches, formatting, mechanical edits → Haiku. Implementation, exploration → Sonnet. Architecture, final review, hard debugging → Opus.
 - **Codex = external executor** for heavy implementation, debugging, test fixing, and multi-file edits.
-- **Every subagent dispatch names its model explicitly.** Each `agent()` call in a Workflow script, and each Agent tool call, carries its own inline `model:` (`opus` / `sonnet` / `haiku`). A shared opts variable does not count; the guard reads the literal, and a script with one bare `agent()` is BLOCKED. Bare calls inherit the main-loop model (Fable), which is how 110 Fable agents burned a 5h window on 2026-06-12. Default split: finders/reviewers and the synthesizer → Opus, per-finding skeptics → Sonnet, mechanical lookups → Haiku.
+- **Every subagent dispatch names its model explicitly.** Each `agent()` call in a Workflow script, and each Agent tool call, carries its own inline `model:` (`opus` / `sonnet` / `haiku`). A shared opts variable does not count; the guard reads the literal, and a script with one bare `agent()` is BLOCKED. Bare calls inherit the main-loop model (Fable), which is how 110 Fable agents burned a 5h window on 2026-06-12. Default split: finders/reviewers → Opus, per-finding skeptics → Sonnet, mechanical lookups → Haiku, the final synthesizer → Fable as a module-top-level `await agent(..., {model: 'fable'})` after the fan-out (never inside one, never in a helper; max 3 per script).
 
 ---
 
