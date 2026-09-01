@@ -143,3 +143,15 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
   siblings). Measured regions proved #hint-bar and #input-container shared
   y=26. A widget that must sit above/below the composer goes INSIDE the one
   docked container, in flow layout.
+
+## 2026-08-31 - Green on Windows, red on the Linux CI legs (stdin pipe)
+
+- **Symptom:** both ubuntu CI legs failed test_subscription_bridge_kills_a_hung_cli
+  with 'ValueError: I/O operation on closed file' while the Windows suite passed.
+- **Root cause:** POSIX communicate() selector-registers self.stdin whenever it is
+  not None; the bridge had written and closed it. Windows' thread-based
+  communicate tolerates a closed stdin.
+- **Fix:** proc.stdin = None after closing, so communicate() skips it.
+- **Lesson:** a subprocess-pipe change is not verified until it has run on a POSIX
+  interpreter - WSL is right there (pip install --break-system-packages pytest
+  httpx openai prompt_toolkit textual rich pillow, then run the touched tests).
