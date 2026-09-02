@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import threading
 import copy
+from contextlib import contextmanager
 from typing import Callable, Optional, Literal, Any
 from pathlib import Path
 from agent.llm.client import LLMClient
@@ -69,13 +70,17 @@ class SubagentWorker:
         if self.workspace_mode != "branch":
             return self.workspace_root
 
+        from agent.orchestration.runtime import worktree_root_for
+
         subagent_id = str(uuid.uuid4())[:8]
-        scratch_dir = self.workspace_root.parent / f".agnostic_scratch_{self.role}_{subagent_id}"
+        # Same out-of-repo root the orchestration leases use; detached, so no
+        # scratch-* branch is left behind when the worktree goes.
+        scratch_dir = worktree_root_for(self.workspace_root) / f"legacy_{subagent_id}"
+        scratch_dir.parent.mkdir(parents=True, exist_ok=True)
         try:
             res = subprocess.run(
-                f"git worktree add -b scratch-{subagent_id} {scratch_dir} HEAD",
+                ["git", "worktree", "add", "--detach", str(scratch_dir), "HEAD"],
                 cwd=self.workspace_root,
-                shell=True,
                 capture_output=True,
                 text=True,
                 timeout=15,
@@ -100,9 +105,8 @@ class SubagentWorker:
             if self.workspace_mode == "branch":
                 try:
                     subprocess.run(
-                        f"git worktree remove --force {self.active_workspace}",
+                        ["git", "worktree", "remove", "--force", str(self.active_workspace)],
                         cwd=self.workspace_root,
-                        shell=True,
                         capture_output=True,
                         timeout=15,
                     )
@@ -255,6 +259,19 @@ class SubagentManager:
         self.root_agent = self.orchestrator.register_root(orchestration_config.root_role)
         self.root_id = self.root_agent.agent_id
 
+    @contextmanager
+    def _operation(self):
+        """A spawn outside AgentLoop.run_turn (/research, /review, /swarm) is its own
+        budgeted operation: stale cancel cleared, per-turn limits reset."""
+        if self.orchestrator.in_turn:
+            yield
+            return
+        self.orchestrator.begin_turn()
+        try:
+            yield
+        finally:
+            self.orchestrator.end_turn()
+
     def spawn(
         self,
         role: str,
@@ -265,14 +282,14 @@ class SubagentManager:
         role_key = role.lower().strip()
         if role_key in self.orchestrator.config.roles:
             try:
-                result = self.orchestrator.delegate(
-                    self.root_id,
-                    role_key,
-                    prompt,
-                    custom_instructions=custom_instructions or "",
-                    workspace_mode=workspace_mode,
-                    inherit_model=not self.orchestrator.enabled,
-                )
+                with self._operation():
+                    result = self.orchestrator.delegate(
+                        self.root_id,
+                        role_key,
+                        prompt,
+                        custom_instructions=custom_instructions or "",
+                        workspace_mode=workspace_mode,
+                    )
                 return result.report()
             except Exception as exc:
                 return f"### [Subagent Report: {role.upper()} - ERROR]\n{exc}\n"
@@ -286,6 +303,15 @@ class SubagentManager:
         if custom_instructions:
             base_prompt += f"\nAdditional Instructions:\n{custom_instructions}"
         legacy_config = self.orchestrator._clone_config(self.client.config)
+        if (
+            self.orchestrator._is_api_provider(legacy_config.provider)
+            and not self.orchestrator.config.allow_api_models
+        ):
+            return (
+                f"### [Subagent Report: {role.upper()} - ERROR]\nRole '{role}' has no profile and "
+                "the session model is a metered API; subagents run on subscriptions or local "
+                "models only. Use a configured role or set allow_api_models.\n"
+            )
         legacy_client = self.orchestrator.client_factory(legacy_config)
         worker = SubagentWorker(
             role=role,
@@ -330,11 +356,11 @@ class SubagentManager:
                     "task": task["prompt"],
                     "custom_instructions": task.get("custom_instructions", ""),
                     "workspace_mode": task.get("workspace_mode", "inherit"),
-                    "inherit_model": not self.orchestrator.enabled,
                 }
                 for task in tasks
             ]
-            results = self.orchestrator.spawn_parallel(self.root_id, packets)
+            with self._operation():
+                results = self.orchestrator.spawn_parallel(self.root_id, packets)
             return [result.report() for result in results]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(tasks))) as executor:

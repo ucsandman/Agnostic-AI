@@ -1082,7 +1082,7 @@ class AgnosticTUI(SlashCommandMixin, App):
             if self._double_tap("quit", 1.5):
                 self.exit()
                 return
-            self.agent.cancel_event.set()
+            self.agent.cancel()
             self._write_output(
                 Text(
                     "⏹ cancelling after the current step — press Ctrl+C again to force-exit.",
@@ -1108,7 +1108,7 @@ class AgnosticTUI(SlashCommandMixin, App):
             self._write_output(Text("→ Denied (Esc)", style="bold yellow"))
             return
         if self._agent_busy:
-            self.agent.cancel_event.set()
+            self.agent.cancel()
             self._write_output(Text("⏹ cancelling after the current step…", style="yellow"))
             return
         # Idle, empty input, second Esc within 800ms: rewind. Anything typed keeps

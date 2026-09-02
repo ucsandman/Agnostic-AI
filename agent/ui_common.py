@@ -40,7 +40,7 @@ SLASH_COMMANDS = {
     "/research": "<topic> — spawn a researcher subagent and return its notes",
     "/review": "spawn a reviewer subagent over git status / recent diffs",
     "/swarm": "<task> — three subagents in parallel, then a combined summary",
-    "/org": "on|off|status|tree|mode|config — adaptive orchestration controls",
+    "/org": "on|off|status|tree|mode|config|prune — adaptive orchestration controls",
     "/diagram": "scan imports and print a Mermaid dependency diagram",
     "/map": "alias of /diagram",
     "/pr": "draft a pull-request title and body from the branch diff",
@@ -87,12 +87,17 @@ def org_command(agent, args: str) -> str:
     action = parts[0].lower() if parts else "status"
     if action in {"status", "show"}:
         return agent.orchestration.status()
+    if action in {"on", "off", "mode"} and agent.is_busy:
+        # The tool list and system prompt are being read by the running turn.
+        return "A turn is running; change orchestration settings when it finishes."
     if action == "on":
         return agent.configure_orchestration(enabled=True)
     if action == "off":
         return agent.configure_orchestration(enabled=False)
     if action == "tree":
         return agent.orchestration.render_tree()
+    if action == "prune":
+        return agent.orchestration.prune_workspaces()
     if action == "config":
         cfg = agent.orchestration.config
         source = cfg.source or (agent.workspace_root / ".agnostic" / "orchestration.json")
@@ -109,7 +114,7 @@ def org_command(agent, args: str) -> str:
             return agent.configure_orchestration(mode=parts[1].lower())
         except ValueError as exc:
             return str(exc)
-    return "Usage: /org on|off|status|tree|config|mode auto|hierarchy|advisor"
+    return "Usage: /org on|off|status|tree|config|prune|mode auto|hierarchy|advisor"
 
 
 def complete_token(query: str, candidates, limit: int = 8) -> list:

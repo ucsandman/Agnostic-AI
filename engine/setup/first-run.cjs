@@ -75,7 +75,7 @@ function wireAgentHooks(home = HOME) {
   const hookCommand = (name) =>
     `node "${path.join(ROOT, 'engine', 'hooks', name).replace(/\\/g, '/')}"`;
   const report = {
-    claude: { present: false, dashclawGuard: false, secretGuard: false, malformed: false },
+    claude: { present: false, dashclawGuard: false, secretGuard: false, delegateGuard: false, graphGuard: false, advisorAgent: false, malformed: false },
     codex: { present: false, dashclawGuard: false, secretGuard: false, malformed: false },
     gemini: { present: false, dashclawGuard: false, secretGuard: false, malformed: false }
   };
@@ -119,12 +119,65 @@ function wireAgentHooks(home = HOME) {
       report.claude.dashclawGuard = true;
       report.claude.secretGuard = true;
 
+      // fable-delegate-guard also needs the two session events, which take
+      // {hooks:[...]} groups with no matcher key.
+      const delegateCommand = hookCommand('fable-delegate-guard.cjs');
+      const hasDelegate = (groups) =>
+        (groups || []).some(g => (g.hooks || []).some(h => /fable-delegate-guard/i.test(h.command || '')));
+      if (!hasDelegate(cfg.hooks.PreToolUse)) {
+        cfg.hooks.PreToolUse.push({
+          matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell',
+          hooks: [{ type: 'command', command: delegateCommand, timeout: 10, statusMessage: 'Delegate-first check...' }]
+        });
+        installed.push('fable-delegate-guard.cjs');
+      }
+      for (const event of ['UserPromptSubmit', 'SessionStart']) {
+        if (!Array.isArray(cfg.hooks[event])) cfg.hooks[event] = [];
+        if (!hasDelegate(cfg.hooks[event])) {
+          cfg.hooks[event].push({ hooks: [{ type: 'command', command: delegateCommand, timeout: 10 }] });
+        }
+      }
+      report.claude.delegateGuard = true;
+
+      // capability-graph-guard gates the delegation edges themselves, and needs
+      // SubagentStart to learn each subagent's model (no other event carries it).
+      const graphCommand = hookCommand('capability-graph-guard.cjs');
+      const hasGraph = (groups) =>
+        (groups || []).some(g => (g.hooks || []).some(h => /capability-graph-guard/i.test(h.command || '')));
+      if (!hasGraph(cfg.hooks.PreToolUse)) {
+        cfg.hooks.PreToolUse.push({
+          matcher: 'Agent|Task|Workflow',
+          hooks: [{ type: 'command', command: graphCommand, timeout: 10, statusMessage: 'Capability graph check...' }]
+        });
+        installed.push('capability-graph-guard.cjs');
+      }
+      for (const event of ['SubagentStart', 'SubagentStop']) {
+        if (!Array.isArray(cfg.hooks[event])) cfg.hooks[event] = [];
+        if (!hasGraph(cfg.hooks[event])) {
+          cfg.hooks[event].push({ hooks: [{ type: 'command', command: graphCommand, timeout: 10 }] });
+        }
+      }
+      report.claude.graphGuard = true;
+
+      // The advisor agent is the only upward edge in the graph. An existing one
+      // is the operator's, never ours to overwrite.
+      const advisorDest = path.join(home, '.claude', 'agents', 'advisor.md');
+      if (fs.existsSync(advisorDest)) {
+        report.claude.advisorAgent = 'kept';
+      } else {
+        fs.mkdirSync(path.dirname(advisorDest), { recursive: true });
+        fs.copyFileSync(path.join(__dirname, 'agents', 'advisor.md'), advisorDest);
+        report.claude.advisorAgent = 'installed';
+      }
+
       backup(claudeSettings);
       fs.writeFileSync(claudeSettings, JSON.stringify(cfg, null, 2), 'utf8');
-      console.log(`  ✓ Claude Code PreToolUse hooks in ~/.claude/settings.json (dashclaw-guard + secret-guard${installed.length ? `; added ${installed.join(', ')}` : '; already present'})`);
+      console.log(`  ✓ Claude Code hooks in ~/.claude/settings.json (dashclaw-guard + secret-guard + fable-delegate-guard + capability-graph-guard${installed.length ? `; added ${installed.join(', ')}` : '; already present'}; advisor agent ${report.claude.advisorAgent})`);
     } catch (err) {
       report.claude.dashclawGuard = false;
       report.claude.secretGuard = false;
+      report.claude.delegateGuard = false;
+      report.claude.graphGuard = false;
       console.warn(`  ! Could not wire Claude Code hooks in ${claudeSettings}: ${err.message}`);
     }
   }
@@ -206,7 +259,7 @@ async function runFirstRunSetup() {
         const hookReport = wireAgentHooks();
         const wired = Object.entries(hookReport)
           .filter(([, r]) => r.present)
-          .map(([name, r]) => `${name}(${[r.dashclawGuard && 'dashclaw-guard', r.secretGuard && 'secret-guard'].filter(Boolean).join('+') || 'none'})`);
+          .map(([name, r]) => `${name}(${[r.dashclawGuard && 'dashclaw-guard', r.secretGuard && 'secret-guard', r.delegateGuard && 'fable-delegate-guard', r.graphGuard && 'capability-graph-guard'].filter(Boolean).join('+') || 'none'})`);
         console.log(`  ✓ Hook targets wired: ${wired.length ? wired.join(', ') : 'none detected'}`);
 
         return dashclawResult;

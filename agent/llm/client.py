@@ -60,6 +60,31 @@ def _codex_supports_resume() -> bool:
 # every current build, so openai-sub never got as far as reading its prompt.
 CODEX_BYPASS_FLAG = "--dangerously-bypass-approvals-and-sandbox"
 
+# A subscription CLI must bill the logged-in account, never a key that happens to be
+# in the environment (Claude Code and Codex both prefer the key when they see one).
+SUBSCRIPTION_ENV_BLOCKLIST = {
+    "anthropic-sub": ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"),
+    "openai-sub": ("OPENAI_API_KEY",),
+    "google-sub": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+}
+
+# The harness names models by their API preset key; the Claude CLI wants an alias
+# (an unknown id is logged as unrecognized_model and silently runs the session
+# default, which is the most expensive way to ask for haiku).
+CLAUDE_CLI_MODEL_ALIASES = {
+    "claude-fable-5": "fable",
+    "claude-opus-5": "opus",
+    "claude-sonnet-5": "sonnet",
+    "claude-haiku-4.5": "haiku",
+}
+
+
+def subscription_env(provider: str) -> Dict[str, str]:
+    env = dict(os.environ)
+    for name in SUBSCRIPTION_ENV_BLOCKLIST.get(provider, ()):
+        env.pop(name, None)
+    return env
+
 
 def _loads_lenient(text: str) -> Any:
     """json.loads, retried on the outermost {...} so a CLI banner above the
@@ -239,7 +264,12 @@ class SubprocessSubscriptionBridge:
         model: Optional[str] = None,
         session: Optional[BridgeSession] = None,
         cancel_event: Optional[threading.Event] = None,
+        cwd: Optional[str] = None,
+        native_tools: bool = True,
     ) -> Any:
+        """`cwd` confines the CLI to one directory; `native_tools=False` strips the
+        CLI's own Bash/Edit/Write so a role-scoped child can only answer with the
+        JSON tool blocks that cross ToolRegistry.execute."""
         if cancel_event and cancel_event.is_set():
             raise RuntimeError("Subscription CLI execution cancelled by user.")
         # No session object (a one-off caller) => a throwaway one, i.e. the old
@@ -264,6 +294,11 @@ class SubprocessSubscriptionBridge:
         stdin_text: Optional[str] = None
 
         if provider == "google-sub":
+            if not native_tools:
+                # agy exposes no flag that disables its built-in tools, so a
+                # role-scoped child cannot be confined on it; the router records
+                # this and tries the next configured target.
+                raise RuntimeError("agy cannot run a tool-restricted child (no tool-disable flag)")
             # `agy --print` is one-shot — it exposes no session/resume flag — so
             # every turn re-sends the whole transcript.
             cmd = [
@@ -279,13 +314,18 @@ class SubprocessSubscriptionBridge:
                 cmd.extend(["--model", model])
         elif provider == "anthropic-sub":
             # No positional prompt: `claude -p` reads it from piped stdin.
-            cmd = [
-                "claude.exe" if os.name == "nt" else "claude",
-                "-p",
-                "--dangerously-skip-permissions",
-                "--output-format",
-                "json",
-            ]
+            cmd = ["claude.exe" if os.name == "nt" else "claude", "-p"]
+            if native_tools:
+                cmd.append("--dangerously-skip-permissions")
+            else:
+                # No built-in tools at all: the child can only answer with the JSON
+                # tool blocks the harness executes. Measured 2026-09-02: combining
+                # --tools "" with --dangerously-skip-permissions makes the CLI
+                # report "tool call could not be parsed" or drop the block; without
+                # the bypass flag the block comes through, and with no tools there
+                # is nothing to bypass.
+                cmd.extend(["--tools", ""])
+            cmd.extend(["--output-format", "json"])
             stdin_text = prompt_text
             if resume_id:
                 cmd.extend(["--resume", resume_id])
@@ -293,13 +333,22 @@ class SubprocessSubscriptionBridge:
                 new_session_id = str(uuid.uuid4())
                 cmd.extend(["--session-id", new_session_id])
             if model:
-                cmd.extend(["--model", model])
+                cmd.extend(["--model", CLAUDE_CLI_MODEL_ALIASES.get(model, model)])
         elif provider == "openai-sub":
             cmd = ["codex.cmd" if os.name == "nt" else "codex", "exec"]
             if resume_id:
                 cmd.extend(["resume", resume_id])
+            if cwd:
+                cmd.extend(["-C", cwd])
             # `-` = read the prompt from stdin (both exec and exec resume).
-            cmd.extend(["-", CODEX_BYPASS_FLAG])
+            # A confined child keeps codex's own shell read-only instead of bypassing
+            # the sandbox; exec mode never prompts, so nothing hangs on approval.
+            if native_tools:
+                cmd.extend(["-", CODEX_BYPASS_FLAG])
+            else:
+                # A child's lease may be a plain directory or a detached worktree;
+                # codex refuses to start outside a trusted git checkout otherwise.
+                cmd.extend(["-", "--sandbox", "read-only", "--skip-git-repo-check"])
             stdin_text = prompt_text
             if model:
                 cmd.extend(["-m", model])
@@ -315,6 +364,8 @@ class SubprocessSubscriptionBridge:
         try:
             proc = subprocess.Popen(
                 cmd,
+                cwd=cwd or None,
+                env=subscription_env(provider),
                 stdin=subprocess.PIPE if stdin_text is not None else None,
                 stdout=subprocess.PIPE,
                 # Merged rather than a second pipe: stdout was streamed line by
@@ -648,6 +699,10 @@ class LLMConfig:
         self.retry_backoff = retry_backoff
         # Concrete model handed to a subscription CLI (--model); None = CLI default.
         self.sub_model: Optional[str] = None
+        # Set by the orchestration runtime on child clients: confine a subscription
+        # CLI to the child's workspace and strip its native tools.
+        self.workdir: Optional[str] = None
+        self.native_tools: bool = True
         # The preset this config came from, for the usage journal's per-preset
         # bucket. None whenever the model was set by hand rather than by preset.
         self.preset_key: Optional[str] = None
@@ -787,11 +842,13 @@ class LLMClient:
             )
         )
 
-    def _with_retry(self, call: Any):
+    def _with_retry(self, call: Any, cancel_event: Optional[threading.Event] = None):
         """Bounded retry with exponential backoff on transient failures."""
         attempts = max(1, self.config.max_retries)
         last_err: Optional[Exception] = None
         for attempt in range(attempts):
+            if cancel_event and cancel_event.is_set():
+                raise RuntimeError("LLM request cancelled by user.")
             try:
                 return call()
             except Exception as e:
@@ -799,7 +856,11 @@ class LLMClient:
                     raise
                 last_err = e
                 if attempt < attempts - 1:
-                    time.sleep(self.config.retry_backoff * (2**attempt))
+                    delay = self.config.retry_backoff * (2**attempt)
+                    if cancel_event is None:
+                        time.sleep(delay)
+                    elif cancel_event.wait(delay):
+                        raise RuntimeError("LLM request cancelled by user.") from e
         raise RuntimeError(
             f"LLM request to '{self.config.model}' via provider '{self.config.provider}' "
             f"failed after {attempts} attempt(s): {last_err}"
@@ -922,6 +983,8 @@ class LLMClient:
                     stream_callback=stream_callback,
                     session=self.bridge_session,
                     cancel_event=cancel_event,
+                    cwd=getattr(self.config, "workdir", None),
+                    native_tools=getattr(self.config, "native_tools", True),
                 )
             except Exception as e:
                 self._record(t0, None, ok=False, error=str(e)[:200])
@@ -957,7 +1020,8 @@ class LLMClient:
                 # ponytail: retry covers request setup only; a mid-stream drop is surfaced
                 # to the caller rather than replayed (would duplicate emitted tokens).
                 response_stream = self._with_retry(
-                    lambda: self.client.chat.completions.create(stream=True, **kwargs)
+                    lambda: self.client.chat.completions.create(stream=True, **kwargs),
+                    cancel_event,
                 )
                 collected_chunks = []
                 tool_calls_dict = {}
@@ -1032,7 +1096,9 @@ class LLMClient:
         if cancel_event and cancel_event.is_set():
             raise RuntimeError("LLM request cancelled by user.")
         try:
-            response = self._with_retry(lambda: self.client.chat.completions.create(**kwargs))
+            response = self._with_retry(
+                lambda: self.client.chat.completions.create(**kwargs), cancel_event
+            )
         except Exception as e:
             self._record(t0, None, ok=False, error=str(e)[:200])
             raise

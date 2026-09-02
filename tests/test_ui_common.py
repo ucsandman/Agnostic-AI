@@ -441,7 +441,7 @@ def test_double_tap_fires_only_on_the_second_press_and_then_resets():
 
 def test_ctrl_c_cancels_the_turn_before_it_force_exits():
     src = inspect.getsource(tui.AgnosticTUI.action_quit_safe)
-    assert "cancel_event.set()" in src, "Ctrl+C while busy must cancel, not scold"
+    assert "self.agent.cancel()" in src, "Ctrl+C while busy must cancel, not scold"
     assert "_double_tap" in src, "the second press is the escalation"
     assert "_double_tap" in inspect.getsource(tui.AgnosticTUI.action_clear_output), (
         "Ctrl+L must ask twice before clearing the log"
@@ -1212,6 +1212,7 @@ def test_ctrl_o_expands_the_output_the_tool_card_folded_away(monkeypatch):
         history=[],
         cancel_event=threading.Event(),
     )
+    agent.cancel = agent.cancel_event.set  # AgentLoop.cancel() sets the same event
     app = _pilot_tui(agent, monkeypatch)
 
     writes = []
@@ -1381,8 +1382,8 @@ def test_esc_only_rewinds_when_idle_with_an_empty_input_and_pressed_twice():
     """Branch order is the whole safety story: confirm-deny, then cancel, then
     rewind — and the rewind reuses the one double-tap timer."""
     src = inspect.getsource(tui.AgnosticTUI.action_cancel_turn)
-    assert src.index("_awaiting_confirm") < src.index("cancel_event.set()")
-    assert src.index("cancel_event.set()") < src.index("_double_tap")
+    assert src.index("_awaiting_confirm") < src.index("self.agent.cancel()")
+    assert src.index("self.agent.cancel()") < src.index("_double_tap")
     assert 'self._double_tap("rewind", 0.8)' in src
     assert "inp.value.strip()" in src
 
@@ -1547,6 +1548,7 @@ def test_force_exit_releases_a_worker_blocked_on_a_hard_stop_confirm(monkeypatch
         history=[],
         cancel_event=threading.Event(),
     )
+    agent.cancel = agent.cancel_event.set  # AgentLoop.cancel() sets the same event
     app = _pilot_tui(agent, monkeypatch)
     answers = []
 
@@ -1603,6 +1605,7 @@ def test_ctrl_c_cancels_even_with_a_selection_in_the_composer(monkeypatch):
         history=[],
         cancel_event=threading.Event(),
     )
+    agent.cancel = agent.cancel_event.set  # AgentLoop.cancel() sets the same event
     app = _pilot_tui(agent, monkeypatch)
 
     async def drive():

@@ -93,20 +93,26 @@ class SwarmCoordinator:
         # workspace leases. The fallback retains compatibility with lightweight
         # third-party/test managers that implement only spawn().
         if hasattr(self.subagents, "spawn_parallel"):
-            reports = self.subagents.spawn_parallel(
-                [
-                    {
-                        "role": role,
-                        "prompt": prompt,
-                        "workspace_mode": "branch" if use_worktrees else "inherit",
-                    }
-                    for role, prompt in worker_tasks
-                ]
-            )
+            try:
+                reports = self.subagents.spawn_parallel(
+                    [
+                        {
+                            "role": role,
+                            "prompt": prompt,
+                            "workspace_mode": "branch" if use_worktrees else "inherit",
+                        }
+                        for role, prompt in worker_tasks
+                    ]
+                )
+            except Exception as e:  # a rejected batch is a report, never a crashed shell
+                reports = [f"Worker failed: {e}" for _ in worker_tasks]
             results.update(dict(zip((role for role, _ in worker_tasks), reports)))
-            for role, _ in worker_tasks:
+            for role, report in results.items():
+                failed = report.startswith("Worker failed") or "- ERROR]" in report
                 console.print(
-                    f"[bold green]✓ Swarm Worker [{role.upper()}] completed report.[/bold green]"
+                    f"[bold red]✗ Swarm Worker [{role.upper()}] failed.[/bold red]"
+                    if failed
+                    else f"[bold green]✓ Swarm Worker [{role.upper()}] completed report.[/bold green]"
                 )
         else:
 

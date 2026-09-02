@@ -866,7 +866,8 @@ def test_subscription_bridge_passes_the_pinned_model_to_each_cli(monkeypatch):
     SubprocessSubscriptionBridge.execute_turn("google-sub", msgs, model="gemini-3.1-pro")
     SubprocessSubscriptionBridge.execute_turn("anthropic-sub", msgs)
 
-    assert seen[0][-2:] == ["--model", "claude-fable-5"]
+    # The harness name maps to the CLI alias; an unknown id is silently ignored by claude.
+    assert seen[0][-2:] == ["--model", "fable"]
     assert seen[1][seen[1].index("-m") + 1] == "gpt-5.6-sol"
     assert seen[2][-2:] == ["--model", "gemini-3.1-pro"]
     assert "--model" not in seen[3], "no pin -> CLI default"

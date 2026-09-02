@@ -167,3 +167,31 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
   configured fallback.
 - **Lesson:** process output is evidence, not success; bridges must validate exit
   status before interpreting stdout as a provider response.
+
+## 2026-09-02 - Subscription CLI billed the API key, and an unknown model id ran the default
+
+- **Symptom:** `claude -p` children answered "Credit balance is too low" although the
+  machine has a Claude subscription login; a child pinned to `claude-haiku-4.5` cost
+  219k cache tokens on one question.
+- **Root cause:** the bridge inherited the shell environment, and Claude Code prefers
+  `ANTHROPIC_API_KEY` over the login when it sees one. The harness names models by
+  API preset key; the CLI logs `unrecognized_model` for `claude-haiku-4.5` and
+  silently runs the session default model.
+- **Fix:** subscription CLIs launch without the vendor key variables
+  (`subscription_env`), and harness names map to CLI aliases
+  (`CLAUDE_CLI_MODEL_ALIASES`: haiku/sonnet/opus/fable). Verified by three real
+  researcher children on the login returning the expected file content.
+- **Lesson:** a zero-key preset must scrub the keys from the child environment, and
+  a model pin is only verified when the CLI's usage report names that model.
+
+## 2026-09-02 - `--tools ""` plus `--dangerously-skip-permissions` broke the JSON tool protocol
+
+- **Symptom:** confined children replied "tool call could not be parsed", "read_file
+  is not available", or an empty result instead of the JSON tool block.
+- **Root cause:** measured combinations: `--tools ""` alone yields the block;
+  `--tools ""` with the bypass flag drops it; `--restricted --tools ""` returns an
+  empty result. With no built-in tools there is nothing to bypass.
+- **Fix:** confined children run `claude -p --tools "" --output-format json` without
+  the bypass flag; an empty reply is nudged once before it is reported as a failure.
+- **Lesson:** a CLI flag combination is a measurement, not a reading of `--help`;
+  run the matrix before wiring it.

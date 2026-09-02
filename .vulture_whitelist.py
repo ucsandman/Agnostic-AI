@@ -173,3 +173,10 @@ selection  # noqa: F821
 # PickerScreen subclasses override the class attr; Textual reads it, not our code.
 DiffPickerScreen.FOOTER_KEYS  # noqa: F821
 MemoryPickerScreen.FOOTER_KEYS  # noqa: F821
+# Callers live in web/server.py, tui_commands.py and tests (staged-scope pass).
+ExecutionGraph.list_subagents  # noqa: F821
+SubagentManager.list_subagents  # noqa: F821
+ToolRegistry.reload_mcp
+ui_common.mcp_table
+_saw_focus_event  # noqa: F821
+_pre_compact_history  # noqa: F821

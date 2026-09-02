@@ -294,7 +294,7 @@ def test_first_request_failure_uses_visible_fallback_before_tools(tmp_path):
     node = manager.graph.get_node(result.agent_id)
     assert result.ok and result.output == "fallback ok"
     assert node.model == "fallback-model"
-    assert "preferred-model failed with RuntimeError" in node.fallback_reason
+    assert "preferred-model failed: RuntimeError: model rejected request" in node.fallback_reason
 
 
 def test_unknown_preset_uses_configured_fallback(tmp_path):
@@ -701,12 +701,13 @@ def test_project_config_is_optional_and_headless_loads_enabled_mode(tmp_path):
     assert loaded.enabled is True and loaded.mode == "advisor"
 
 
-def test_legacy_subagent_manager_remains_compatible(tmp_path):
+def test_legacy_subagent_manager_remains_compatible(tmp_path, monkeypatch):
     from agent.tools.subagent import SubagentManager
 
+    monkeypatch.setattr(LLMConfig, "preset_available", staticmethod(lambda *_a, **_k: True))
     client = ScriptedClient(
         LLMConfig(provider="local", model="legacy-model"),
-        {"legacy-model": [_message("legacy report")]},
+        {"legacy-model": [_message("root")], "claude-haiku-4.5": [_message("legacy report")]},
     )
     manager = SubagentManager(client=client, workspace_root=str(tmp_path))
     report = manager.spawn("researcher", "Find files")
@@ -714,14 +715,18 @@ def test_legacy_subagent_manager_remains_compatible(tmp_path):
     assert "legacy report" in report
 
 
-def test_disabled_orchestration_parallel_workers_inherit_root_model(tmp_path):
+def test_disabled_orchestration_flat_workers_use_subscription_role_targets(tmp_path, monkeypatch):
+    """Flat subagents never inherit the session model: researcher/reviewer run on the
+    role's subscription target (Claude login, haiku) even with orchestration off."""
     from agent.tools.subagent import SubagentManager
 
+    monkeypatch.setattr(LLMConfig, "preset_available", staticmethod(lambda *_a, **_k: True))
     client = ScriptedClient(
-        LLMConfig(provider="local", model="legacy-model"),
-        {"legacy-model": [_message("legacy report")]},
+        LLMConfig(provider="openai", model="gpt-5.6-sol", api_key="metered"),
+        {"gpt-5.6-sol": [_message("root")], "claude-haiku-4.5": [_message("haiku report")]},
     )
     manager = SubagentManager(client=client, workspace_root=str(tmp_path))
+    assert manager.orchestrator.enabled is False
     reports = manager.spawn_parallel(
         [
             {"role": "researcher", "prompt": "find"},
@@ -729,8 +734,11 @@ def test_disabled_orchestration_parallel_workers_inherit_root_model(tmp_path):
         ]
     )
     nodes = manager.orchestrator.graph.snapshot()["nodes"]
-    assert all("legacy report" in report for report in reports)
-    assert {node["model"] for node in nodes if node["relationship"] != "root"} == {"legacy-model"}
+    assert all("haiku report" in report for report in reports)
+    children = [node for node in nodes if node["relationship"] != "root"]
+    assert {(n["provider"], n["model"]) for n in children} == {
+        ("anthropic-sub", "claude-haiku-4.5")
+    }
 
 
 def test_enabled_agent_loop_registers_and_toggles_orchestration_tools(tmp_path):

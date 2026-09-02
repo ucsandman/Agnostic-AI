@@ -6,6 +6,51 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `engine/hooks/capability-graph-guard.cjs`: enforces the Claude Code subagent
+  capability graph (Fable -> Opus/Sonnet/Haiku, Opus -> Sonnet/Haiku, Sonnet ->
+  Haiku, Haiku -> nobody, downward only) plus the read-only `advisor` upward
+  edge, wired by `first-run.cjs` into `PreToolUse`, `SubagentStart` and
+  `SubagentStop`; disable with `CAPABILITY_GRAPH_GUARD=off`. The real
+  `SubagentStart` payload carries `subagent_config: null`, so the caller model is
+  resolved lazily by `callerModelFor` (registry -> `subagent_config` ->
+  `<session_dir>/subagents/agent-<id>.meta.json` -> the subagent's own transcript
+  -> agent-file frontmatter) and cached back into the registry; without that
+  every subagent resolved to `unknown-caller` and was allowed.
+- `engine/hooks/fable-delegate-guard.cjs`: delegate-first enforcement for a Fable
+  main loop in Claude Code. While the session model is Fable it budgets direct
+  edits (free under `~/.claude` and the session scratchpad, 3 small ones per
+  prompt elsewhere) and denies code-writing shell commands, injects the
+  delegation briefing once per session, and exempts subagents. Wired by
+  `first-run.cjs` into `PreToolUse`, `UserPromptSubmit` and `SessionStart`.
+  Override one command with `# FABLE_OK: <why>`; disable a session with
+  `FABLE_DELEGATE_GUARD=off`; audit with `--report`.
+
+### Fixed
+- Orchestration hardening after an adversarial review of 1.5.0:
+  subscription-CLI children run confined to their workspace with native tools
+  disabled (`claude --tools ""`, `codex --sandbox read-only`; `agy` is skipped);
+  `read_url_content` fetches http(s) only and lives under a separate `network`
+  permission that read-only roles do not get; `delegate_parallel` without
+  `workspace_mode` still rejects shared mutation; graph limits reset per turn and
+  per `/research`/`/review`/`/swarm` instead of accumulating for the session; a
+  stale Esc no longer poisons the next subagent; hard-stop confirmations are
+  serialized across parallel children; one rejected sibling no longer discards
+  the batch; a mutating child that asked for `branch` fails closed; failed and
+  cancelled branch children still hand their diff upward; worktrees live outside
+  the repo and `/org prune` sweeps orphans; graph details are redacted and
+  paths relative; `max_turns` keeps the child's last output; shorthand model
+  overrides keep the inherit fallback; keyless `provider`+`base_url` targets and
+  `api_key_env` work; the empty `tests` permission is gone; orchestration events
+  render in every shell; a malformed config is a notice, not a failed headless run.
+- Subscription only, delegate-first: subagents never use a metered API (defaults are
+  the Claude login per role, falling back to the Codex login; `allow_api_models`
+  opts in), subscription CLIs are launched without the vendor API-key variables so
+  they bill the login, harness model names map to CLI aliases (`claude-haiku-4.5`
+  -> `haiku`; the raw id made Claude Code run its default model), and an expensive
+  interactive model (Fable) turns orchestration on in delegate-first mode with a
+  per-operation cap on expensive-model agents.
+
 ## [1.5.0] - 2026-09-02
 
 ### Added

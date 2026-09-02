@@ -62,7 +62,7 @@ class AgentLoop:
             workspace_root=str(self.workspace_root),
             confirm_callback=lambda prompt: self.confirm_callback(prompt),
             cancel_event=self.cancel_event,
-            telemetry_callback=lambda event, message: self.output_callback(event, message),
+            telemetry_callback=self._on_orchestration_event,
         )
         self.orchestration = self.subagents.orchestrator
         self.history: List[Dict[str, Any]] = []
@@ -73,8 +73,9 @@ class AgentLoop:
         self._load_harness_system_prompt()
 
         if self.subagents.config_error:
+            # A notice, not a turn failure: headless keeps exit 0 and the TUI shows it.
             self.output_callback(
-                "error",
+                "system",
                 "Orchestration config was ignored and disabled: " + self.subagents.config_error,
             )
 
@@ -138,6 +139,37 @@ class AgentLoop:
             },
             func=self._tool_invoke_subagent,
         )
+
+    def _on_orchestration_event(self, event: str, message: str) -> None:
+        """Orchestration lifecycle events reach the human (every shell renders the
+        `subagent` channel) and the web companion, not an unrendered channel."""
+        self.output_callback("subagent", f"{event}: {message}")
+        try:
+            from agent.web.server import companion_telemetry
+
+            companion_telemetry.log_event(event, message)
+        except ImportError:
+            pass
+
+    def _enforce_delegate_first(self) -> None:
+        """An expensive interactive model (Fable) always works through subagents:
+        orchestration switches on, in hierarchy mode, whenever the root model is
+        expensive, including after a /model switch mid-session."""
+        if self.orchestration.root_is_expensive and not self.orchestration.enabled:
+            self.output_callback(
+                "system",
+                f"Root model {self.llm_client.config.display_model()} is expensive: adaptive "
+                "orchestration enabled in delegate-first mode.",
+            )
+            self.configure_orchestration(enabled=True, mode="hierarchy")
+
+    def cancel(self) -> None:
+        """Cancel the running turn and every orchestration descendant (the same
+        event, plus the graph marks children that never started)."""
+        self.cancel_event.set()
+        orchestration = getattr(self, "orchestration", None)
+        if orchestration is not None:
+            orchestration.cancel()
 
     def _sync_orchestration_tools(self):
         for name in self.orchestration.TOOL_NAMES:
@@ -357,9 +389,16 @@ class AgentLoop:
         """Run a single interactive turn, processing tool calls iteratively until completion."""
         self.turn_lock.acquire()
         self.cancel_event.clear()
+        # getattr: test doubles build the loop without the orchestration facade.
+        orchestration = getattr(self, "orchestration", None)
+        if orchestration is not None:
+            self._enforce_delegate_first()
+            orchestration.begin_turn()
         try:
             return self._run_turn(user_input, max_steps)
         finally:
+            if orchestration is not None:
+                orchestration.end_turn()
             self._repair_history()
             self.turn_lock.release()
 

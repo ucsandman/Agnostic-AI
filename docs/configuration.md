@@ -24,6 +24,7 @@ Nothing loads `.env` for you; export variables in your shell or CI.
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `DEEPSEEK_API_KEY` | hosted presets in `/model` | unset (preset refuses to start) |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | generic OpenAI-compatible preset | `http://localhost:1234/v1`, `local-model`, `lm-studio` |
 | `DASHCLAW_BASE_URL`, `DASHCLAW_API_KEY`, `DASHCLAW_AGENT_ID`, `DASHCLAW_AGENT_NAME` | `engine/hooks/dashclaw-setup.cjs` | unset; governance stays local |
+| `FABLE_DELEGATE_GUARD` | `engine/hooks/fable-delegate-guard.cjs` | unset; set to `off` to let a Fable main loop do the work itself for one session |
 | `PORT` | dashboard | 7842 (next free port if taken) |
 | `RECALL_PORT` | recall | 7844 |
 | `PARITY_PORT` | parity | 7845 |
@@ -78,7 +79,12 @@ visible fallback targets, child and advisor allowlists, tool permissions,
 workspace mode, graph/model-call limits, and routing thresholds.
 
 Role model settings reuse `LLMConfig.PRESETS` and subscription bridges. They do
-not load keys or implement provider clients independently. Invalid JSON,
+not load keys or implement provider clients independently (a provider without a
+preset takes `base_url` and, optionally, `api_key_env`). Subagents run on
+subscriptions or local models only (`allow_api_models` opts a project into metered
+providers), and an expensive interactive model (Fable) forces delegate-first
+orchestration. Graph limits reset at the start of each turn and each `/research`,
+`/review`, or `/swarm`. Invalid JSON,
 unknown roles, delegation cycles, or unsafe limits disable orchestration with a
 visible error; flat `invoke_subagent`, `/research`, `/review`, and `/swarm`
 remain usable. See [adaptive orchestration](orchestration.md) for the complete
@@ -173,8 +179,10 @@ paths in [`targets.md`](targets.md)), each backed up to
 
 1. Restore a client's previous rules file from the newest `.bak` for it, or
    delete the target path.
-2. Remove hook wiring: delete the `PreToolUse` entry pointing at
-   `engine/hooks/dashclaw-guard.cjs` from `~/.claude/settings.json`, and
+2. Remove hook wiring: delete the `PreToolUse` entries pointing at
+   `engine/hooks/dashclaw-guard.cjs` and `engine/hooks/fable-delegate-guard.cjs`
+   from `~/.claude/settings.json` (the delegate guard also has a
+   `UserPromptSubmit` and a `SessionStart` entry), and
    `~/.codex/hooks.json` / `~/.gemini/config/hooks.json` for Codex / Antigravity.
 3. Delete the skills junction or directory in the client's skills column.
 4. Delete this repo's `storage/` and `skills/definitions/`.

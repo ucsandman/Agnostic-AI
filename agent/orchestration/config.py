@@ -19,6 +19,7 @@ class ModelTarget:
     model: Optional[str] = None
     effort: Optional[str] = None
     base_url: Optional[str] = None
+    api_key_env: Optional[str] = None
     inherit: bool = False
 
     @classmethod
@@ -31,6 +32,7 @@ class ModelTarget:
             "model",
             "effort",
             "base_url",
+            "api_key_env",
             "inherit",
         }
         if unknown:
@@ -43,6 +45,7 @@ class ModelTarget:
             model=_optional_text(value.get("model")),
             effort=_optional_text(value.get("effort")),
             base_url=_optional_text(value.get("base_url")),
+            api_key_env=_optional_text(value.get("api_key_env")),
             inherit=bool(value.get("inherit", False)),
         )
         if not target.inherit and not target.preset and not (target.provider and target.model):
@@ -85,6 +88,9 @@ class OrchestrationLimits:
     max_concurrent_agents: int = 12
     max_advisor_calls_per_agent: int = 4
     max_model_calls: int = 100
+    # Agents on an expensive model (see OrchestrationConfig.expensive_models) per
+    # operation, root excluded; they never run inside a parallel fan-out.
+    max_expensive_agents: int = 3
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,10 @@ class OrchestrationConfig:
     limits: OrchestrationLimits = field(default_factory=OrchestrationLimits)
     routing: RoutingPreferences = field(default_factory=RoutingPreferences)
     allow_shared_mutation: bool = False
+    # Subagents run on subscriptions or local endpoints. A metered API provider is
+    # rejected as unavailable unless a project opts in.
+    allow_api_models: bool = False
+    expensive_models: Tuple[str, ...] = ("claude-fable-5", "fable")
     source: Optional[Path] = None
 
     @classmethod
@@ -131,14 +141,19 @@ class OrchestrationConfig:
             "limits",
             "routing",
             "allow_shared_mutation",
+            "allow_api_models",
+            "expensive_models",
         }
         if unknown_top:
             raise OrchestrationConfigError(
                 "unknown orchestration keys: " + ", ".join(sorted(unknown_top))
             )
-        for key in ("enabled", "allow_shared_mutation"):
+        for key in ("enabled", "allow_shared_mutation", "allow_api_models"):
             if key in raw and not isinstance(raw[key], bool):
                 raise OrchestrationConfigError(f"{key} must be a boolean")
+        expensive = raw.get("expensive_models", ["claude-fable-5", "fable"])
+        if not isinstance(expensive, list) or not all(isinstance(m, str) for m in expensive):
+            raise OrchestrationConfigError("expensive_models must be a list of model names")
         mode = str(raw.get("mode", "auto")).lower()
         if mode not in {"auto", "hierarchy", "advisor"}:
             raise OrchestrationConfigError("mode must be auto, hierarchy, or advisor")
@@ -159,15 +174,20 @@ class OrchestrationConfig:
                 )
             base = dict(role_specs.get(str(name), {}))
             base.update(override)
-            if any(
-                key in override for key in ("preset", "provider", "model", "effort", "fallbacks")
-            ):
-                primary = {
-                    key: override[key]
-                    for key in ("preset", "provider", "model", "effort", "base_url", "inherit")
-                    if key in override
-                }
-                fallbacks = override.get("fallbacks", [])
+            if any(key in override for key in MODEL_SHORTHAND_KEYS):
+                if "models" in override:
+                    raise OrchestrationConfigError(
+                        f"role '{name}' cannot combine models with preset/provider/model shorthand"
+                    )
+                primary = {key: override[key] for key in MODEL_SHORTHAND_KEYS if key in override}
+                primary.pop("fallbacks", None)
+                if not primary:
+                    raise OrchestrationConfigError(
+                        f"role '{name}' fallbacks need a preset, provider plus model, or inherit"
+                    )
+                # A shorthand target without an explicit fallback list keeps the documented
+                # guarantee: every target falls back visibly to the parent model.
+                fallbacks = override.get("fallbacks", [{"inherit": True}])
                 if not isinstance(fallbacks, list):
                     raise OrchestrationConfigError(f"role '{name}' fallbacks must be a list")
                 normalized = []
@@ -202,6 +222,8 @@ class OrchestrationConfig:
             limits=limits,
             routing=routing,
             allow_shared_mutation=bool(raw.get("allow_shared_mutation", False)),
+            allow_api_models=bool(raw.get("allow_api_models", False)),
+            expensive_models=tuple(expensive),
             source=source,
         )
 
@@ -338,13 +360,24 @@ _CLAUDE_MODELS = {
 ROLE_PERMISSIONS = {
     "read",
     "search",
+    "network",
     "shell",
-    "tests",
     "write",
     "edit",
     "orchestrate",
     "advisor",
 }
+
+MODEL_SHORTHAND_KEYS = (
+    "preset",
+    "provider",
+    "model",
+    "effort",
+    "base_url",
+    "api_key_env",
+    "inherit",
+    "fallbacks",
+)
 
 ROLE_SPEC_KEYS = {
     "base",
@@ -362,19 +395,22 @@ ROLE_SPEC_KEYS = {
     "model",
     "effort",
     "base_url",
+    "api_key_env",
     "inherit",
     "fallbacks",
 }
 
 
 def _models(kind: str, effort: str):
+    # Subscription first, subscription fallback: the Claude login with the role's
+    # model, then the Codex login with its default model. Never a metered API key.
     return [
         {
             "preset": "sub-claude-code",
             "model": _CLAUDE_MODELS[kind],
             "effort": effort,
         },
-        {"inherit": True},
+        {"preset": "sub-openai-codex", "effort": effort},
     ]
 
 
@@ -386,7 +422,7 @@ DEFAULT_ROLE_SPECS: Dict[str, Dict[str, Any]] = {
             "parallelism, context isolation, or lower cost outweigh coordination overhead. Review "
             "child evidence before accepting it."
         ),
-        "permissions": ["read", "search", "shell", "orchestrate", "advisor"],
+        "permissions": ["read", "search", "network", "shell", "orchestrate", "advisor"],
         "allowed_children": [
             "manager",
             "architecture-manager",
@@ -408,7 +444,7 @@ DEFAULT_ROLE_SPECS: Dict[str, Dict[str, Any]] = {
             "Perform small or sequential work yourself. Delegate only substantial independent "
             "units or focused investigations. Verify and synthesize child results; never blindly relay."
         ),
-        "permissions": ["read", "search", "shell", "tests", "orchestrate", "advisor"],
+        "permissions": ["read", "search", "network", "shell", "orchestrate", "advisor"],
         "allowed_children": ["engineer", "specialist", "researcher", "reviewer", "tester"],
         "allowed_advisors": ["executive"],
         "models": _models("manager", "high"),
@@ -422,8 +458,8 @@ DEFAULT_ROLE_SPECS: Dict[str, Dict[str, Any]] = {
         "permissions": [
             "read",
             "search",
+            "network",
             "shell",
-            "tests",
             "write",
             "edit",
             "orchestrate",
@@ -459,7 +495,7 @@ DEFAULT_ROLE_SPECS: Dict[str, Dict[str, Any]] = {
     "tester": {
         "base": "specialist",
         "description": "Test designer and independent verifier.",
-        "permissions": ["read", "search", "shell", "tests"],
+        "permissions": ["read", "search", "shell"],
     },
     "architecture-manager": {
         "base": "manager",

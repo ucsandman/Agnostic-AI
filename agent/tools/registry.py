@@ -1266,7 +1266,15 @@ class ToolRegistry:
         return ToolResult("\n".join(sim_report))
 
     def _tool_read_url_content(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
-        url = args["url"]
+        url = str(args["url"])
+        # urllib's default opener also serves file:// (and ftp://); only the web
+        # is in scope here, never the local disk or anything the path guard covers.
+        scheme = url.split(":", 1)[0].lower() if ":" in url else ""
+        if scheme not in ("http", "https"):
+            return ToolResult(
+                f"Error: read_url_content only fetches http(s) URLs, got '{scheme or 'none'}'.",
+                is_error=True,
+            )
         try:
             import urllib.request
             import re
