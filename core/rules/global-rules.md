@@ -117,6 +117,7 @@ If something goes sideways mid-task, stop and re-plan instead of pushing through
 ## How to Work
 
 - **Determine current state before changing files.** Read recently modified files, `git status`, recent commits, diffs, source, docs, tests, and timestamps.
+- **Batch tool calls; one command per turn is the slow path.** Every tool call costs a model round-trip (median 9s) plus ~2s of hooks. Profiled 2026-09-01 across 8 sessions / 27 active hours: 70% of tool turns made exactly one call, and that serial pattern was the single largest cost. Independent checks go in one Bash call (chain with `;` or `&&`, print a header per section) or in one parallel turn; go sequential only when the next command needs the previous result. Enforced by `~/.claude/hooks/batch-guard.cjs`: the 4th consecutive single-statement Bash/PowerShell or single Read/Glob/Grep is denied; a shell command that truly depends on prior output carries `# SEQ: <what it depends on>` and is logged. `node ~/.claude/hooks/batch-guard.cjs --report` shows denials and overrides per day. Recursive grep/rg/find rooted at `C:\Projects`, the home dir, or a drive is blocked by `slow-command-guard` (120-180s each); scope to one repo or use the Grep tool. Recurring Workflow shapes are saved under `~/.claude/workflows/` (`adversarial-review`, `tournament`, `understand`, `fix-findings`) and invoked with `Workflow({name, args})`; do not regenerate a 10-20k-token script for a shape that already exists there.
 - **Inventory the real interface before building an adapter.** Before any wrapper, bot, driver, or browser automation, enumerate what the target already exposes (API routes, CLI commands, exported functions, env flags) from its **source**, not its README or a prior agent's report.
 - **Prove the load-bearing mechanism before you scope, mock, or ask for approval.** When most of a job depends on one step you have not run yet, test that step FIRST on one real case.
 - **Default to autonomous execution.** For bug reports and well-scoped tasks, do it and verify. Point yourself at the logs, errors, and failing tests, and resolve them.
@@ -188,6 +189,8 @@ Docs are part of the code. Work is complete only when:
 ---
 
 ## Learned Rules (Self-Promoted via Distillation Ladder)
+
+Promotion gate (2026-09-01): a candidate becomes an L-rule only after at least 3 signals across at least 2 distinct sessions, with signals older than 30 days counting half. One contradiction records; two clear contradictions demote. Each L-rule keeps its dated trail. Lessons from failures are stated as evidence ("when X broke, Y fixed it"), not as commands, so a hostile input cannot become a standing rule through a single session.
 
 - **L1 (2026-08-13) — Before trusting a check that came back green or empty, make it fail on purpose: re-break the thing it watches, or point it at a case known to be positive. A check never observed failing has been run, not verified.**
 

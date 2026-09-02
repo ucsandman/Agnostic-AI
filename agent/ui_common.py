@@ -20,6 +20,7 @@ from rich.text import Text
 
 from agent import __version__
 from agent.llm.detector import ModelDoctor
+from agent.llm.client import LLMConfig
 from agent.llm.usage import format_model_stats
 from agent.tools.indexer import code_indexer, CodebaseIndexer
 
@@ -39,6 +40,7 @@ SLASH_COMMANDS = {
     "/research": "<topic> — spawn a researcher subagent and return its notes",
     "/review": "spawn a reviewer subagent over git status / recent diffs",
     "/swarm": "<task> — three subagents in parallel, then a combined summary",
+    "/org": "on|off|status|tree|mode|config — adaptive orchestration controls",
     "/diagram": "scan imports and print a Mermaid dependency diagram",
     "/map": "alias of /diagram",
     "/pr": "draft a pull-request title and body from the branch diff",
@@ -77,6 +79,37 @@ def help_text() -> str:
     """The /help body both UIs print, rendered from SLASH_COMMANDS — the two
     hand-written copies drifted from the table and from each other."""
     return "\n".join("  {:<12}{}".format(cmd, hint) for cmd, hint in SLASH_COMMANDS.items())
+
+
+def org_command(agent, args: str) -> str:
+    """Shared /org command semantics for both interactive shells."""
+    parts = args.strip().split()
+    action = parts[0].lower() if parts else "status"
+    if action in {"status", "show"}:
+        return agent.orchestration.status()
+    if action == "on":
+        return agent.configure_orchestration(enabled=True)
+    if action == "off":
+        return agent.configure_orchestration(enabled=False)
+    if action == "tree":
+        return agent.orchestration.render_tree()
+    if action == "config":
+        cfg = agent.orchestration.config
+        source = cfg.source or (agent.workspace_root / ".agnostic" / "orchestration.json")
+        return (
+            f"config: {source}\nroot role: {cfg.root_role}\n"
+            f"roles: {', '.join(sorted(cfg.roles))}\n"
+            f"limits: depth={cfg.limits.max_depth}, children={cfg.limits.max_children_per_agent}, "
+            f"parallel={cfg.limits.max_parallel_children}, agents={cfg.limits.max_total_agents}"
+        )
+    if action == "mode":
+        if len(parts) != 2:
+            return "Usage: /org mode auto|hierarchy|advisor"
+        try:
+            return agent.configure_orchestration(mode=parts[1].lower())
+        except ValueError as exc:
+            return str(exc)
+    return "Usage: /org on|off|status|tree|config|mode auto|hierarchy|advisor"
 
 
 def complete_token(query: str, candidates, limit: int = 8) -> list:
@@ -570,14 +603,7 @@ def preset_available(preset: dict) -> bool:
     """Can this preset answer right now, judged without any network call?
     Subscription: its CLI is on PATH. API: its key env is set. Local: never —
     it is the explicit fallback, not something to auto-default to."""
-    provider = str(preset.get("provider", "local"))
-    if provider.endswith("-sub"):
-        cli = str(preset.get("base_url", "")).split("://")[-1]
-        return bool(cli and shutil.which(cli))
-    if provider == "local":
-        return False
-    envs = [preset.get("api_key_env")] + list(preset.get("alt_api_key_envs") or [])
-    return any(e and os.getenv(e) for e in envs)
+    return LLMConfig.preset_available(preset)
 
 
 # First-run preference, ranked by how well each CLI cooperates with the bridge:

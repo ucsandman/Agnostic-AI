@@ -1,0 +1,17 @@
+{
+  "id": "522e1bc0f80b7390",
+  "title": "The portfolio is one idea expressed four ways — when may a m",
+  "incidentDate": "2026-08-12",
+  "sightingDays": [
+    "2026-08-12",
+    "2026-08-13",
+    "2026-08-15",
+    "2026-08-20"
+  ],
+  "failureContext": "The portfolio is one idea expressed four ways — when may a machine act without a human, and can the human read the reason.",
+  "correctPrinciple": "Demonstrate compliance with surgical changes and deterministic verification.",
+  "exampleInput": "Task requiring action related to: The portfolio is one idea expressed four ways — wh",
+  "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
+  "expectedBehavior": "The portfolio is one idea expressed four ways — when may a machine act without a human, and can the human read the reason.",
+  "created": "2026-08-20T18:41:10.024Z"
+}

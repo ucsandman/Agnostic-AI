@@ -61,6 +61,7 @@ is sent to the model. `@path` and `#symbol` can be used anywhere in a prompt;
 | `/research <topic>` | both | Spawn a researcher subagent over the codebase and return its notes. |
 | `/review` | both | Spawn a reviewer subagent over `git status` / recent diffs for bugs, missing tests, security issues. |
 | `/swarm <task>` | both | Three subagents in parallel (researcher, tester, reviewer), then a combined summary from the model. Worktree isolation is available in the API but off by default. |
+| `/org on\|off\|status\|tree\|config\|mode` | both | Control and inspect adaptive orchestration. `/org mode auto\|hierarchy\|advisor` changes routing emphasis without weakening role, depth, fanout, workspace, or advisor limits. |
 | `/diagram`, `/map` | both | Scan imports and print a Mermaid dependency diagram. |
 | `/diff [turn]` | both | Show what a turn changed on disk: a unified diff per file, from the snapshots taken at every write, so it still reads true after you stage or hand-edit the same files. A bare `/diff` in the TUI opens a picker over the turns of this session (newest first, each row saying how many files it touched); the legacy CLI lists the checkpoint names instead. Read-only — it never reverts anything, and it works while a turn is running. |
 | `/commit` | both | Read `git status` + `git diff`, propose a conventional commit, run it on confirmation. |

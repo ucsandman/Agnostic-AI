@@ -3,6 +3,19 @@
 Durable architecture and product decisions, newest first. One entry per
 decision: what, why, what it rules out.
 
+## 2026-09-02 — Agnostic owns one capability graph for every agent strategy
+
+Hierarchy, direct delegation, advisor consultation, and swarm execution share
+one bounded orchestration runtime. Roles define model targets, child/advisor
+edges, tools, and workspace access; provider names do not define hierarchy.
+Every active agent gets an independent `LLMClient` and context, while every tool
+still crosses `ToolRegistry.execute` and the canonical safety hooks. Native
+Claude Code or Codex agent features may become transport optimizations, but
+they are not the source of truth because their recursion, permissions, and
+provider reach differ. A separate hierarchy engine, prompt-only permission
+rules, shared subscription sessions between siblings, and implicit workspace
+ownership are ruled out.
+
 ## 2026-08-20 — A tool the model cannot use successfully is removed, not kept
 
 `ask_question` (no input channel), `generate_artifact` (a `write_file` with a

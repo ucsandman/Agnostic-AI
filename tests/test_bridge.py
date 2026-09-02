@@ -236,6 +236,30 @@ def test_json_envelope_is_unwrapped_and_junk_falls_back_to_raw_text(monkeypatch)
     assert junk.usage is None
 
 
+def test_subscription_cli_nonzero_and_error_envelopes_raise(monkeypatch):
+    class FailedProc(FakeProc):
+        returncode = 2
+
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda cmd, **kwargs: FailedProc("unsupported model", cmd),
+    )
+    with pytest.raises(RuntimeError, match="code 2.*unsupported model"):
+        SubprocessSubscriptionBridge.execute_turn(
+            "anthropic-sub", [{"role": "user", "content": "hi"}]
+        )
+
+    fake_cli(
+        monkeypatch,
+        json.dumps({"type": "result", "is_error": True, "result": "model unavailable"}),
+    )
+    with pytest.raises(RuntimeError, match="model unavailable"):
+        SubprocessSubscriptionBridge.execute_turn(
+            "anthropic-sub", [{"role": "user", "content": "hi"}]
+        )
+
+
 def test_json_mode_streams_the_parsed_answer_not_the_envelope(monkeypatch):
     fake_cli(monkeypatch, claude_json("the real answer"))
     chunks = []

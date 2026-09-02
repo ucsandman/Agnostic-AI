@@ -54,19 +54,29 @@ class AgentLoop:
         )
         self._register_memory_tools()
         self.confirm_callback = confirm_callback or self._default_confirm
+        self.output_callback = output_callback or self._default_output
         # Delegate, not the value: the TUI replaces confirm_callback after
         # construction and subagents must honour the replacement.
         self.subagents = SubagentManager(
             client=self.llm_client,
             workspace_root=str(self.workspace_root),
             confirm_callback=lambda prompt: self.confirm_callback(prompt),
+            cancel_event=self.cancel_event,
+            telemetry_callback=lambda event, message: self.output_callback(event, message),
         )
-        self.output_callback = output_callback or self._default_output
+        self.orchestration = self.subagents.orchestrator
         self.history: List[Dict[str, Any]] = []
         self.turn_lock = threading.Lock()
 
         self._register_subagent_tool()
+        self._sync_orchestration_tools()
         self._load_harness_system_prompt()
+
+        if self.subagents.config_error:
+            self.output_callback(
+                "error",
+                "Orchestration config was ignored and disabled: " + self.subagents.config_error,
+            )
 
         try:
             from agent.web.server import companion_telemetry
@@ -128,6 +138,33 @@ class AgentLoop:
             },
             func=self._tool_invoke_subagent,
         )
+
+    def _sync_orchestration_tools(self):
+        for name in self.orchestration.TOOL_NAMES:
+            self.registry.unregister(name)
+        if self.orchestration.enabled:
+            self.registry.unregister("invoke_subagent")
+            self.orchestration.register_agent_tools(self.registry, self.orchestration.root_id)
+        elif "invoke_subagent" not in {
+            tool["function"]["name"] for tool in self.registry.get_openai_tools()
+        }:
+            self._register_subagent_tool()
+
+    def configure_orchestration(
+        self, *, enabled: Optional[bool] = None, mode: Optional[str] = None
+    ) -> str:
+        """Apply an interactive /org change without resetting conversation history."""
+        if enabled is not None:
+            self.orchestration.set_enabled(enabled)
+        if mode is not None:
+            self.orchestration.set_mode(mode)
+        self._sync_orchestration_tools()
+        marker = "\n\n## Adaptive Orchestration\n"
+        if self.history and self.history[0].get("role") == "system":
+            system = self.history[0].get("content", "").split(marker, 1)[0]
+            fragment = self.orchestration.prompt_fragment()
+            self.history[0]["content"] = system + (("\n\n" + fragment) if fragment else "")
+        return self.orchestration.status()
 
     def _register_memory_tools(self):
         self.registry.register(
@@ -285,6 +322,11 @@ class AgentLoop:
         if memories and not (compact and len(system_prompt) + len(memories) > 8192):
             system_prompt += "\n\n## Memory (auto-recalled)\n" + memories
 
+        orchestration = getattr(self, "orchestration", None)
+        orchestration_prompt = orchestration.prompt_fragment() if orchestration else ""
+        if orchestration_prompt:
+            system_prompt += "\n\n" + orchestration_prompt
+
         self.history = [{"role": "system", "content": system_prompt}]
 
     def _load_project_agreement(self) -> str:
@@ -371,6 +413,7 @@ class AgentLoop:
                     tool_choice="auto",
                     stream=True,
                     stream_callback=lambda chunk: self.output_callback("assistant_chunk", chunk),
+                    cancel_event=self.cancel_event,
                 )
                 msg = response.choices[0].message
 
@@ -509,6 +552,8 @@ class AgentLoop:
                     return self._cancelled()
 
             except Exception as e:
+                if self.cancel_event.is_set():
+                    return self._cancelled()
                 err_str = str(e)
                 if "400" in err_str and ("API key" in err_str or "INVALID_ARGUMENT" in err_str):
                     err_msg = (

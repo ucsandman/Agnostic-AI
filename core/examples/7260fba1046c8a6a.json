@@ -1,0 +1,16 @@
+{
+  "id": "7260fba1046c8a6a",
+  "title": "When the next real step is uncomfortable (outreach), the day",
+  "incidentDate": "2026-08-11",
+  "sightingDays": [
+    "2026-08-11",
+    "2026-08-12",
+    "2026-08-13"
+  ],
+  "failureContext": "When the next real step is uncomfortable (outreach), the day fills with defensible refinement commits on an already-sellable product.",
+  "correctPrinciple": "Demonstrate compliance with surgical changes and deterministic verification.",
+  "exampleInput": "Task requiring action related to: When the next real step is uncomfortable (outreach",
+  "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
+  "expectedBehavior": "When the next real step is uncomfortable (outreach), the day fills with defensible refinement commits on an already-sellable product.",
+  "created": "2026-08-20T18:41:10.027Z"
+}

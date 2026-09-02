@@ -33,6 +33,7 @@ from agent.ui_common import (
     help_text,
     maybe_start_web_companion,
     mcp_table,
+    org_command,
     parse_model_args,
     parse_slash_command,
     safe_text,
@@ -422,6 +423,16 @@ class SlashCommandMixin:
                 )
 
             self._dispatch_background(_do_swarm)
+            return True
+
+        elif cmd == "org":
+            self._write_output(
+                Panel(
+                    safe_text(org_command(self.agent, args)),
+                    title="Adaptive Orchestration",
+                    border_style="cyan",
+                )
+            )
             return True
 
         elif user_input.startswith(("/diagram", "/map")):

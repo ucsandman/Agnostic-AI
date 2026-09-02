@@ -51,6 +51,7 @@ from agent.ui_common import (
     history_file_path,
     maybe_start_web_companion,
     mcp_table,
+    org_command,
     parse_slash_command,
     safe_text,
 )
@@ -998,6 +999,16 @@ def main(argv: Optional[List[str]] = None):
                         Markdown(synthesis),
                         title="🐝 Swarm Unified Strategy",
                         border_style="green",
+                    )
+                )
+                continue
+
+            elif cmd == "org":
+                console.print(
+                    Panel(
+                        safe_text(org_command(agent, cmd_args)),
+                        title="Adaptive Orchestration",
+                        border_style="cyan",
                     )
                 )
                 continue

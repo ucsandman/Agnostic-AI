@@ -89,38 +89,59 @@ class SwarmCoordinator:
 
         results: Dict[str, str] = {}
 
-        def _run_worker(role: str, prompt: str) -> str:
-            wt = self._create_isolated_worktree(role) if use_worktrees else None
-            try:
-                if wt:
-                    manager = SubagentManager(
-                        client=self.client,
-                        workspace_root=str(wt),
-                        confirm_callback=self.subagents.confirm_callback,
-                    )
-                    return manager.spawn(role, prompt)
-                else:
-                    return self.subagents.spawn(role, prompt)
-            finally:
-                if wt:
-                    self._cleanup_worktree(wt)
+        # The production manager owns concurrency, graph limits, cancellation, and
+        # workspace leases. The fallback retains compatibility with lightweight
+        # third-party/test managers that implement only spawn().
+        if hasattr(self.subagents, "spawn_parallel"):
+            reports = self.subagents.spawn_parallel(
+                [
+                    {
+                        "role": role,
+                        "prompt": prompt,
+                        "workspace_mode": "branch" if use_worktrees else "inherit",
+                    }
+                    for role, prompt in worker_tasks
+                ]
+            )
+            results.update(dict(zip((role for role, _ in worker_tasks), reports)))
+            for role, _ in worker_tasks:
+                console.print(
+                    f"[bold green]✓ Swarm Worker [{role.upper()}] completed report.[/bold green]"
+                )
+        else:
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_role = {
-                executor.submit(_run_worker, role, prompt): role for role, prompt in worker_tasks
-            }
-            for future in concurrent.futures.as_completed(future_to_role):
-                role = future_to_role[future]
+            def _run_worker(role: str, prompt: str) -> str:
+                wt = self._create_isolated_worktree(role) if use_worktrees else None
                 try:
-                    results[role] = future.result()
-                    console.print(
-                        f"[bold green]✓ Swarm Worker [{role.upper()}] completed report.[/bold green]"
-                    )
-                except Exception as e:
-                    results[role] = f"Worker failed: {str(e)}"
-                    console.print(
-                        f"[bold red]✗ Swarm Worker [{role.upper()}] failed: {str(e)}[/bold red]"
-                    )
+                    if wt:
+                        manager = SubagentManager(
+                            client=self.client,
+                            workspace_root=str(wt),
+                            confirm_callback=self.subagents.confirm_callback,
+                        )
+                        return manager.spawn(role, prompt)
+                    return self.subagents.spawn(role, prompt)
+                finally:
+                    if wt:
+                        self._cleanup_worktree(wt)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_role = {
+                    executor.submit(_run_worker, role, prompt): role
+                    for role, prompt in worker_tasks
+                }
+                for future in concurrent.futures.as_completed(future_to_role):
+                    role = future_to_role[future]
+                    try:
+                        results[role] = future.result()
+                        console.print(
+                            f"[bold green]✓ Swarm Worker [{role.upper()}] completed report.[/bold green]"
+                        )
+                    except Exception as e:
+                        results[role] = f"Worker failed: {str(e)}"
+                        console.print(
+                            f"[bold red]✗ Swarm Worker [{role.upper()}] failed: {str(e)}[/bold red]"
+                        )
 
         # Synthesis. A silent worker is labelled, never pasted in as "None".
         def report(role: str) -> str:

@@ -18,6 +18,7 @@ from agent.tools.registry import ToolRegistry, ToolResult
 from agent.tools.subagent import SubagentManager, SubagentWorker
 from agent.governance.memory import MemoryStore
 from agent.tui import AgnosticTUI
+from agent.tui_commands import SlashCommandMixin
 from agent.tui_composer import PromptArea
 from agent.tui_model_picker import ModelPickerScreen
 from agent.tui_memory import MemoryPickerScreen
@@ -36,6 +37,7 @@ SymbolInfo.to_dict
 ToolResult.to_dict
 ToolRegistry.get_openai_tools
 ToolRegistry.execute
+ToolRegistry.trust_tier
 ContextManager.set_max_tokens
 ContextManager.auto_compact
 CodeInterceptor.run_quick_lint
@@ -54,6 +56,9 @@ learner.corrections_file
 SubagentManager.spawn_parallel
 PRAutoPilot.create_feature_branch
 TaskScheduler.cancel_all
+# Routing policy fields are consumed through dataclass serialization.
+cost_sensitivity  # noqa: F821
+latency_sensitivity  # noqa: F821
 
 # prompt_toolkit key-binding handlers (registered by decorator, called by the framework).
 AgnosticCompleter.get_completions
@@ -83,6 +88,8 @@ PromptArea._on_key
 PromptArea.value
 PromptArea.cursor_position
 AgnosticTUI.display
+SlashCommandMixin._handle_slash_command
+SlashCommandMixin._ctx_warned
 
 # http.server / socketserver read these class attributes and method names.
 CompanionHandler.do_GET
@@ -106,8 +113,20 @@ ui_common.maybe_start_web_companion
 ui_common.help_text
 ui_common.complete_token
 ui_common.stream_tail
+ui_common.busy_verbs
+ui_common.busy_indicator
+ui_common.should_notify
+ui_common.turn_summary
+ui_common.fold_summary
+ui_common.context_segment
+ui_common.usage_segment
+ui_common.PromptHistoryRing
+ui_common.parse_confirm_answer
+ui_common.slash_hints
+ui_common.model_preset_rows
 ui_common.LineForwarder
 ui_common.LineForwarder.flush  # file-like protocol: Rich Console calls it
+ui_common.LineForwarder.flush_remainder
 # Textual framework hooks on the picker screens: DEFAULT_CSS, message handlers
 # and action_* methods are invoked by Textual, never by our code.
 PickerScreen.DEFAULT_CSS

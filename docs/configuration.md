@@ -9,6 +9,7 @@
 | `core/safety/guards.json` | Secret paths, blocked commands, hard-stop patterns, DashClaw thresholds. Read by the Python guard, the Node hooks and the dashboard simulator. |
 | `core/templates/targets.json` | The 18 clients: rules file path, hook config path, skills dir, dialect, preamble. |
 | `core/examples/` | Few-shot fixtures produced by `prune.cjs`. |
+| `.agnostic/orchestration.json` | Optional project role graph, models, permissions, workspaces, limits, and routing preferences. |
 
 `npm run sync` after editing any of the first three. `npm run docs:targets`
 after editing the fourth.
@@ -67,6 +68,22 @@ var is set, and only then falls back to the local endpoint.
 Presets, effort levels and subscription bridges are chosen at runtime with
 `/model`; see [`slash-commands.md`](slash-commands.md).
 
+## Adaptive orchestration
+
+Orchestration is off when `.agnostic/orchestration.json` is absent. Enable it
+for the current interactive session with `/org on`, or set `"enabled": true`
+in the project file so TUI, legacy, and headless runs start consistently. The
+optional config supports base roles, preset/provider/model/effort selection,
+visible fallback targets, child and advisor allowlists, tool permissions,
+workspace mode, graph/model-call limits, and routing thresholds.
+
+Role model settings reuse `LLMConfig.PRESETS` and subscription bridges. They do
+not load keys or implement provider clients independently. Invalid JSON,
+unknown roles, delegation cycles, or unsafe limits disable orchestration with a
+visible error; flat `invoke_subagent`, `/research`, `/review`, and `/swarm`
+remain usable. See [adaptive orchestration](orchestration.md) for the complete
+schema and mixed-provider example.
+
 ## Headless / scripting
 
 `-p` (aliases `--prompt`, `--print`) runs exactly one turn with no TUI:
@@ -95,7 +112,8 @@ The JSON object:
   "tool_calls": [{"name": "run_command", "preview": "run_command({\"command\": \"...\"})"}],
   "usage": {"prompt_tokens": 5123, "completion_tokens": 88, "cost_usd": 0.02, "calls": 2},
   "model": "claude-opus-5",
-  "ok": true
+  "ok": true,
+  "orchestration": {"nodes": [{"relationship": "root"}], "edges": []}
 }
 ```
 

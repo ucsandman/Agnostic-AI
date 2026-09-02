@@ -155,3 +155,15 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
 - **Lesson:** a subprocess-pipe change is not verified until it has run on a POSIX
   interpreter - WSL is right there (pip install --break-system-packages pytest
   httpx openai prompt_toolkit textual rich pillow, then run the touched tests).
+
+## 2026-09-02 - Subscription fallback ignored a failed process
+
+- **Symptom:** an orchestration role with fallback models could accept diagnostic
+  output from a failed subscription CLI as a successful model response.
+- **Root cause:** the bridge treated non-empty stdout as success without first
+  checking the child process exit status.
+- **Fix:** nonzero subscription CLI exits now raise an availability error with
+  redacted diagnostics, allowing the orchestration router to record and try the
+  configured fallback.
+- **Lesson:** process output is evidence, not success; bridges must validate exit
+  status before interpreting stdout as a provider response.

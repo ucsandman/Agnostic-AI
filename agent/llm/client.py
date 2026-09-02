@@ -10,6 +10,7 @@ import time
 import uuid
 import subprocess
 import threading
+import shutil
 from functools import lru_cache
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional, Tuple
@@ -237,7 +238,10 @@ class SubprocessSubscriptionBridge:
         timeout: int = 180,
         model: Optional[str] = None,
         session: Optional[BridgeSession] = None,
+        cancel_event: Optional[threading.Event] = None,
     ) -> Any:
+        if cancel_event and cancel_event.is_set():
+            raise RuntimeError("Subscription CLI execution cancelled by user.")
         # No session object (a one-off caller) => a throwaway one, i.e. the old
         # behaviour: full transcript, new CLI session, every turn.
         session = session or BridgeSession()
@@ -335,6 +339,7 @@ class SubprocessSubscriptionBridge:
             # The read loop blocks until the child closes stdout, so the deadline
             # has to kill the child — a communicate(timeout=) below it never runs.
             expired = []
+            cancelled = []
 
             def _kill_expired():
                 expired.append(True)
@@ -342,6 +347,19 @@ class SubprocessSubscriptionBridge:
 
             killer = threading.Timer(timeout, _kill_expired)
             killer.start()
+            cancel_done = threading.Event()
+            cancel_waiter = None
+            if cancel_event is not None:
+
+                def _kill_cancelled():
+                    while not cancel_done.wait(0.05):
+                        if cancel_event.is_set():
+                            cancelled.append(True)
+                            proc.kill()
+                            return
+
+                cancel_waiter = threading.Thread(target=_kill_cancelled, daemon=True)
+                cancel_waiter.start()
             try:
                 raw_lines = []
                 if proc.stdout:
@@ -352,7 +370,12 @@ class SubprocessSubscriptionBridge:
                 stdout_remainder, _ = proc.communicate()
             finally:
                 killer.cancel()
+                cancel_done.set()
+                if cancel_waiter:
+                    cancel_waiter.join(timeout=1)
 
+            if cancelled:
+                raise RuntimeError(f"Subscription CLI for '{provider}' was cancelled by user.")
             if expired:
                 raise RuntimeError(
                     f"Subscription CLI for '{provider}' produced no result within "
@@ -364,9 +387,11 @@ class SubprocessSubscriptionBridge:
                     live_callback(stdout_remainder)
 
             raw_output = "".join(raw_lines).strip()
-            if proc.returncode != 0 and not raw_output:
+            if proc.returncode != 0:
+                detail = raw_output[-1000:] if raw_output else "no diagnostic output"
                 raise RuntimeError(
-                    f"Subscription CLI execution failed: Process exited with code {proc.returncode}"
+                    "Subscription CLI execution failed: "
+                    f"process exited with code {proc.returncode}: {detail}"
                 )
         except FileNotFoundError:
             raise RuntimeError(
@@ -378,6 +403,11 @@ class SubprocessSubscriptionBridge:
         usage = None
         if json_mode:
             data = _loads_lenient(raw_output)
+            if isinstance(data, dict) and data.get("is_error"):
+                raise RuntimeError(
+                    "Subscription CLI reported an error: "
+                    + str(data.get("result") or data.get("error") or "unknown error")[:1000]
+                )
             if isinstance(data, dict) and "result" in data:
                 cleaned_content = data.get("result") or ""
                 new_session_id = data.get("session_id") or new_session_id
@@ -622,6 +652,56 @@ class LLMConfig:
         # bucket. None whenever the model was set by hand rather than by preset.
         self.preset_key: Optional[str] = None
 
+    @staticmethod
+    def preset_available(preset: Dict[str, Any], include_local: bool = False) -> bool:
+        """Whether a preset has its local prerequisite without a network call."""
+        provider = str(preset.get("provider", "local"))
+        if provider.endswith("-sub"):
+            cli = str(preset.get("base_url", "")).split("://")[-1]
+            return bool(cli and shutil.which(cli))
+        if provider == "local":
+            return include_local
+        envs = [preset.get("api_key_env")] + list(preset.get("alt_api_key_envs") or [])
+        return any(name and os.getenv(name) for name in envs)
+
+    @classmethod
+    def from_preset(
+        cls,
+        preset_key: str,
+        model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> "LLMConfig":
+        """Build an independent config from the canonical preset table."""
+        try:
+            preset = cls.PRESETS[preset_key]
+        except KeyError as exc:
+            raise ValueError(f"unknown preset '{preset_key}'") from exc
+        key = None
+        envs = [preset.get("api_key_env")] + list(preset.get("alt_api_key_envs") or [])
+        for env_name in envs:
+            if env_name and os.getenv(env_name):
+                key = os.getenv(env_name)
+                break
+        if preset["provider"] == "local":
+            key = key or "lm-studio"
+        subscription = str(preset["provider"]).endswith("-sub")
+        config = cls(
+            base_url=base_url or preset["base_url"],
+            api_key=key,
+            model=preset["model"] if subscription else model or preset["model"],
+            reasoning_effort=reasoning_effort or preset.get("default_effort", "medium"),
+            provider=preset["provider"],
+            context_window=preset.get("context_window", 32768),
+        )
+        # __init__ has a generic LLM_API_KEY fallback for ad-hoc local clients.
+        # A preset must retain only its provider-specific credential resolution.
+        config.api_key = key
+        config.preset_key = preset_key
+        if subscription:
+            config.sub_model = model
+        return config
+
     @classmethod
     def sub_models(cls, preset_key: str) -> List[str]:
         """Models a subscription preset can run: the API-key presets of the same
@@ -820,13 +900,14 @@ class LLMClient:
         except Exception:
             pass
 
-    def chat_completion(  # noqa: vulture — called by AgentLoop/subagents; single-file scans miss it
+    def chat_completion(  # called by AgentLoop/subagents; single-file scans miss it
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: str = "auto",
         stream: bool = False,
         stream_callback: Optional[Any] = None,
+        cancel_event: Optional[threading.Event] = None,
     ):
         """Invoke chat completion with tool calling, live streaming, and reasoning effort support."""
         if self.config.provider.endswith("-sub"):
@@ -840,6 +921,7 @@ class LLMClient:
                     model=self.config.sub_model,
                     stream_callback=stream_callback,
                     session=self.bridge_session,
+                    cancel_event=cancel_event,
                 )
             except Exception as e:
                 self._record(t0, None, ok=False, error=str(e)[:200])
@@ -883,6 +965,11 @@ class LLMClient:
                 stream_usage = None
 
                 for chunk in response_stream:
+                    if cancel_event and cancel_event.is_set():
+                        close = getattr(response_stream, "close", None)
+                        if close:
+                            close()
+                        raise RuntimeError("LLM request cancelled by user.")
                     # BEFORE the empty-choices guard on purpose: OpenAI-compatible
                     # servers send the usage chunk with an EMPTY choices list, so
                     # skipping it first threw the token counts away.
@@ -942,10 +1029,14 @@ class LLMClient:
             return response
 
         t0 = time.monotonic()
+        if cancel_event and cancel_event.is_set():
+            raise RuntimeError("LLM request cancelled by user.")
         try:
             response = self._with_retry(lambda: self.client.chat.completions.create(**kwargs))
         except Exception as e:
             self._record(t0, None, ok=False, error=str(e)[:200])
             raise
         self._record(t0, response)
+        if cancel_event and cancel_event.is_set():
+            raise RuntimeError("LLM request cancelled by user.")
         return response

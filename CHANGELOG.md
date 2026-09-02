@@ -6,7 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-02
+
 ### Added
+- Adaptive hierarchical orchestration: configurable capability roles can delegate
+  directly or recursively across providers, run bounded parallel specialists, and
+  consult read-only advisors without transferring ownership. Includes per-agent
+  model clients and contexts, programmatic graph/fanout/depth/advisor/model-call
+  limits, role tool permissions, cooperative cancellation, owned worktree leases,
+  visible fallbacks, `/org` controls, headless/web graph telemetry, and `/swarm`
+  reuse of the shared primitive. Default role/model documentation is generated from
+  the runtime configuration (`docs/orchestration.md`).
 - Smart startup default: with `--url`/`--model` untouched the agent no longer assumes a local
   LM Studio endpoint — it starts on the last `/model` choice (persisted in the new home-level
   `~/.agnostic/settings.json`, distinct from the workspace `.agnostic/settings.json`), else the

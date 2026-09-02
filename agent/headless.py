@@ -159,6 +159,11 @@ def run_headless(args) -> int:
                     "usage": _usage_since(log, n0),
                     "model": config.display_model(),
                     "ok": not state["error"],
+                    "orchestration": (
+                        agent.orchestration.graph.snapshot()
+                        if hasattr(agent, "orchestration")
+                        else None
+                    ),
                 },
                 ensure_ascii=False,
             )

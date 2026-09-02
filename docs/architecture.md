@@ -119,14 +119,18 @@ agent/cli.py (prompt_toolkit, legacy) ──┤→ agent/loop.py AgentLoop → a
                            │                   │                       ├─ OpenAI-compatible HTTP (LM Studio, Ollama, hosted)
 ui_common.py: arg parser,  │                   │                       └─ subscription bridge (agy / claude / codex CLIs)
 @file #symbol expansion,   │                   ▼
-slash list                 │      agent/tools/registry.py  (read_file, write, edit, bash, grep, find, outline, find_symbol, fetch_url ...)
+slash list                 │      agent/orchestration/config.py  (role capability graph + limits)
+                           │      agent/orchestration/runtime.py (fresh contexts, routing, graph,
+                           │                   │                   advisors, workspaces, cancellation)
+                           │                   ▼
+                           │      agent/tools/registry.py  (read_file, write, edit, bash, grep, find, outline, find_symbol, fetch_url ...)
                            │                   │  read-only tools run in a ThreadPoolExecutor when a batch is all read-only
                            │                   ▼
                            │      agent/governance/guard.py  ← core/safety/guards.json (same policy as the hooks)
                            │      interceptor.py (pre/post tool hooks), audit.py, undo.py, context.py (auto-compaction),
                            │      session_manager.py, state.py (.agnostic/state.md), watchdog.py (git rollback)
                            └──→   agent/tools/indexer.py  (AST symbol index, mtime cache, honours DEFAULT_IGNORED_DIRS)
-                                  agent/tools/subagent.py (researcher / tester / reviewer roles, optional git worktrees)
+                                  agent/tools/subagent.py (backward-compatible orchestration facade)
                                   agent/workflows/  swarm, tester (/test /fix), pr_pilot, diagram, scheduler
 ```
 
@@ -140,9 +144,14 @@ slash list                 │      agent/tools/registry.py  (read_file, write, 
   automatically or with `/compact`.
 - **Checkpoints / undo**: `/undo` reverts the last file write; `/checkpoint`
   snapshots and restores groups of files.
-- **Swarm**: `/swarm <task>` runs three subagents (researcher, tester,
-  reviewer) in threads and asks the model for a combined summary. Worktree
-  isolation exists in `SubagentManager` but is off by default.
+- **Adaptive orchestration**: `/org` exposes a configurable directed role
+  graph. Delegation transfers bounded ownership; advisor edges return focused
+  guidance without transferring ownership. Every child receives a separate
+  `LLMClient`, context, tool allowlist, and workspace lease. See
+  [`orchestration.md`](orchestration.md).
+- **Swarm**: `/swarm <task>` runs researcher, tester, and reviewer through the
+  same bounded parallel orchestration primitive, then asks the lead model for
+  a combined summary. It is a breadth strategy, not a hierarchy.
 
 ## Storage layout
 
@@ -156,4 +165,6 @@ slash list                 │      agent/tools/registry.py  (read_file, write, 
 | `storage/dashclaw-config.json`, `harness-installed.json` | no | dashclaw-setup, first-run |
 | `storage/compiled/` | no | sync (generic system prompt) |
 | `skills/definitions/` | no | consolidate |
+| `.agnostic/orchestration/patches/` | no | isolated mutating child diff handoff |
+| `.agnostic/orchestration.json` | optionally | project orchestration policy |
 | `core/**` | yes | you (and approved promotions) |

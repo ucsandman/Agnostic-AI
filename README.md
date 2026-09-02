@@ -24,7 +24,9 @@ that runs against local or hosted models under the same safety policy.
   continuity). It has persistent auto-memory, MCP tool servers (`.mcp.json`),
   per-model cost/latency tracking, a multi-line composer, double-Esc rewind,
   a `/diff` turn browser, `!cmd` shell escape and a headless `agnostic -p`
-  mode for scripting it as a subagent.
+  mode for scripting it as a subagent. Adaptive orchestration adds bounded
+  recursive delegation, direct cross-level delegation, parallel specialists,
+  and focused stronger-model advisors through the same provider abstraction.
 - **Policy.** `core/safety/guards.json` is read by the Python guard, the Node
   hooks and the dashboard. Secret paths are always blocked; hard-stop commands
   need a human unless you opt in; a missing or unreachable policy fails closed.
@@ -68,6 +70,8 @@ agnostic > @agent/loop.py how does tool dispatch work?
 agnostic > /plan add a --dry-run flag to sync
 agnostic > /test                       # detect runner, loop fixes until green
 agnostic > /review                     # reviewer subagent over the diff
+agnostic > /org on                     # enable adaptive hierarchy + advisors
+agnostic > /org tree                   # inspect delegation and advisor edges
 agnostic > /commit
 ```
 
@@ -84,6 +88,10 @@ agnostic > /commit
 - `/undo`, `/checkpoint`, `/session`, `/compact`, `/swarm`, `/diagram`,
   `/pr`, `/learn` and the rest are in
   [docs/slash-commands.md](docs/slash-commands.md).
+- `/org` enables and inspects adaptive orchestration. Roles are capability
+  profiles, not hard-coded model ranks; see
+  [docs/orchestration.md](docs/orchestration.md) for hierarchy, advisor,
+  mixed-provider, permission, cancellation, and workspace behavior.
 - `agnostic --web` (or `/web`) starts a browser companion on 7843 (next free
   port if taken) with live telemetry, diffs and a context meter.
 - Prefer a classic readline shell? `agnostic-legacy` runs the same loop with
@@ -117,6 +125,7 @@ from `targets.json`: [docs/targets.md](docs/targets.md).
 | [docs/architecture.md](docs/architecture.md) | How sync, hooks, harvest, distill and the agent loop fit together; storage layout. |
 | [docs/configuration.md](docs/configuration.md) | Files you edit, every env var, CLI flags, trust tiers, DashClaw, scheduled jobs, uninstall. |
 | [docs/slash-commands.md](docs/slash-commands.md) | Every slash command, and whether the TUI or legacy shell handles it. |
+| [docs/orchestration.md](docs/orchestration.md) | Adaptive role graph, hierarchy/advisor/swarm semantics, limits, mixed-provider configuration, and lifecycle. |
 | [docs/targets.md](docs/targets.md) | The 18 supported clients. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, test commands, where things live, rules for a change. |
 | [SECURITY.md](SECURITY.md) | Scope, reporting, what the guard is not. |
@@ -127,7 +136,8 @@ from `targets.json`: [docs/targets.md](docs/targets.md).
 ```
 agent/          Python coding agent: tui.py (default), cli.py (legacy), loop.py,
                 llm/ (client, presets, endpoint detector), tools/ (registry, indexer,
-                subagents), governance/ (guard, audit, undo, context, sessions),
+                subagents), orchestration/ (roles, routing, graph, execution, workspaces),
+                governance/ (guard, audit, undo, context, sessions),
                 workflows/ (swarm, tester, pr_pilot, diagram, scheduler), web/
 core/           Single source of truth: rules/, traits/, safety/guards.json,
                 templates/targets.json, examples/

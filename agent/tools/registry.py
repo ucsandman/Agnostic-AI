@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, Iterator, List, Optional, Callable
 from agent import __version__
-from agent.governance.guard import guard
+from agent.governance.guard import SafetyGuard, guard
 from agent.governance.audit import audit_manager
 from agent.governance.interceptor import interceptor
 from agent.tools.indexer import DEFAULT_IGNORED_DIRS, DEFAULT_IGNORED_EXTS
@@ -107,6 +107,8 @@ class ToolRegistry:
         cancel_event: Optional[threading.Event] = None,
         on_output: Optional[Callable[[str], None]] = None,
         load_mcp: bool = True,
+        allowed_tools: Optional[set[str]] = None,
+        record_undo: bool = True,
     ):
         self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.read_only = read_only
@@ -114,12 +116,20 @@ class ToolRegistry:
         self.cancel_event = cancel_event
         # Called once per run_command output line, live, from the reader thread.
         self.on_output = on_output
+        self.record_undo = record_undo
+        # Path containment is workspace-specific. Trust remains session-global and
+        # is synchronized immediately before each check.
+        self.safety_guard = SafetyGuard(
+            workspace_root=str(self.workspace_root), policy_path=guard.policy_path
+        )
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._mcp_servers: Dict[str, Any] = {}
         self._mcp_status: List[Dict[str, Any]] = []
         self._register_default_tools()
         if read_only:
             self._tools = {n: t for n, t in self._tools.items() if n in READ_ONLY_TOOLS}
+        if allowed_tools is not None:
+            self.restrict_to(allowed_tools)
         # A read-only registry (reviewer subagents) must not gain third-party tools
         # that can write; MCP servers are opt-in for full registries only.
         if load_mcp and not read_only:
@@ -133,6 +143,19 @@ class ToolRegistry:
             "parameters": parameters,
             "func": func,
         }
+
+    def unregister(self, name: str) -> None:
+        """Remove an optional tool from future tool snapshots."""
+        self._tools.pop(name, None)
+
+    def restrict_to(self, allowed_tools) -> None:
+        """Apply an explicit least-privilege allowlist to registered tools."""
+        allowed = set(allowed_tools)
+        self._tools = {name: tool for name, tool in self._tools.items() if name in allowed}
+
+    def _active_guard(self) -> SafetyGuard:
+        self.safety_guard.trust_tier = guard.get_trust_tier()
+        return self.safety_guard
 
     def get_openai_tools(self) -> List[Dict[str, Any]]:
         """Return tools formatted for OpenAI / LM Studio / Ollama tool-calling API."""
@@ -583,9 +606,13 @@ class ToolRegistry:
     ) -> ToolResult:
         cmd = args["command"]
         cwd = args.get("cwd")
+        if cwd:
+            safe, reason = self._active_guard().check_path_access(str(cwd))
+            if not safe:
+                return ToolResult(reason, is_error=True)
         target_dir = (self.workspace_root / cwd).resolve() if cwd else self.workspace_root
 
-        is_blocked, req_approval, reason = guard.check_command_safety(cmd)
+        is_blocked, req_approval, reason = self._active_guard().check_command_safety(cmd)
         if is_blocked:
             audit_manager.record(
                 event_type="governance_hardstop",
@@ -664,7 +691,7 @@ class ToolRegistry:
 
     def _tool_read_file(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         raw_path = args["file_path"]
-        safe, reason = guard.check_path_access(raw_path)
+        safe, reason = self._active_guard().check_path_access(raw_path)
         if not safe:
             return ToolResult(reason, is_error=True)
 
@@ -703,7 +730,7 @@ class ToolRegistry:
     ) -> ToolResult:
         raw_path = args["file_path"]
         content = args["content"]
-        safe, reason = guard.check_path_access(raw_path)
+        safe, reason = self._active_guard().check_path_access(raw_path)
         if not safe:
             return ToolResult(reason, is_error=True)
 
@@ -729,7 +756,6 @@ class ToolRegistry:
 
         try:
             target_file.parent.mkdir(parents=True, exist_ok=True)
-            from agent.governance.undo import undo_manager
             from agent.tools.diff_viewer import DiffViewer
             from rich.console import Console
 
@@ -762,12 +788,15 @@ class ToolRegistry:
                     except ImportError:  # web companion is optional
                         pass
 
-            undo_manager.record_change(
-                file_path=target_file,
-                previous_content=prev_content,
-                new_content=content,
-                action="write" if prev_content is not None else "create",
-            )
+            if self.record_undo:
+                from agent.governance.undo import undo_manager
+
+                undo_manager.record_change(
+                    file_path=target_file,
+                    previous_content=prev_content,
+                    new_content=content,
+                    action="write" if prev_content is not None else "create",
+                )
             audit_manager.record(
                 event_type="file_write" if prev_content is not None else "file_create",
                 description=f"Wrote file {raw_path}",
@@ -792,7 +821,7 @@ class ToolRegistry:
         target = args["target_content"]
         replacement = args["replacement_content"]
 
-        safe, reason = guard.check_path_access(raw_path)
+        safe, reason = self._active_guard().check_path_access(raw_path)
         if not safe:
             return ToolResult(reason, is_error=True)
 
@@ -861,14 +890,15 @@ class ToolRegistry:
                     pass
 
             # Record in undo history & audit
-            from agent.governance.undo import undo_manager
+            if self.record_undo:
+                from agent.governance.undo import undo_manager
 
-            undo_manager.record_change(
-                file_path=target_file,
-                previous_content=content,
-                new_content=new_content,
-                action="edit",
-            )
+                undo_manager.record_change(
+                    file_path=target_file,
+                    previous_content=content,
+                    new_content=new_content,
+                    action="edit",
+                )
             audit_manager.record(
                 event_type="file_edit",
                 description=f"Surgically edited {raw_path}",
@@ -936,7 +966,7 @@ class ToolRegistry:
                 # and per-line scan are far more expensive than one search.
                 if not rx.search(blob):
                     continue
-                safe, _ = guard.check_path_access(str(file_path))
+                safe, _ = self._active_guard().check_path_access(str(file_path))
                 if not safe:
                     continue
                 rel_path = self._rel(file_path)
@@ -971,7 +1001,7 @@ class ToolRegistry:
                 rel = self._rel(p)
                 if not any(fnmatch.fnmatch(rel, pat) for pat in patterns):
                     continue
-                safe, _ = guard.check_path_access(str(p))
+                safe, _ = self._active_guard().check_path_access(str(p))
                 if not safe:
                     continue
                 matches.append(rel)
@@ -996,7 +1026,7 @@ class ToolRegistry:
         raw_path = args["file_path"]
         patch = args["patch_content"]
 
-        safe, reason = guard.check_path_access(raw_path)
+        safe, reason = self._active_guard().check_path_access(raw_path)
         if not safe:
             return ToolResult(reason, is_error=True)
 
@@ -1080,9 +1110,10 @@ class ToolRegistry:
                 except ImportError:  # web companion is optional
                     pass
 
-            from agent.governance.undo import undo_manager
+            if self.record_undo:
+                from agent.governance.undo import undo_manager
 
-            undo_manager.record_change(target_file, original_content, new_content, "patch")
+                undo_manager.record_change(target_file, original_content, new_content, "patch")
             audit_manager.record(
                 event_type="file_patch",
                 description=f"Applied patch to {raw_path}",
@@ -1149,7 +1180,7 @@ class ToolRegistry:
 
     def _tool_get_outline(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         raw_path = args["file_path"]
-        safe, reason = guard.check_path_access(raw_path)
+        safe, reason = self._active_guard().check_path_access(raw_path)
         if not safe:
             return ToolResult(reason, is_error=True)
 
@@ -1208,7 +1239,7 @@ class ToolRegistry:
 
     def _tool_simulate_command(self, args: Dict[str, Any], **_kwargs) -> ToolResult:
         cmd = args["command"]
-        is_blocked, req_approval, reason = guard.check_command_safety(cmd)
+        is_blocked, req_approval, reason = self._active_guard().check_command_safety(cmd)
 
         sim_report = [
             f"### [Command Simulation & Safety Pre-Flight]: `{cmd}`",

@@ -1,0 +1,16 @@
+{
+  "id": "a2b1314a3cbb6f1a",
+  "title": "When a practice is ported into another system, the half that",
+  "incidentDate": "2026-08-20",
+  "sightingDays": [
+    "2026-08-12",
+    "2026-08-20",
+    "2026-09-13"
+  ],
+  "failureContext": "When a practice is ported into another system, the half that generates output travels and the half that refuses output thins out — and it thins most at the top of the ladder, where the gates are strictest and the evidence is hardest to carry across a repo boundary.",
+  "correctPrinciple": "Demonstrate compliance with surgical changes and deterministic verification.",
+  "exampleInput": "Task requiring action related to: When a practice is ported into another system, the",
+  "badBehavior": "Agent applied rule inconsistently or introduced speculative edits.",
+  "expectedBehavior": "When a practice is ported into another system, the half that generates output travels and the half that refuses output thins out — and it thins most at the top of the ladder, where the gates are strictest and the evidence is hardest to carry across a repo boundary.",
+  "created": "2026-08-20T18:41:10.026Z"
+}

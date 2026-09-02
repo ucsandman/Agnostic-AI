@@ -293,12 +293,9 @@ HTML_PAGE = """<!DOCTYPE html>
                 <div id="whiteboard-box" style="font-size: 13px; white-space: pre-wrap; font-family: monospace; background:#000; padding:12px; border-radius:6px; max-height:220px; overflow-y:auto; border: 1px solid #21262d;">Loading whiteboard state...</div>
             </div>
             <div class="card">
-                <h3>🐝 Subagent Swarm Hierarchy</h3>
+                <h3>Adaptive Execution Graph</h3>
                 <div id="subagent-tree" style="font-size: 13px; line-height: 1.8;">
-                    <div>• 👑 <b>Lead Orchestrator</b> <span class="tag tag-active">Active</span></div>
-                    <div style="padding-left: 20px; color: #8b949e;">↳ 🔍 <b>Researcher</b> (Read-Only AST & Codebase Graph)</div>
-                    <div style="padding-left: 20px; color: #8b949e;">↳ 🧪 <b>Test Runner</b> (Autonomous Trace Analysis & Repair)</div>
-                    <div style="padding-left: 20px; color: #8b949e;">↳ 🛡️ <b>Security Reviewer</b> (Non-Negotiable Policy Guard)</div>
+                    <div style="color:#8b949e;">Loading execution graph...</div>
                 </div>
             </div>
         </div>
@@ -434,20 +431,20 @@ HTML_PAGE = """<!DOCTYPE html>
                     document.getElementById('diff-content').innerHTML = formatDiffHtml(data.active_diff);
                 }
 
-                // 4. Subagent Swarm Hierarchy
+                // 4. Canonical orchestration graph (delegation and advisor edges)
                 const subTree = document.getElementById('subagent-tree');
-                let swarmHtml = '<div>• 👑 <b>Lead Orchestrator</b> <span class="tag tag-active">Active</span></div>';
-                if (data.subagents && data.subagents.length > 0) {
-                    data.subagents.forEach(s => {
-                        const stateTag = s.state === 'running' ? 'tag-active' : (s.state === 'completed' ? 'tag-completed' : 'tag-killed');
-                        swarmHtml += `<div style="padding-left: 20px; color: #c9d1d9;">↳ 🤖 <b>${escapeHtml(s.role)}</b> <small style="color:#8b949e;">(${escapeHtml(s.conversationId)}, mode: ${s.workspace_mode || 'inherit'})</small> <span class="tag ${stateTag}">${s.state.toUpperCase()}</span></div>`;
+                let swarmHtml = '';
+                const agents = data.orchestration && data.orchestration.nodes ? data.orchestration.nodes : (data.subagents || []);
+                if (agents.length > 0) {
+                    agents.forEach(s => {
+                        const state = s.status || s.state;
+                        const stateTag = state === 'running' ? 'tag-active' : (state === 'completed' ? 'tag-completed' : 'tag-killed');
+                        const depth = Math.max(0, Number(s.depth ?? 1));
+                        const edge = s.relationship === 'advisor' ? 'consulted' : (s.relationship === 'root' ? 'root' : 'delegated');
+                        swarmHtml += `<div style="padding-left: ${depth * 20}px; color: #c9d1d9;">↳ <b>${escapeHtml(s.role)}</b> <small style="color:#8b949e;">(${edge}, ${escapeHtml(s.provider || '')}/${escapeHtml(s.model || '')}, mode: ${s.workspace_mode || 'inherit'})</small> <span class="tag ${stateTag}">${state.toUpperCase()}</span></div>`;
                     });
                 } else {
-                    swarmHtml += `
-                        <div style="padding-left: 20px; color: #8b949e;">↳ 🔍 <b>Researcher</b> (Read-Only AST & Codebase Graph)</div>
-                        <div style="padding-left: 20px; color: #8b949e;">↳ 🧪 <b>Test Runner</b> (Autonomous Trace Analysis & Repair)</div>
-                        <div style="padding-left: 20px; color: #8b949e;">↳ 🛡️ <b>Security Reviewer</b> (Non-Negotiable Policy Guard)</div>
-                    `;
+                    swarmHtml = '<div style="color:#8b949e;">No orchestration activity yet.</div>';
                 }
                 subTree.innerHTML = swarmHtml;
 
@@ -528,6 +525,19 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
             history = companion_telemetry.get_history()
             ctx = context_manager.get_status(history)
             model_info = companion_telemetry.get_model_info()
+            orchestration = None
+            agent = companion_telemetry._agent_instance
+            if agent is not None and hasattr(agent, "orchestration"):
+                orchestration = agent.orchestration.graph.snapshot()
+                subagents = agent.orchestration.graph.list_subagents()
+                known = {item["conversationId"] for item in subagents}
+                subagents.extend(
+                    item
+                    for item in subagent_registry.list_subagents()
+                    if item.get("conversationId") not in known
+                )
+            else:
+                subagents = subagent_registry.list_subagents()
             status_data = {
                 "status": "online",
                 "context": ctx,
@@ -537,7 +547,8 @@ class CompanionHandler(http.server.BaseHTTPRequestHandler):
                 "whiteboard": state_manager.read_state(),
                 "sessions": session_manager.list_sessions(),
                 "undo_count": len(undo_manager.history),
-                "subagents": subagent_registry.list_subagents(),
+                "subagents": subagents,
+                "orchestration": orchestration,
                 "active_diff": companion_telemetry.get_active_diff(),
                 "telemetry": companion_telemetry.get_logs(limit=40),
             }

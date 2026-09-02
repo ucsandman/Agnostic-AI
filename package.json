@@ -1,6 +1,6 @@
 {
   "name": "agnostic-ai",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Model-agnostic AI agent harness: one rules file compiled to 18 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
   "repository": {
@@ -18,7 +18,8 @@
     "test:py": "python -m pytest tests/ -q",
     "lint": "ruff check .",
     "docs:targets": "node engine/docs/targets-doc.cjs",
-    "docs:check": "node engine/docs/targets-doc.cjs --check",
+    "docs:orchestration": "python -m agent.orchestration.docs",
+    "docs:check": "node engine/docs/targets-doc.cjs --check && python -m agent.orchestration.docs --check",
     "merge": "node engine/ingest/merge.cjs",
     "merge:global": "node engine/ingest/merge.cjs --global",
     "dashboard": "node tools/dashboard/dashboard.cjs --open",

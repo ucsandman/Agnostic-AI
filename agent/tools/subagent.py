@@ -8,6 +8,8 @@ import time
 import uuid
 import shutil
 import subprocess
+import threading
+import copy
 from typing import Callable, Optional, Literal, Any
 from pathlib import Path
 from agent.llm.client import LLMClient
@@ -29,6 +31,7 @@ class SubagentWorker:
         workspace_root: Path,
         workspace_mode: WorkspaceMode = "inherit",
         confirm_callback: Optional[Callable[[str], bool]] = None,
+        cancel_event: Optional[threading.Event] = None,
     ):
         self.role = role
         self.system_prompt = system_prompt
@@ -36,6 +39,7 @@ class SubagentWorker:
         self.workspace_root = workspace_root
         self.workspace_mode = workspace_mode
         self.confirm_callback = confirm_callback
+        self.cancel_event = cancel_event
         self.workspace_note = ""
         self.active_workspace = self._prepare_workspace()
 
@@ -48,7 +52,12 @@ class SubagentWorker:
         from agent.tools.registry import ToolRegistry
 
         read_only = self.role.lower().strip() in READ_ONLY_ROLES or self.confirm_callback is None
-        return ToolRegistry(workspace_root=str(self.active_workspace), read_only=read_only)
+        return ToolRegistry(
+            workspace_root=str(self.active_workspace),
+            read_only=read_only,
+            cancel_event=self.cancel_event,
+            load_mcp=False,
+        )
 
     def _prepare_workspace(self) -> Path:
         """Provisions workspace based on selected isolation mode.
@@ -118,6 +127,8 @@ class SubagentWorker:
 
         try:
             for _ in range(max_turns):
+                if self.cancel_event and self.cancel_event.is_set():
+                    return "[Subagent cancelled by user]"
                 try:
                     response = self.client.chat_completion(
                         messages=messages,
@@ -191,11 +202,16 @@ class SubagentManager:
         client: LLMClient,
         workspace_root: Optional[str] = None,
         confirm_callback: Optional[Callable[[str], bool]] = None,
+        cancel_event: Optional[threading.Event] = None,
+        config=None,
+        telemetry_callback: Optional[Callable[[str, str], None]] = None,
+        client_factory=None,
     ):
         self.client = client
         self.workspace_root = Path(workspace_root or ".").resolve()
         # Lead-agent confirmation channel; without it subagents stay read-only.
         self.confirm_callback = confirm_callback
+        self.cancel_event = cancel_event or threading.Event()
         self.subagent_roles = {
             "researcher": (
                 "You are an expert Codebase Researcher. Your job is to thoroughly inspect, find files, grep patterns, "
@@ -209,6 +225,35 @@ class SubagentManager:
                 "You are a Test & Verification Specialist. Look at tests and recent changes, formulate edge cases, and run tests via commands to verify functionality."
             ),
         }
+        from agent.orchestration.config import OrchestrationConfig, OrchestrationConfigError
+        from agent.orchestration.runtime import OrchestrationManager
+
+        try:
+            orchestration_config = config or OrchestrationConfig.load(self.workspace_root)
+            self.config_error = ""
+        except OrchestrationConfigError as exc:
+            orchestration_config = OrchestrationConfig.from_dict({})
+            self.config_error = str(exc)
+        if client_factory is None and type(client) is not LLMClient:
+
+            def client_factory(model_config):
+                cloned = copy.deepcopy(client)
+                cloned.config = model_config
+                if hasattr(cloned, "_step"):
+                    cloned._step = 0
+                return cloned
+
+        self.orchestrator = OrchestrationManager(
+            client,
+            workspace_root=self.workspace_root,
+            confirm_callback=confirm_callback,
+            cancel_event=self.cancel_event,
+            config=orchestration_config,
+            telemetry_callback=telemetry_callback,
+            client_factory=client_factory or LLMClient,
+        )
+        self.root_agent = self.orchestrator.register_root(orchestration_config.root_role)
+        self.root_id = self.root_agent.agent_id
 
     def spawn(
         self,
@@ -217,53 +262,51 @@ class SubagentManager:
         custom_instructions: Optional[str] = None,
         workspace_mode: WorkspaceMode = "inherit",
     ) -> str:
-        subagent_id = f"sub_{str(uuid.uuid4())[:6]}"
-        subagent_registry.register_active(subagent_id, role, workspace_mode)
-        try:
-            from agent.web.server import companion_telemetry
-
-            companion_telemetry.log_event(
-                "subagent_start",
-                f"Spawned Subagent '{role}' ({subagent_id}, mode: {workspace_mode}): {prompt[:80]}",
-            )
-        except ImportError:  # web companion is optional
-            pass
-
         role_key = role.lower().strip()
+        if role_key in self.orchestrator.config.roles:
+            try:
+                result = self.orchestrator.delegate(
+                    self.root_id,
+                    role_key,
+                    prompt,
+                    custom_instructions=custom_instructions or "",
+                    workspace_mode=workspace_mode,
+                    inherit_model=not self.orchestrator.enabled,
+                )
+                return result.report()
+            except Exception as exc:
+                return f"### [Subagent Report: {role.upper()} - ERROR]\n{exc}\n"
+
+        # Compatibility for callers that used arbitrary one-off role strings before
+        # role profiles existed. These workers stay flat and inherit the root model.
         base_prompt = self.subagent_roles.get(
             role_key,
             f"You are a specialized subagent operating as '{role}'. Focus exclusively on completing the given task and return a distilled summary.",
         )
         if custom_instructions:
             base_prompt += f"\nAdditional Instructions:\n{custom_instructions}"
-
+        legacy_config = self.orchestrator._clone_config(self.client.config)
+        legacy_client = self.orchestrator.client_factory(legacy_config)
         worker = SubagentWorker(
             role=role,
             system_prompt=base_prompt,
-            client=self.client,
+            client=legacy_client,
             workspace_root=self.workspace_root,
             workspace_mode=workspace_mode,
             confirm_callback=self.confirm_callback,
+            cancel_event=self.cancel_event,
         )
+        subagent_id = f"sub_{str(uuid.uuid4())[:6]}"
+        subagent_registry.register_active(subagent_id, role, workspace_mode)
         try:
             result = worker.run_task(prompt)
             subagent_registry.update_state(
                 subagent_id, "completed", detail=f"Result len: {len(result)}"
             )
-            try:
-                from agent.web.server import companion_telemetry
-
-                companion_telemetry.log_event(
-                    "subagent_end",
-                    f"Subagent '{role}' ({subagent_id}) finished task successfully.",
-                )
-            except ImportError:  # web companion is optional
-                pass
-            # Distill response header
             return f"### [Subagent Report: {role.upper()}]\n{result}\n{worker.workspace_note}"
-        except Exception as e:
-            subagent_registry.update_state(subagent_id, "error", detail=str(e))
-            return f"### [Subagent Report: {role.upper()} - ERROR]\n{str(e)}\n"
+        except Exception as exc:
+            subagent_registry.update_state(subagent_id, "error", detail=str(exc))
+            return f"### [Subagent Report: {role.upper()} - ERROR]\n{exc}\n"
 
     def spawn_parallel(self, tasks: list[dict[str, Any]]) -> list[str]:
         """Spawn multiple subagents in parallel using concurrent worker threads."""
@@ -276,6 +319,23 @@ class SubagentManager:
                 custom_instructions=task_def.get("custom_instructions"),
                 workspace_mode=task_def.get("workspace_mode", "inherit"),
             )
+
+        if all(
+            str(task.get("role", "researcher")).lower() in self.orchestrator.config.roles
+            for task in tasks
+        ):
+            packets = [
+                {
+                    "role": str(task.get("role", "researcher")).lower(),
+                    "task": task["prompt"],
+                    "custom_instructions": task.get("custom_instructions", ""),
+                    "workspace_mode": task.get("workspace_mode", "inherit"),
+                    "inherit_model": not self.orchestrator.enabled,
+                }
+                for task in tasks
+            ]
+            results = self.orchestrator.spawn_parallel(self.root_id, packets)
+            return [result.report() for result in results]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(tasks))) as executor:
             return list(executor.map(_run_single, tasks))

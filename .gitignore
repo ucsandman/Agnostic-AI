@@ -30,6 +30,12 @@ Thumbs.db
 .dashclaw-local/
 .offlocal/
 .agnostic/
+# A project may intentionally version its orchestration policy; all runtime state stays ignored.
+!.agnostic/
+.agnostic/*
+!.agnostic/orchestration.json
+.frontend-verify/
+.playwright-cli/
 
 # vendored skill cache (rebuilt locally by consolidate.cjs)
 skills/definitions/
