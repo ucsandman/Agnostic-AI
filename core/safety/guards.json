@@ -64,7 +64,6 @@
     "hardStops": {
       "_note": "Matched anywhere in the command string; order-independent. These require explicit human approval.",
       "requireApprovalPatterns": [
-        "(?i)\\bgit\\s+push\\b",
         "(?i)\\bgit\\s+push\\b.*(--force\\b|--force-with-lease\\b|\\s-f\\b)",
         "(?i)\\bgit\\s+push\\s+-f\\b",
         "(?i)\\bgit\\s+reset\\s+.*--hard\\b",

@@ -180,3 +180,14 @@ ToolRegistry.reload_mcp
 ui_common.mcp_table
 _saw_focus_event  # noqa: F821
 _pre_compact_history  # noqa: F821
+# ui_common helpers whose callers are cli.py / tui_commands.py / tui.py (staged-scope pass).
+ui_common.org_command
+ui_common.save_settings
+ui_common.pick_default_preset
+ui_common.parse_model_args
+ui_common.endpoint_status_line
+PromptHistoryRing.prev  # noqa: F821
+# test doubles in tests/test_agent_qol.py: attributes the code under test reads.
+_server_thread  # noqa: F821
+chat_completion  # noqa: F821
+spawn  # noqa: F821

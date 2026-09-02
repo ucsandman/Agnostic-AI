@@ -168,12 +168,12 @@ def test_safety_guard_and_trust_tiers(temp_workspace):
     guard.set_trust_tier("strict")
     assert guard.get_trust_tier() == "strict"
 
-    blocked, req_appr, _ = guard.check_command_safety("git push origin main")
+    blocked, req_appr, _ = guard.check_command_safety("git push --force origin main")
     assert req_appr is True
 
     # trust-all suppresses hard-stop prompt for non-secret commands
     guard.set_trust_tier("all")
-    blocked, req_appr, _ = guard.check_command_safety("git push origin main")
+    blocked, req_appr, _ = guard.check_command_safety("git push --force origin main")
     assert req_appr is False
 
     # But secrets commands remain strictly blocked

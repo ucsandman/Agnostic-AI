@@ -549,7 +549,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--ask-permissions",
         action="store_true",
         default=False,
-        help="Prompt y/n for hard-stop commands (git push, rm -rf, deploys). Without this flag hard-stops are DENIED, not auto-approved.",
+        help="Prompt y/n for hard-stop commands (git push --force, rm -rf, deploys). Without this flag hard-stops are DENIED, not auto-approved.",
     )
     parser.add_argument(
         "--web",

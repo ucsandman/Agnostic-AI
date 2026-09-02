@@ -26,6 +26,12 @@ All notable changes to this project are documented here. The format follows
   Override one command with `# FABLE_OK: <why>`; disable a session with
   `FABLE_DELEGATE_GUARD=off`; audit with `--report`.
 
+### Changed
+- Plain `git push` is no longer a hard stop in `core/safety/guards.json`; force
+  pushes, hard resets and the other destructive forms still require approval. A
+  hook cannot ask a human, so the plain form blocked every push from Claude
+  Code.
+
 ### Fixed
 - Orchestration hardening after an adversarial review of 1.5.0:
   subscription-CLI children run confined to their workspace with native tools
