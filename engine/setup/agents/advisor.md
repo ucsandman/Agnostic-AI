@@ -1,6 +1,6 @@
 ---
 name: advisor
-description: Stronger-model advisor for one focused decision. Use from a Sonnet or Opus subagent, or from an Opus main loop, when an architecture choice, a security boundary, or a failure after two attempts needs a stronger model's judgment. Returns guidance only; ownership of the task stays with the caller. Read-only, spawns nothing.
+description: Stronger-model advisor for one focused decision. Use from a Sonnet or Opus subagent, or from an Opus main loop, when an architecture choice, a security boundary, or a failure after two attempts needs a stronger model's judgment. Do not pass a model; the capability-graph guard sets it one rung above yours (Sonnet gets Opus, Opus gets Fable). Returns guidance only; ownership of the task stays with the caller. Read-only, spawns nothing.
 model: fable
 tools: Read, Grep, Glob
 ---

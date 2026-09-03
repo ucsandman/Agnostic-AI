@@ -9,9 +9,20 @@
  * spawning another Sonnet buys nothing and hides the work one level deeper.
  *
  * The single upward edge is consultation, not delegation: any caller above
- * Haiku may spawn subagent_type "advisor" (a read-only Fable agent that
- * returns guidance and never owns the task), capped at 2 per calling agent and
- * 3 per session so it stays inside the operator's own Fable spawn cap.
+ * Haiku may spawn subagent_type "advisor" (read-only, returns guidance and
+ * never owns the task), capped at 2 per calling agent and 3 per session so it
+ * stays inside the operator's own Fable spawn cap.
+ *
+ * The advisor is always ONE RUNG ABOVE ITS CALLER (Wes, 2026-09-03): Sonnet
+ * consults Opus, Opus consults Fable, Fable consults Fable. A peer advisor
+ * shares the caller's blind spots; a Fable advisor for a Sonnet worker burns
+ * Fable tokens where Opus would have done the job. So this guard ignores any
+ * model the caller passed and injects the escalated one through the
+ * PreToolUse `updatedInput` envelope (the Agent tool's explicit `model`
+ * parameter wins over agents/advisor.md's `model: fable` fallback). Anthropic's
+ * native server-side advisor (settings.advisorModel) is one global value with
+ * no per-caller override and is not a hook-visible tool call, so it cannot be
+ * escalated here; agent prompts steer Opus-tier callers away from it.
  *
  * Caller identity (measured 2026-09-02): a PreToolUse payload inside a subagent
  * carries `agent_id` / `agent_type`; a main-loop payload carries neither.
@@ -51,7 +62,7 @@ const ADVISOR_PER_AGENT = 2;
 const ADVISOR_PER_SESSION = 3;
 const MAX_STATE_AGE_MS = 24 * 60 * 60 * 1000;
 
-const REASON_TEXT = '[capability-graph-guard] Capability graph: Fable -> Opus/Sonnet/Haiku; Opus -> Sonnet/Haiku; Sonnet -> Haiku; Haiku -> nobody. Delegation only flows downward; peers are not edges. The one upward edge is consultation: spawn subagent_type "advisor" (read-only guidance, ownership stays with you), at most 2 per agent and 3 per session.';
+const REASON_TEXT = '[capability-graph-guard] Capability graph: Fable -> Opus/Sonnet/Haiku; Opus -> Sonnet/Haiku; Sonnet -> Haiku; Haiku -> nobody. Delegation only flows downward; peers are not edges. The one upward edge is consultation: spawn subagent_type "advisor" (read-only guidance, ownership stays with you), at most 2 per agent and 3 per session; the guard picks its model, one rung above yours (Sonnet -> Opus, Opus -> Fable).';
 
 function rankOf(model) {
   if (typeof model !== 'string' || !model.trim()) return null;
@@ -60,6 +71,14 @@ function rankOf(model) {
 }
 
 const NAMES = { 3: 'Fable', 2: 'Opus', 1: 'Sonnet', 0: 'Haiku' };
+const ALIASES = { 3: 'fable', 2: 'opus', 1: 'sonnet', 0: 'haiku' };
+
+// The advisor's model: one rung above the caller, capped at Fable. An
+// unresolvable caller gets Fable, the safe (never-a-peer) default.
+function advisorModelFor(callerRank) {
+  if (callerRank === null || callerRank === undefined) return ALIASES[3];
+  return ALIASES[Math.min(callerRank + 1, 3)];
+}
 
 // --- paths / state ------------------------------------------------------------
 
@@ -284,7 +303,7 @@ function decide(payload = {}, opts = {}) {
 
   const calleeM = tool === 'Workflow' ? null : calleeModel(input, { ...opts, cwd: payload.cwd });
 
-  const record = (kind) => logEvent({
+  const record = (kind, calleeModelOverride) => logEvent({
     ts: nowIso(opts),
     session_id: sid,
     kind,
@@ -294,7 +313,7 @@ function decide(payload = {}, opts = {}) {
       source: callerSource,
       ...(callerDepth === null ? {} : { spawn_depth: callerDepth })
     },
-    callee: { subagent_type: type || null, model: calleeM },
+    callee: { subagent_type: type || null, model: calleeModelOverride === undefined ? calleeM : calleeModelOverride },
     tool_name: tool
   }, opts);
 
@@ -359,8 +378,9 @@ function decide(payload = {}, opts = {}) {
     state.total = (state.total || 0) + 1;
     state.byCaller[key] = used + 1;
     writeJson(file, state);
-    record('advisor');
-    return { action: 'allow', kind: 'advisor', reason: `${used + 1} of ${ADVISOR_PER_AGENT} for this agent, ${state.total} of ${ADVISOR_PER_SESSION} for the session` };
+    const model = advisorModelFor(callerRank);
+    record('advisor', model);
+    return { action: 'allow', kind: 'advisor', model, reason: `${NAMES[rankOf(model)]} advisor for a ${callerName} caller; ${used + 1} of ${ADVISOR_PER_AGENT} for this agent, ${state.total} of ${ADVISOR_PER_SESSION} for the session` };
   }
 
   // A fork inherits the parent model, so it is always a peer edge.
@@ -394,6 +414,18 @@ function main(payload = {}, opts = {}) {
   if (event !== 'PreToolUse') return '';
 
   const verdict = decide(payload, opts);
+  if (verdict.kind === 'advisor' && verdict.model) {
+    // Allow + updatedInput: the escalated model replaces whatever the caller
+    // passed, so the advisor is never the caller's peer.
+    return JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        permissionDecisionReason: `[capability-graph-guard] ${verdict.reason}`,
+        updatedInput: { ...(payload.tool_input || {}), model: verdict.model }
+      }
+    });
+  }
   if (verdict.action !== 'deny') return '';
   return JSON.stringify({
     hookSpecificOutput: {

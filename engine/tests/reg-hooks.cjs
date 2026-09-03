@@ -654,6 +654,40 @@ async function run() {
     assert(/3 advisor consultations/.test(fourth.reason), fourth.reason);
   });
 
+  await test('GraphGuard: the advisor is one rung above its caller, never a peer', () => {
+    const { opts } = graphEnv();
+    const sonnet = callerOf(opts, 's-esc', 'agent_s', 'claude-sonnet-5');
+    const opus = callerOf(opts, 's-esc2', 'agent_o', 'claude-opus-5');
+    const mainCall = (sid) => ({
+      hook_event_name: 'PreToolUse', session_id: sid, cwd: 'C:/repo',
+      tool_name: 'Agent', tool_input: { subagent_type: 'advisor', prompt: 'q' }
+    });
+
+    const fromSonnet = graphGuard.decide(sonnet({ subagent_type: 'advisor', prompt: 'q' }), opts);
+    assert.strictEqual(fromSonnet.kind, 'advisor', JSON.stringify(fromSonnet));
+    assert.strictEqual(fromSonnet.model, 'opus', 'Sonnet consults Opus, not Fable');
+
+    const fromOpus = graphGuard.decide(opus({ subagent_type: 'advisor', prompt: 'q' }), opts);
+    assert.strictEqual(fromOpus.model, 'fable', 'Opus consults Fable');
+
+    const opusMain = graphGuard.decide(mainCall('s-esc3'), { ...opts, sessionModelOverride: 'claude-opus-5' });
+    assert.strictEqual(opusMain.model, 'fable', 'an Opus main loop consults Fable');
+    const fableMain = graphGuard.decide(mainCall('s-esc4'), { ...opts, sessionModelOverride: 'claude-fable-5-1' });
+    assert.strictEqual(fableMain.model, 'fable', 'Fable has no rung above it');
+
+    // A caller-supplied model is overridden: Sonnet asking for Fable still gets Opus.
+    const greedy = graphGuard.decide(sonnet({ subagent_type: 'advisor', prompt: 'q', model: 'fable' }), opts);
+    assert.strictEqual(greedy.model, 'opus', JSON.stringify(greedy));
+
+    // The hook wires the model into the Agent call via updatedInput.
+    const out = JSON.parse(graphGuard.main(mainCall('s-esc5'), { ...opts, sessionModelOverride: 'claude-opus-5' }));
+    assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'allow', JSON.stringify(out));
+    assert.deepStrictEqual(out.hookSpecificOutput.updatedInput, { subagent_type: 'advisor', prompt: 'q', model: 'fable' });
+
+    const escalations = graphEvents(opts).filter(e => e.kind === 'advisor').map(e => e.callee.model);
+    assert.deepStrictEqual(escalations, ['opus', 'fable', 'fable', 'fable', 'opus', 'fable'], 'every consultation logs the advisor model');
+  });
+
   await test('GraphGuard: unknown caller and unknown callee fail open, a pinned agent file is enforced', () => {
     const { home, opts } = graphEnv();
 
