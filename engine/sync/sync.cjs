@@ -182,7 +182,14 @@ function writeGuarded(targetPath, content, ctx) {
   const existing = exists ? fs.readFileSync(targetPath, 'utf8') : null;
   const stale = !exists || existing !== content;
   const recorded = Object.prototype.hasOwnProperty.call(ctx.state, targetPath);
-  const drifted = Boolean(exists && stale && recorded && ctx.state[targetPath] !== sha(existing));
+  // A file that still opens with the header sync writes ("GENERATED FILE ...")
+  // is sync's to overwrite, whatever touched it since: the header IS the
+  // ownership claim. Only a file that lost the header counts as hand-edited.
+  // Before this (2026-09-03) the Claude Code target was silently skipped for
+  // days after a nightly job rewrote it, and every rule edit went stale.
+  const firstLine = existing === null ? '' : existing.split(/\r?\n/, 1)[0].trim();
+  const stillGenerated = Boolean(ctx.header && firstLine && firstLine === ctx.header);
+  const drifted = Boolean(exists && stale && recorded && ctx.state[targetPath] !== sha(existing) && !stillGenerated);
   const result = { stale, drifted, written: false, backup: null };
 
   if (!stale) {
@@ -238,7 +245,7 @@ function run(opts = {}) {
   for (const target of targets) {
     const compiled = compileTarget(target, source);
     const targetPath = expandPath(target.rulesFile);
-    const ctx = { state, backupsDir, force, checkOnly, targetId: target.id || 'general' };
+    const ctx = { state, backupsDir, force, checkOnly, targetId: target.id || 'general', header: compiled.split(/\r?\n/, 1)[0].trim() };
 
     const res = writeGuarded(targetPath, compiled, ctx);
 
@@ -316,6 +323,13 @@ function run(opts = {}) {
   console.log(`\n[Agnostic-Sync] Result: ${targets.length} evaluated, ${checkOnly ? `${outOfSyncCount} stale` : `${updated} updated`}, ${driftedCount} skipped as hand-edited, skills ${skillsLinked} linked / ${skillsFailed} failed.`);
 
   if (checkOnly && outOfSyncCount > 0) {
+    process.exit(1);
+  }
+  // The Claude Code target is the primary: a skipped write there means the
+  // rules every session loads are stale, which must never pass as a green sync.
+  const claude = results.find(r => r.id === 'claude');
+  if (!checkOnly && claude && claude.stale && !claude.written) {
+    console.log(`  ✗ Claude Code target NOT written: ${claude.path} is stale. It lost its generated header; restore it or re-run with --force.`);
     process.exit(1);
   }
   return results;

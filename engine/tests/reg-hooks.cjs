@@ -317,28 +317,28 @@ async function run() {
     assert.strictEqual(result.action, 'deny', JSON.stringify(result));
     assert.strictEqual(result.kind, 'deny-edit');
     assert(result.reason.includes('[fable-delegate-guard]'), `reason: ${result.reason}`);
-    assert(result.reason.includes('used 0 of 3'), `reason must report the budget: ${result.reason}`);
+    assert(result.reason.includes('used 0 of 8'), `reason must report the budget: ${result.reason}`);
     assert.deepStrictEqual(logKinds(opts), ['deny-edit'], 'the denial must be logged');
   });
 
-  await test('FableGuard: 3 small direct edits per prompt are allowed, the 4th is denied', () => {
+  await test('FableGuard: 8 small direct edits per prompt are allowed, the 9th is denied', () => {
     const { opts } = fableEnv();
     const small = (promptId) => ({
       session_id: 's-budget', prompt_id: promptId, cwd: 'C:/repo',
       tool_name: 'Write', tool_input: { file_path: 'C:/repo/x.py', content: body(10) }
     });
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 8; i++) {
       const r = fableGuard.decide(small('p1'), { ...opts, model: FABLE });
       assert.strictEqual(r.kind, 'allowed-small', `edit ${i}: ${JSON.stringify(r)}`);
-      assert.strictEqual(r.reason, `${i} of 3`);
+      assert.strictEqual(r.reason, `${i} of 8`);
     }
-    const fourth = fableGuard.decide(small('p1'), { ...opts, model: FABLE });
-    assert.strictEqual(fourth.kind, 'deny-edit', JSON.stringify(fourth));
-    assert(fourth.reason.includes('used 3 of 3'), `reason: ${fourth.reason}`);
+    const ninth = fableGuard.decide(small('p1'), { ...opts, model: FABLE });
+    assert.strictEqual(ninth.kind, 'deny-edit', JSON.stringify(ninth));
+    assert(ninth.reason.includes('used 8 of 8'), `reason: ${ninth.reason}`);
 
     const nextPrompt = fableGuard.decide(small('p2'), { ...opts, model: FABLE });
     assert.strictEqual(nextPrompt.kind, 'allowed-small', 'a new prompt resets the budget');
-    assert.strictEqual(nextPrompt.reason, '1 of 3');
+    assert.strictEqual(nextPrompt.reason, '1 of 8');
   });
 
   await test('FableGuard: writes under the scratchpad and ~/.claude are allowed', () => {
@@ -459,9 +459,9 @@ async function run() {
     assert(first, 'first UserPromptSubmit must inject');
     const parsed = JSON.parse(first);
     assert.strictEqual(parsed.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
-    assert(parsed.hookSpecificOutput.additionalContext.includes('Delegate-first is ENFORCED'), first);
+    assert(parsed.hookSpecificOutput.additionalContext.includes('Token economics'), first);
     assert.strictEqual(fableGuard.main(payload, { ...opts, model: FABLE }), '', 'second call must stay silent');
-    assert(fableGuard.injectionText().includes('Delegate-first is ENFORCED'));
+    assert(fableGuard.injectionText().includes('Token economics'));
   });
 
   await test('FirstRun: wires fable-delegate-guard into PreToolUse, UserPromptSubmit and SessionStart', () => {

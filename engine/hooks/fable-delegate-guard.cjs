@@ -43,11 +43,11 @@ const TAIL_BYTES = 256 * 1024;
 
 const DENY_REASON = '[fable-delegate-guard] Delegate-first: this main loop runs on Fable. Hand this work to a subagent: Agent tool with an explicit model (sonnet for implementation, opus for large or risky tasks, haiku for mechanical edits and lookups) or a Workflow; Fable keeps decisions, review, and synthesis. Allowed here: reads, tests and lint, writes under ~/.claude and the session scratchpad. Shell override for a genuinely trivial command: append `# FABLE_OK: <why>` (logged). Disable for one session: set FABLE_DELEGATE_GUARD=off.';
 
-const EDIT_BUDGET = 3;
-const SMALL_EDIT_LINES = 40;
-const SMALL_WRITE_LINES = 60;
+const EDIT_BUDGET = 8;
+const SMALL_EDIT_LINES = 80;
+const SMALL_WRITE_LINES = 120;
 
-const INJECTION = '[fable-delegate-guard] This session runs on Fable. Delegate-first is ENFORCED by a hook: large edits and code-writing through the shell are denied in this main loop; up to 3 small direct edits (<=40 lines) per prompt are allowed for fix-ups. Plan the work as a delegation tree before touching anything: opus subagents own large or risky tasks and may instruct sonnet/haiku in their prompts, sonnet subagents implement and review mid-size scopes, haiku subagents do lookups and mechanical edits; every Agent/Workflow call names its model explicitly. Fable keeps decisions, final review, and synthesis. Reads, tests, and lint are fine here.';
+const INJECTION = '[fable-delegate-guard] This session runs on Fable. Token economics (measured 2026-09-02): a subagent costs ~60k input tokens before its first tool call (harness prompt + skill/tool catalogs), then 2-4k per call. Anything under ~10 tool calls or ~80 lines of edits is CHEAPER done here than delegated; a one-line edit handed to Sonnet cost 77k. Delegate only large work (many files, a test suite, long tool output, or independent pieces that run in parallel) and name the model explicitly: opus large/risky, sonnet mid-size, haiku lookups. Enforced budget: 8 direct edits (<=80 lines) or writes (<=120 lines) per prompt; shell writes to ~/.claude and the scratchpad are free; larger code-writing through the shell is denied. Fable keeps decisions, final review, and synthesis.';
 
 function injectionText() {
   return INJECTION;
@@ -168,14 +168,39 @@ function isMutatingShell(command, opts = {}) {
     if (!underAny(target, roots)) return true;
   }
 
-  if (MUTATING_WORDS.test(cmd)) return true;
-  if (SED_INPLACE.test(cmd)) return true;
-  if (PS_MUTATE.test(cmd)) return true;
+  // Mutations whose every named path lands in the scratchpad or tmp are free:
+  // a sed -i on a probe script or an inline node writer of a temp file is not
+  // hands-on code, and delegating it costs a ~60k-token subagent spawn.
+  const scratchOnly = onlyUnderRoots(cmd, roots, opts.cwd);
+  if (MUTATING_WORDS.test(cmd) && !scratchOnly) return true;
+  if (SED_INPLACE.test(cmd) && !scratchOnly) return true;
+  if (PS_MUTATE.test(cmd) && !scratchOnly) return true;
 
   const inline = cmd.match(INLINE_SRC);
-  if (inline && INLINE_WRITE.test(inline[3])) return true;
+  if (inline && INLINE_WRITE.test(inline[3]) && !scratchOnly) return true;
 
   return false;
+}
+
+// True when the command names at least one path and every path it names is
+// under one of the roots. ~, $VAR and /c/ forms are expanded first; relative
+// paths resolve against cwd. Conservative: any path outside the roots, or a
+// regex that merely looks like a path, makes this false and the command is
+// judged by the ordinary rules.
+function onlyUnderRoots(cmd, roots, cwd) {
+  const expand = (t) => t
+    .replace(/^~(?=[\\/]|$)/, os.homedir())
+    .replace(/\$\{?(\w+)\}?/g, (_, k) => process.env[k] || '')
+    .replace(/^\/([a-z])\//i, (_, d) => `${d}:/`);
+  const toks = (cmd.match(/"[^"]*"|'[^']*'|[^\s;|&<>()]+/g) || [])
+    .map((t) => t.replace(/^['"]|['"]$/g, ''))
+    .filter((t) => (/\//.test(t) || /\\[^ntr'"\\]/.test(t) || /^~/.test(t)) && !/^-/.test(t) && !/^https?:/.test(t));
+  if (!toks.length) return false;
+  return toks.every((t) => {
+    const p = expand(t);
+    const abs = path.isAbsolute(p) || /^[a-z]:/i.test(p) ? p : path.join(cwd || '', p);
+    return underAny(abs, roots);
+  });
 }
 
 // --- decision ----------------------------------------------------------------
@@ -286,7 +311,7 @@ function decide(payload = {}, opts = {}) {
 
   if (SHELL_TOOLS.has(tool)) {
     const command = String(input.command || '');
-    if (!isMutatingShell(command, { tmpdir: opts.tmpdir, scratchpad: payload.scratchpad_dir })) {
+    if (!isMutatingShell(command, { tmpdir: opts.tmpdir, scratchpad: payload.scratchpad_dir, cwd: payload.cwd })) {
       return { action: 'allow', kind: 'allowed-shell', reason: '', model };
     }
     const marker = command.match(MARKER);

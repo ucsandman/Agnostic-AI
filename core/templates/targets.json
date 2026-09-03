@@ -13,26 +13,6 @@
       "preamble": "# Agnostic Rules — Global Working Agreement (Claude Code)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/. Loaded via an @import line in ~/.claude/CLAUDE.md, which agents-memory-sync owns.\n"
     },
     {
-      "id": "codex",
-      "name": "Codex CLI",
-      "category": "CLI Agent",
-      "rulesFile": "~/.codex/AGENTS.md",
-      "skillsDir": "~/.codex/skills",
-      "hooksConfigFile": "~/.codex/hooks.json",
-      "dialect": "codex",
-      "preamble": "# AGENTS.md — Global Working Agreement (Codex CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
-    },
-    {
-      "id": "agy",
-      "name": "Antigravity CLI (agy)",
-      "category": "CLI Agent",
-      "rulesFile": "~/.gemini/GEMINI.md",
-      "skillsDir": "~/.gemini/config/skills",
-      "hooksConfigFile": "~/.gemini/config/hooks.json",
-      "dialect": "agy",
-      "preamble": "# GEMINI.md — Global Working Agreement (Antigravity CLI)\n\nGENERATED FILE. Source of truth is agnostic-ai/core/.\n"
-    },
-    {
       "id": "cursor",
       "name": "Cursor",
       "category": "Agentic IDE",
