@@ -632,26 +632,24 @@ async function run() {
     assert.strictEqual(opusMain.action, 'allow');
   });
 
-  await test('GraphGuard: advisor consultations are capped at 2 per agent and 3 per session', () => {
+  await test('GraphGuard: advisor consultations are counted but never capped (Wes, 2026-09-03)', () => {
     const { opts } = graphEnv();
     const a = callerOf(opts, 's-adv', 'agent_a', 'claude-sonnet-5');
     const b = callerOf(opts, 's-adv', 'agent_b', 'claude-opus-5');
 
-    for (let i = 1; i <= 2; i++) {
+    // Five from one agent, all allowed, each one counted.
+    for (let i = 1; i <= 5; i++) {
       const r = graphGuard.decide(a({ subagent_type: 'advisor' }), opts);
+      assert.strictEqual(r.action, 'allow', `advisor ${i}: ${JSON.stringify(r)}`);
       assert.strictEqual(r.kind, 'advisor', `advisor ${i}: ${JSON.stringify(r)}`);
+      assert(new RegExp(`consultation ${i} for this agent, ${i} for the session`).test(r.reason), r.reason);
     }
-    const third = graphGuard.decide(a({ subagent_type: 'advisor' }), opts);
-    assert.strictEqual(third.action, 'deny', JSON.stringify(third));
-    assert.strictEqual(third.kind, 'advisor-cap');
-    assert(/2 advisor consultations/.test(third.reason), third.reason);
-
-    const otherFirst = graphGuard.decide(b({ subagent_type: 'advisor' }), opts);
-    assert.strictEqual(otherFirst.kind, 'advisor', `session cap not yet reached: ${JSON.stringify(otherFirst)}`);
-    const fourth = graphGuard.decide(b({ subagent_type: 'advisor' }), opts);
-    assert.strictEqual(fourth.action, 'deny', JSON.stringify(fourth));
-    assert.strictEqual(fourth.kind, 'advisor-cap');
-    assert(/3 advisor consultations/.test(fourth.reason), fourth.reason);
+    // A second agent in the same session is also allowed; the session count keeps climbing.
+    const other = graphGuard.decide(b({ subagent_type: 'advisor' }), opts);
+    assert.strictEqual(other.action, 'allow', JSON.stringify(other));
+    assert.strictEqual(other.kind, 'advisor');
+    assert(/consultation 1 for this agent, 6 for the session/.test(other.reason), other.reason);
+    assert(!/Blocked/.test(other.reason), other.reason);
   });
 
   await test('GraphGuard: the advisor is one rung above its caller, never a peer', () => {
