@@ -51,3 +51,6 @@ storage/sync-state.json
 storage/skills-manifest.json
 storage/prune-report.json
 storage/deleted-candidates.json
+
+# codex rescue plugin resume notes
+.agent-rescue/
