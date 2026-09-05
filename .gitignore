@@ -40,6 +40,7 @@ Thumbs.db
 # vendored skill cache (rebuilt locally by consolidate.cjs)
 skills/definitions/
 # build/test caches
+build/
 agnostic_agent.egg-info/
 .pytest_cache/
 .ruff_cache/

@@ -17,6 +17,8 @@
 function detectClient(payload) {
   if (!payload || typeof payload !== 'object') return 'generic';
   if (payload.toolCall && payload.toolCall.args) return 'agy';
+  // Codex lifecycle payloads share tool_input with Claude, but add turn_id.
+  if (typeof payload.turn_id === 'string' && payload.hook_event_name) return 'codex';
   if (payload.permissionDecision !== undefined || payload.tool_input !== undefined) return 'claude';
   if (payload.event && payload.shell_command) return 'codex';
   if (payload.cursorTool || payload.client === 'cursor' || (payload.method === 'tools/call' && payload.editor === 'cursor')) return 'cursor';
@@ -198,6 +200,8 @@ function formatApproval(client) {
 // only at stdout, where Codex and Claude expect hook-specific fields nested.
 function formatHookOutput(client, result) {
   if (client !== 'claude' && client !== 'codex') return result;
+  // Codex accepts allow only alongside a rewrite. A normal pass needs no decision.
+  if (client === 'codex' && result.permissionDecision === 'allow') return {};
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',

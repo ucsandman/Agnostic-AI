@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-05
+
+### Changed
+- Require new harness mechanisms to justify their ongoing cost through reduced supervision.
+- Allow automatic context compaction while preserving the active task and handoff evidence.
+- Identify Codex lifecycle events before Claude-compatible payloads and omit unsupported bare approval decisions.
+- Correct the runtime badge's target count and distinguish configuration from verified enforcement.
+
 ## [1.5.1] - 2026-09-05
 
 ### Fixed

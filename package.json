@@ -1,6 +1,6 @@
 {
   "name": "agnostic-ai",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "Model-agnostic AI agent harness: one rules file compiled to 16 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
   "repository": {
