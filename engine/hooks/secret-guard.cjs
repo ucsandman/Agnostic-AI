@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { normalizePayload, formatDenial, formatApproval } = require('./universal-adapter.cjs');
+const { normalizePayload, formatDenial, formatApproval, formatHookOutput } = require('./universal-adapter.cjs');
 
 const GUARDS_CONFIG = path.resolve(__dirname, '..', '..', 'core', 'safety', 'guards.json');
 
@@ -123,12 +123,14 @@ if (require.main === module) {
     try {
       const payload = buffer.trim() ? JSON.parse(buffer) : {};
       const output = handlePayload(payload);
-      process.stdout.write(JSON.stringify(output) + '\n');
+      process.stdout.write(JSON.stringify(formatHookOutput(normalizePayload(payload).client, output)) + '\n');
+      if (isDeny(output)) process.stderr.write((output.reason || 'Action denied by safety policy.') + '\n');
       process.exit(isDeny(output) ? 2 : 0);
     } catch (err) {
       // Unparseable hook payload: still deny if the raw text references a secret path.
       const output = handlePayload({ tool: 'bash', args: { command: buffer } });
       process.stdout.write(JSON.stringify(output) + '\n');
+      if (isDeny(output)) process.stderr.write((output.reason || 'Action denied by safety policy.') + '\n');
       process.exit(isDeny(output) ? 2 : 0);
     }
   });

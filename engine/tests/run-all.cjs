@@ -349,12 +349,12 @@ async function run() {
   // 7. Test Parity Engine — tracked-target shape from the repo SSOT config, plus a
   // fixture in-sync/drifted round-trip through the real compileTarget/loadSource
   // pipeline. No real home-directory rules files are read or compared here.
-  await test('Parity: tracks 18 targets and detects in-sync vs. drifted fixtures', () => {
+  await test('Parity: tracks 16 targets and detects in-sync vs. drifted fixtures', () => {
     const targetsConfig = JSON.parse(
       fs.readFileSync(path.join(ROOT, 'core', 'templates', 'targets.json'), 'utf8')
     );
     const targets = targetsConfig.targets || [];
-    assert.strictEqual(targets.length, 18, 'Should track exactly 18 targets');
+    assert.strictEqual(targets.length, 16, 'Should track exactly 16 targets');
     for (const t of targets) {
       assert.strictEqual(typeof t.id, 'string', 'Each target needs a string id');
       assert.strictEqual(typeof t.name, 'string', 'Each target needs a string name');

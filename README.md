@@ -10,10 +10,10 @@ that runs against local or hosted models under the same safety policy.
 
 - **Harness.** Write your working agreement once in
   `core/rules/global-rules.md`. `npm run sync` compiles it into the rules file
-  of 18 clients (Claude Code, Codex, Cursor, Windsurf, Copilot, Cline, Aider,
-  OpenHands, Goose, Continue, Zed, Trae, Amazon Q, Cody, Antigravity,
+  of 16 clients (Claude Code, Cursor, Windsurf, Copilot, Cline, Aider,
+  OpenHands, Goose, Continue, Zed, Trae, Amazon Q, Cody,
   OpenClaw, Hermes, generic system prompt), links your skills directory into
-  the 14 that have one, and registers the same guard hook in the 10 that
+  the 12 that have one, and registers the same guard hook in the 8 that
   support hooks. Corrections and errors from those sessions are harvested back into
   candidate rules, which you approve from a local dashboard.
 - **Agent.** `agnostic` is a Textual TUI coding agent with file / shell /
@@ -126,7 +126,7 @@ from `targets.json`: [docs/targets.md](docs/targets.md).
 | [docs/configuration.md](docs/configuration.md) | Files you edit, every env var, CLI flags, trust tiers, DashClaw, scheduled jobs, uninstall. |
 | [docs/slash-commands.md](docs/slash-commands.md) | Every slash command, and whether the TUI or legacy shell handles it. |
 | [docs/orchestration.md](docs/orchestration.md) | Adaptive role graph, hierarchy/advisor/swarm semantics, limits, mixed-provider configuration, and lifecycle. |
-| [docs/targets.md](docs/targets.md) | The 18 supported clients. |
+| [docs/targets.md](docs/targets.md) | The 16 supported sync targets. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, test commands, where things live, rules for a change. |
 | [SECURITY.md](SECURITY.md) | Scope, reporting, what the guard is not. |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes. |

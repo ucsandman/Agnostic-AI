@@ -194,9 +194,23 @@ function formatApproval(client) {
   }
 }
 
+// Keep the internal decision dialect stable; serialize the lifecycle envelope
+// only at stdout, where Codex and Claude expect hook-specific fields nested.
+function formatHookOutput(client, result) {
+  if (client !== 'claude' && client !== 'codex') return result;
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: result.permissionDecision,
+      ...(result.reason ? { permissionDecisionReason: result.reason } : {}),
+    },
+  };
+}
+
 module.exports = {
   detectClient,
   normalizePayload,
   formatDenial,
-  formatApproval
+  formatApproval,
+  formatHookOutput
 };

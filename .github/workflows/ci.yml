@@ -56,5 +56,8 @@ jobs:
       - name: Security-hook regression tests
         run: node engine/tests/reg-hooks.cjs
 
+      - name: Hook wire-protocol regression tests
+        run: node engine/tests/reg-hook-protocol.cjs
+
       - name: Generated docs are current
         run: node engine/docs/targets-doc.cjs --check && python -m agent.orchestration.docs --check

@@ -1,8 +1,8 @@
 {
   "name": "agnostic-ai",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
-  "description": "Model-agnostic AI agent harness: one rules file compiled to 18 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
+  "description": "Model-agnostic AI agent harness: one rules file compiled to 16 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
   "repository": {
     "type": "git",
     "url": "https://github.com/ucsandman/agnostic-harness.git"
@@ -14,7 +14,7 @@
     "sync": "node engine/sync/sync.cjs",
     "sync:check": "node engine/sync/sync.cjs --check",
     "distill": "node engine/distill/distill.cjs",
-    "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs",
+    "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs && node engine/tests/reg-hook-protocol.cjs",
     "test:py": "python -m pytest tests/ -q",
     "lint": "ruff check .",
     "docs:targets": "node engine/docs/targets-doc.cjs",

@@ -1,5 +1,19 @@
 # Errors and lessons
 
+## 2026-09-05 — Codex rejected the pre-tool hook JSON
+
+The Agnostic guard returned a top-level permissionDecision. Current Codex lifecycle hooks require that field inside hookSpecificOutput with hookEventName set to PreToolUse. This produced repeated invalid pre-tool-use JSON warnings even for benign commands. Internal decision tests passed because they inspected the flat object rather than the wire response.
+
+The shared adapter now wraps decisions at the stdout boundary for Codex and Claude, preserving the existing internal decision dialect and other clients. Both guard runners also put denial reasons on stderr for exit code 2. The installed Codex command directly references this source, so the next invocation loads the repair without a config rewrite or disabling a hook.
+
+What worked: replaying a harmless payload through the actual runner and comparing the response with the documented lifecycle envelope. What did not: testing only the internal return object. Prevention: the npm suite now includes eight real-process protocol checks covering both runners, Bash/MCP inputs, and allow/deny results. The new check was observed failing before the repair.
+
+Wire contract: https://learn.chatgpt.com/docs/hooks#pretooluse
+
+Verification: eight wire checks, 73 existing hook regressions, 13 sync regressions and Ruff passed. Generated target and orchestration documentation checks pass after regenerating the target table. The broader npm suite initially failed its obsolete assertion of 18 targets against a registry of 16 (27 passed, one failed). The operator explicitly approved correcting that assertion to 16 on 2026-09-05; the registry is unchanged. Package descriptions and the README now reflect the same count. Prevention: when intentionally removing a sync target, update the parity assertion and regenerate the target documentation in the same change.
+
+All 530 Python tests also passed with `python -m pytest tests/ -q -p no:xonsh`. The default invocation crashed during plugin startup because the globally installed xonsh plugin requires a Windows console; excluding that unrelated plugin required no repository or test changes.
+
 One line minimum every time something broke or a premise turned out wrong.
 Full entries (symptom, root cause, fix) when it took more than one attempt.
 

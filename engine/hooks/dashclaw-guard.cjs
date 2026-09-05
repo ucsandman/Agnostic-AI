@@ -16,7 +16,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const os = require('os');
-const { normalizePayload, formatDenial, formatApproval } = require('./universal-adapter.cjs');
+const { normalizePayload, formatDenial, formatApproval, formatHookOutput } = require('./universal-adapter.cjs');
 
 const { getStoredDashClawConfig, discoverDashClawSources } = require('./dashclaw-setup.cjs');
 const { checkSecrets } = require('./secret-guard.cjs');
@@ -238,8 +238,9 @@ if (require.main === module) {
     try {
       const payload = buffer.trim() ? JSON.parse(buffer) : {};
       const result = await handleGuard(payload);
-      process.stdout.write(JSON.stringify(result) + '\n');
+      process.stdout.write(JSON.stringify(formatHookOutput(normalizePayload(payload).client, result)) + '\n');
       if (result.decision === 'deny' || result.permissionDecision === 'deny' || result.allowed === false) {
+        process.stderr.write((result.reason || 'Action denied by safety policy.') + '\n');
         process.exit(2);
       }
       process.exit(0);
@@ -251,15 +252,17 @@ if (require.main === module) {
         risk = calculateLocalRisk({ command: buffer });
       } catch (_) {}
       if (risk >= hardBlock) {
+        const reason = `[Safety Guard] Guard hook error (${err.message}) on a high-risk payload. Failing closed.`;
         process.stdout.write(JSON.stringify({
           decision: 'deny',
           permissionDecision: 'deny',
           allowed: false,
-          reason: `[Safety Guard] Guard hook error (${err.message}) on a high-risk payload. Failing closed.`
+          reason
         }) + '\n');
+        process.stderr.write(reason + '\n');
         process.exit(2);
       }
-      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+      process.stdout.write('{}\n');
       process.exit(0);
     }
   });

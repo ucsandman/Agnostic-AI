@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-09-05
+
+### Fixed
+- Serialize Claude and Codex pre-tool decisions inside the required
+  `hookSpecificOutput` envelope. Denied tools retain exit code 2 and a reason
+  on stderr. The hooks stay enabled.
+- Add eight real-process protocol checks for both guard runners, including
+  allow/deny and shell/MCP inputs, and run them in CI.
+- Regenerate the supported-target documentation from the current registry.
+- Correct the obsolete 18-target parity assertion and package descriptions to
+  match the 16 configured sync targets.
+
 ### Added
 - `engine/hooks/capability-graph-guard.cjs`: enforces the Claude Code subagent
   capability graph (Fable -> Opus/Sonnet/Haiku, Opus -> Sonnet/Haiku, Sonnet ->
