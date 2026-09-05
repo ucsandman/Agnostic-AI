@@ -1,5 +1,15 @@
 # Errors and lessons
 
+## 2026-09-05 - Injected clients must not depend on local subscription CLIs
+
+CI failed three flat-subagent tests because preset availability checked for local
+subscription executables before calling the supplied client factory. Installed
+CLIs hid the defect locally. A forced-unavailable probe reproduced all three
+failures without changing tests. Custom subscription factories now validate their
+own transport at construction; built-in clients retain the CLI check and metered
+API restrictions still run first. Keep this missing-provider case in release
+verification so a developer machine cannot supply an undeclared dependency.
+
 ## 2026-09-05 - Preserve shared lifecycle hook configuration
 
 Claude's setup correction and Codex's stdout repair address different boundaries. Setup now leaves an existing lifecycle `hooks` object unchanged instead of adding a flat event key. Four fixture checks cover empty and populated Codex/Gemini configurations and guard-presence reporting. The new check failed against the previous installer and passed with the correction.

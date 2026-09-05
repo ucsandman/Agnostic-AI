@@ -191,3 +191,20 @@ PromptHistoryRing.prev  # noqa: F821
 _server_thread  # noqa: F821
 chat_completion  # noqa: F821
 spawn  # noqa: F821
+# Orchestration callers live in loop.py, tools/subagent.py and ui_common.py.
+# Dataclass fields are serialized by asdict; config fields are read by client.py.
+AgentNode.duration_s  # noqa: F821
+RoutingDecision.action  # noqa: F821
+OrchestrationManager.TOOL_NAMES  # noqa: F821
+OrchestrationManager.in_turn  # noqa: F821
+OrchestrationManager.begin_turn  # noqa: F821
+OrchestrationManager.end_turn  # noqa: F821
+OrchestrationManager.set_enabled  # noqa: F821
+OrchestrationManager.set_mode  # noqa: F821
+OrchestrationManager.register_root  # noqa: F821
+OrchestrationManager.prompt_fragment  # noqa: F821
+OrchestrationManager.render_tree  # noqa: F821
+OrchestrationManager.cancel  # noqa: F821
+OrchestrationManager.prune_workspaces  # noqa: F821
+LLMConfig.workdir  # noqa: F821
+LLMConfig.native_tools  # noqa: F821

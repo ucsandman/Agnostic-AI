@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [1.5.2] - 2026-09-05
 
+### Fixed
+- Let injected subscription client factories validate their own transport instead
+  of requiring the built-in local CLI. Normal clients retain CLI availability
+  checks, and the metered API restriction remains enforced.
+
 ### Changed
 - Require new harness mechanisms to justify their ongoing cost through reduced supervision.
 - Allow automatic context compaction while preserving the active task and handoff evidence.

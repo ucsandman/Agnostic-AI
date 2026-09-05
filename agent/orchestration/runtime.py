@@ -787,8 +787,10 @@ class OrchestrationManager:
             return True, "inherited parent model"
         if target.preset and target.preset not in LLMConfig.PRESETS:
             return False, f"unknown preset '{target.preset}'"
-        if target.preset and not LLMConfig.preset_available(
-            LLMConfig.PRESETS[target.preset], include_local=True
+        if (
+            target.preset
+            and not (config.provider.endswith("-sub") and self.client_factory is not LLMClient)
+            and not LLMConfig.preset_available(LLMConfig.PRESETS[target.preset], include_local=True)
         ):
             return False, f"preset '{target.preset}' is unavailable"
         if (
