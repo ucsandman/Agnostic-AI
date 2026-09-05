@@ -17,6 +17,9 @@ All notable changes to this project are documented here. The format follows
 - Regenerate the supported-target documentation from the current registry.
 - Correct the obsolete 18-target parity assertion and package descriptions to
   match the 16 configured sync targets.
+- Preserve existing lifecycle hook configurations during first-run setup.
+  Four fixture checks verify empty and populated configurations stay
+  byte-identical for Codex and Gemini, with truthful guard-presence reporting.
 
 ### Added
 - `engine/hooks/capability-graph-guard.cjs`: enforces the Claude Code subagent

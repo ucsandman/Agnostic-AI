@@ -1,5 +1,11 @@
 # Errors and lessons
 
+## 2026-09-05 - Preserve shared lifecycle hook configuration
+
+Claude's setup correction and Codex's stdout repair address different boundaries. Setup now leaves an existing lifecycle `hooks` object unchanged instead of adding a flat event key. Four fixture checks cover empty and populated Codex/Gemini configurations and guard-presence reporting. The new check failed against the previous installer and passed with the correction.
+
+What worked: pausing the release when the operator identified another active session, then reviewing its separate installer change before including it. What did not: assuming a clean initial checkout meant no other session would begin writing later. Prevention: recheck the working tree immediately before staging and validate the combined state when another agent's completed work is included.
+
 ## 2026-09-05 — Codex rejected the pre-tool hook JSON
 
 The Agnostic guard returned a top-level permissionDecision. Current Codex lifecycle hooks require that field inside hookSpecificOutput with hookEventName set to PreToolUse. This produced repeated invalid pre-tool-use JSON warnings even for benign commands. Internal decision tests passed because they inspected the flat object rather than the wire response.
