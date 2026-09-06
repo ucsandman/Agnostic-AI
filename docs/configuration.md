@@ -24,7 +24,7 @@ Nothing loads `.env` for you; export variables in your shell or CI.
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `DEEPSEEK_API_KEY` | hosted presets in `/model` | unset (preset refuses to start) |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | generic OpenAI-compatible preset | `http://localhost:1234/v1`, `local-model`, `lm-studio` |
 | `DASHCLAW_BASE_URL`, `DASHCLAW_API_KEY`, `DASHCLAW_AGENT_ID`, `DASHCLAW_AGENT_NAME` | `engine/hooks/dashclaw-setup.cjs` | unset; governance stays local |
-| `FABLE_DELEGATE_GUARD` | `engine/hooks/fable-delegate-guard.cjs` | unset; set to `off` to let a Fable main loop do the work itself for one session |
+| `FABLE_DELEGATE_GUARD` | `engine/hooks/fable-delegate-guard.cjs` | unset; set to `off` to silence the Fable delegation briefing and the hand-work log for one session (the hook denies nothing since 2026-09-06) |
 | `PORT` | dashboard | 7842 (next free port if taken) |
 | `RECALL_PORT` | recall | 7844 |
 | `PARITY_PORT` | parity | 7845 |

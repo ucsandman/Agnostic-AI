@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `fable-delegate-guard` no longer denies anything. It briefs the session once with
+  the measured token economics and logs large edits and code-writing shell commands
+  for `--report`. Its own log (1,046 events) showed 714 `# FABLE_OK` overrides, 266
+  shell denials that included `npm test`, a heredoc commit message and a read-only
+  grep, and edit denials retried five to seven times on the same file: a model treats
+  a PreToolUse deny like a transient error, and a cap firing at edit 21 of a coherent
+  change set leaves a half-edited file. The per-prompt edit budget, the shell
+  code-writing denial, the `# FABLE_OK` override and the "hands-on" / "delegate
+  again" prompt toggles are gone; `FABLE_DELEGATE_GUARD=off` now only silences the
+  briefing and the log. `isMutatingShell` is unchanged and still owned here for the
+  Codex twin, with the 2026-09-05 token-boundary fix (`git show --no-patch` is not
+  a mutation).
+
 ## [1.5.2] - 2026-09-05
 
 ### Fixed

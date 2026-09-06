@@ -308,52 +308,41 @@ async function run() {
 
   const body = (n) => Array.from({ length: n }, (_, i) => `line ${i}`).join('\n');
 
-  await test('FableGuard: Fable main loop cannot Write a large file into the repo', () => {
+  // 2026-09-06: the guard no longer denies anything. Its log showed 714 overrides, 266 shell denials
+  // (npm test, a heredoc commit message, a read-only grep) and edit denials retried five to seven times
+  // on the same file; a cap at edit 21 left a half-edited file. It briefs and logs now.
+  await test('FableGuard: a large Write into the repo is allowed and logged as large-edit', () => {
     const { opts } = fableEnv();
-    const result = fableGuard.decide({
+    const payload = {
       hook_event_name: 'PreToolUse', session_id: 's-edit', prompt_id: 'p1', cwd: 'C:/repo',
       tool_name: 'Write', tool_input: { file_path: 'C:/repo/x.py', content: body(400) }
-    }, { ...opts, model: FABLE });
-    assert.strictEqual(result.action, 'deny', JSON.stringify(result));
-    assert.strictEqual(result.kind, 'deny-edit');
-    assert(result.reason.includes('[fable-delegate-guard]'), `reason: ${result.reason}`);
-    assert(result.reason.includes('used 0 of 20'), `reason must report the budget: ${result.reason}`);
-    assert.deepStrictEqual(logKinds(opts), ['deny-edit'], 'the denial must be logged');
+    };
+    const result = fableGuard.decide(payload, { ...opts, model: FABLE });
+    assert.strictEqual(result.action, 'allow', JSON.stringify(result));
+    assert.strictEqual(result.kind, 'large-edit');
+    assert.deepStrictEqual(logKinds(opts), ['large-edit'], 'the large edit must be logged');
+    assert.strictEqual(fableGuard.main(payload, { ...opts, model: FABLE }), '', 'PreToolUse must emit nothing (no deny)');
   });
 
-  await test('FableGuard: 20 small direct edits per prompt are allowed, the 21st is denied', () => {
+  await test('FableGuard: small direct edits have no per-prompt budget and are not logged', () => {
     const { opts } = fableEnv();
-    const small = (promptId) => ({
-      session_id: 's-budget', prompt_id: promptId, cwd: 'C:/repo',
+    const small = {
+      session_id: 's-budget', prompt_id: 'p1', cwd: 'C:/repo',
       tool_name: 'Write', tool_input: { file_path: 'C:/repo/x.py', content: body(10) }
-    });
-    for (let i = 1; i <= 20; i++) {
-      const r = fableGuard.decide(small('p1'), { ...opts, model: FABLE });
-      assert.strictEqual(r.kind, 'allowed-small', `edit ${i}: ${JSON.stringify(r)}`);
-      assert.strictEqual(r.reason, `${i} of 20`);
+    };
+    for (let i = 1; i <= 25; i++) {
+      const r = fableGuard.decide(small, { ...opts, model: FABLE });
+      assert.strictEqual(r.action, 'allow', `edit ${i}: ${JSON.stringify(r)}`);
+      assert.strictEqual(r.kind, 'small-edit', `edit ${i}: ${JSON.stringify(r)}`);
     }
-    const over = fableGuard.decide(small('p1'), { ...opts, model: FABLE });
-    assert.strictEqual(over.kind, 'deny-edit', JSON.stringify(over));
-    assert(over.reason.includes('used 20 of 20'), `reason: ${over.reason}`);
-
-    const nextPrompt = fableGuard.decide(small('p2'), { ...opts, model: FABLE });
-    assert.strictEqual(nextPrompt.kind, 'allowed-small', 'a new prompt resets the budget');
-    assert.strictEqual(nextPrompt.reason, '1 of 20');
+    assert.deepStrictEqual(logKinds(opts), [], 'small edits are not log-worthy');
   });
 
-  await test('FableGuard: "hands-on" in a prompt suspends the guard for the session; "delegate again" restores it', () => {
+  await test('FableGuard: "hands-on" in a prompt is an ordinary prompt now (nothing to suspend)', () => {
     const { opts } = fableEnv();
-    const big = { session_id: 's-hands', prompt_id: 'p1', cwd: 'C:/repo', tool_name: 'Write', tool_input: { file_path: 'C:/repo/x.py', content: body(400) } };
-    assert.strictEqual(fableGuard.decide(big, { ...opts, model: FABLE }).kind, 'deny-edit');
-    const on = fableGuard.main({ hook_event_name: 'UserPromptSubmit', session_id: 's-hands', cwd: 'C:/repo', prompt: 'stop this workflow and fix everything yourself line by line' }, { ...opts, model: FABLE });
-    assert(/Hands-on mode/.test(on), `expected the hands-on notice, got: ${on}`);
-    const allowed = fableGuard.decide(big, { ...opts, model: FABLE });
-    assert.strictEqual(allowed.kind, 'hands-on', JSON.stringify(allowed));
-    const shell = fableGuard.decide({ session_id: 's-hands', prompt_id: 'p2', cwd: 'C:/repo', tool_name: 'Bash', tool_input: { command: "sed -i 's/a/b/' C:/repo/x.py" } }, { ...opts, model: FABLE });
-    assert.strictEqual(shell.kind, 'hands-on', JSON.stringify(shell));
-    const off = fableGuard.main({ hook_event_name: 'UserPromptSubmit', session_id: 's-hands', cwd: 'C:/repo', prompt: 'ok, delegate again' }, { ...opts, model: FABLE });
-    assert(/back on/.test(off), `expected the restore notice, got: ${off}`);
-    assert.strictEqual(fableGuard.decide(big, { ...opts, model: FABLE }).kind, 'deny-edit');
+    const out = fableGuard.main({ hook_event_name: 'UserPromptSubmit', session_id: 's-hands', cwd: 'C:/repo', prompt: 'fix everything yourself line by line' }, { ...opts, model: FABLE });
+    assert(JSON.parse(out).hookSpecificOutput.additionalContext.includes('Token economics'), `first prompt gets the briefing: ${out}`);
+    assert.deepStrictEqual(logKinds(opts), [], 'no hands-on event is logged');
   });
 
   await test('FableGuard: writes under the scratchpad and ~/.claude are allowed', () => {
@@ -397,22 +386,25 @@ async function run() {
   const SHELL_CASES = [
     ['git status && python -m pytest tests/ -q', 'allowed-shell'],
     ['git commit -m x', 'allowed-shell'],
-    ["python - <<'EOF'", 'deny-shell'],
-    ['echo hi > C:/repo/out.txt', 'deny-shell'],
+    ["python - <<'EOF'", 'shell-write'],
+    ['echo hi > C:/repo/out.txt', 'shell-write'],
     ['npm install left-pad', 'allowed-shell'],
-    ['python -c "open(\'a\',\'w\').write(1)"', 'deny-shell'],
+    ['python -c "open(\'a\',\'w\').write(1)"', 'shell-write'],
     ['ruff check . 2>&1', 'allowed-shell'],
-    ['Set-Content -Path a -Value b', 'deny-shell']
+    ['git show --no-patch HEAD', 'allowed-shell'],
+    ['Set-Content -Path a -Value b', 'shell-write']
   ];
   for (const [command, kind] of SHELL_CASES) {
-    await test(`FableGuard: shell '${command}' => ${kind}`, () => {
+    await test(`FableGuard: shell '${command}' => ${kind} (always allowed)`, () => {
       const { opts } = fableEnv();
       const result = fableGuard.decide({
         session_id: 's-shell', cwd: 'C:/repo',
         tool_name: /Set-Content/.test(command) ? 'PowerShell' : 'Bash',
         tool_input: { command }
       }, { ...opts, model: FABLE });
+      assert.strictEqual(result.action, 'allow', JSON.stringify(result));
       assert.strictEqual(result.kind, kind, JSON.stringify(result));
+      assert.deepStrictEqual(logKinds(opts), kind === 'shell-write' ? ['shell-write'] : [], 'only code-writing shell is logged');
     });
   }
 
@@ -425,15 +417,15 @@ async function run() {
     assert.strictEqual(result.kind, 'allowed-shell', JSON.stringify(result));
   });
 
-  await test('FableGuard: "# FABLE_OK:" overrides one shell command and is logged', () => {
+  await test('FableGuard: a leftover "# FABLE_OK:" marker changes nothing (allowed, logged as shell-write)', () => {
     const { opts } = fableEnv();
     const result = fableGuard.decide({
       session_id: 's-ovr', cwd: 'C:/repo', tool_name: 'Bash',
       tool_input: { command: 'rm -rf build # FABLE_OK: stale artefacts' }
     }, { ...opts, model: FABLE });
-    assert.strictEqual(result.kind, 'override', JSON.stringify(result));
+    assert.strictEqual(result.kind, 'shell-write', JSON.stringify(result));
     assert.strictEqual(result.action, 'allow');
-    assert(logKinds(opts).includes('override'), 'the override must be logged');
+    assert.deepStrictEqual(logKinds(opts), ['shell-write']);
   });
 
   await test('FableGuard: FABLE_DELEGATE_GUARD=off disables the guard', () => {
