@@ -5,7 +5,7 @@
   "description": "Harness porter: captures the AI coding client you actually use (Claude Code or Codex) and applies its rules, hooks, skills, subagents, commands and MCP servers to every other client installed on the machine",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ucsandman/agnostic-harness.git"
+    "url": "https://github.com/ucsandman/Agnostic-AI.git"
   },
   "engines": {
     "node": ">=18"

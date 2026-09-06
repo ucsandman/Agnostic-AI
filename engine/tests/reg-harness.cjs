@@ -135,7 +135,9 @@ console.log('[reg-harness] Harness port engine regressions\n');
 
 section(1, 'bundle round trip + validate + toml.parse', [], () => {
   test('bundle: createBundle -> save -> load equals (counts, agent meta, commands)', () => {
-    const b = bundleMod.createBundle('claude', 'C:/fake/home');
+    // An OS-absolute fake home: `C:/...` is not absolute on POSIX and validate() checks skill paths.
+    const fakeHome = mkTmp('fake-home');
+    const b = bundleMod.createBundle('claude', fakeHome);
     b.rules = '# Global Working Agreement\n\n## How to Work\n\n- Do the thing.\n';
     b.identity = '# SOUL\n\nBe helpful.\n';
     b.hooks = {
@@ -148,7 +150,7 @@ section(1, 'bundle round trip + validate + toml.parse', [], () => {
     b.mcp = { servers: { docs: { transport: 'stdio', command: 'npx', args: ['-y', 'x'], env: { CONTEXT7_API_KEY: '${CONTEXT7_API_KEY}' } } } };
     b.agents = [{ name: 'opus-owner', meta: { name: 'opus-owner', description: 'Owns review.', model: 'opus', tools: 'Read, Edit, Bash', readonly: 'false' }, body: 'Own the plan.' }];
     b.commands = [{ name: 'wrap', meta: { description: 'Wrap up.', 'argument-hint': '[note]' }, body: 'Summarize.' }];
-    b.skills = { sourceDir: 'C:/fake/home/.claude/skills', skills: [{ name: 'alpha', path: 'C:/fake/home/.claude/skills/alpha' }] };
+    b.skills = { sourceDir: path.join(fakeHome, '.claude', 'skills'), skills: [{ name: 'alpha', path: path.join(fakeHome, '.claude', 'skills', 'alpha') }] };
     b.permissions = { allow: ['Bash(git *)'], deny: ['Bash(rm -rf *)'], ask: [] };
 
     const dir = bundleMod.save(b, mkTmp('bundle-roundtrip'));

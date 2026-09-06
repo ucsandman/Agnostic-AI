@@ -4,7 +4,7 @@
  *
  * Automatically detects an existing DashClaw instance (global config, local daemon,
  * environment variables, or workspace state), provisions the harness agent identity,
- * sets up the API key and endpoint, and wires all 18 agent targets for Governed Autonomy.
+ * sets up the API key and endpoint, and wires every client in the target registry for Governed Autonomy.
  *
  * Usage:
  *   node engine/hooks/dashclaw-setup.cjs           # Auto-discover and configure
@@ -248,7 +248,7 @@ async function run() {
     console.log(`  ✓ Agent Name:   ${config.agentName}`);
     console.log(`  ✓ Source:       ${config.source}`);
     console.log(`  ✓ API Key:      ${config.apiKey ? '***configured***' : '(None - local mode)'}`);
-    console.log(`\n  All 18 agent targets are now governed via DashClaw.`);
+    console.log(`\n  Every registered client is now governed via DashClaw.`);
   } else {
     console.log(`  ○ Status:       Standalone (Local Safety Guards Active)`);
     console.log(`  ○ Detail:       ${config.reason || 'No DashClaw instance configured'}`);
