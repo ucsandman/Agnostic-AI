@@ -3,13 +3,17 @@
  * engine/setup/first-run.cjs — First-Run Onboarding & Default Harness Setup.
  *
  * Runs automatically when the user uses the Agnostic Harness for the first time
- * (or manually via `npm run setup:default` / `python launch.py`).
+ * (or manually via `npm run setup:default` / `npm run launch`).
  *
  * Actions:
  *   1. Harvester: Scans existing agent logs (~/.claude, ~/.codex, etc.) so harness starts loaded.
  *   2. Consolidator: Ingests all skills from all agent runtimes into skills/definitions/.
- *   3. Polyglot Sync: Compiles Single Source of Truth to all 18 agent target agreement files.
- *   4. Hook Proxy: Registers Universal Hook & DashClaw Guard into Claude, Codex, Gemini settings.
+ *   3. Port: Captures the client the user actually drives and applies it to every
+ *      other installed client. With no source client on disk, falls back to
+ *      compiling the repo's own template rules (engine/sync/sync.cjs).
+ *   4. Claude Code guard wiring: registers the guards this repo ships into
+ *      ~/.claude/settings.json. Other clients get their hooks from the port
+ *      (step 3), never from a hand-written flat hooks.json here.
  *   5. DashClaw Provisioner: Links agent identity & API key for governed autonomy.
  *   6. Persistence: Writes storage/harness-installed.json marking default installation.
  *
@@ -21,7 +25,6 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const STORAGE = path.join(ROOT, 'storage');
@@ -29,6 +32,16 @@ const STATE_FILE = path.join(STORAGE, 'harness-installed.json');
 
 const HOME = os.homedir();
 const FORCE_FLAG = process.argv.includes('--force');
+
+// Every client id the harness knows about, read from the registry so a number
+// printed here can never drift from core/templates/targets.json.
+function registryIds() {
+  try {
+    return require('../harness/capture.cjs').loadRegistry(HOME).map((t) => t.id);
+  } catch (_) {
+    return [];
+  }
+}
 
 function isFirstRun(stateFile = STATE_FILE) {
   if (!fs.existsSync(stateFile)) return true;
@@ -67,9 +80,18 @@ function backup(file) {
 }
 
 /**
- * Registers the guard hooks into every agent runtime present under `home`.
+ * Registers the guard hooks this repo ships into Claude Code under `home`, and
+ * REPORTS (never writes) what the Codex and Gemini hook files already carry.
+ *
+ * Claude Code is the only client wired by hand: it hosts the guards that live in
+ * engine/hooks/. Every other client's hooks arrive through `npm run port`, which
+ * writes the format that client actually reads. Writing a flat
+ * {"pre_tool_use": "..."} key into ~/.codex/hooks.json is what silently dropped
+ * every shared guard on 2026-08-18 (Codex never read that key, then repaired the
+ * file), so that path is gone.
+ *
  * Always read-merge-write: an existing user hook file is preserved, never clobbered.
- * Returns a per-target report of what was installed.
+ * Returns a per-target report of what was installed or detected.
  */
 function wireAgentHooks(home = HOME) {
   const hookCommand = (name) =>
@@ -182,56 +204,32 @@ function wireAgentHooks(home = HOME) {
     }
   }
 
-  // Codex CLI and Antigravity (agy) take a single flat command string per event,
-  // so they get the guard only; a foreign hook already there is left alone.
-  const flatTargets = [
-    { key: 'codex', dir: path.join(home, '.codex'), file: path.join(home, '.codex', 'hooks.json'), field: 'pre_tool_use', label: '~/.codex/hooks.json' },
-    { key: 'gemini', dir: path.join(home, '.gemini', 'config'), file: path.join(home, '.gemini', 'config', 'hooks.json'), field: 'preToolUse', label: '~/.gemini/config/hooks.json' }
+  // Codex CLI and Gemini/Antigravity: detect only. Their hook files are written
+  // by `npm run port` in the lifecycle format those clients read; this function
+  // reads them so the report says what is actually wired, and touches nothing.
+  const readOnlyTargets = [
+    { key: 'codex', dir: path.join(home, '.codex'), file: path.join(home, '.codex', 'hooks.json'), label: '~/.codex/hooks.json' },
+    { key: 'gemini', dir: path.join(home, '.gemini', 'config'), file: path.join(home, '.gemini', 'config', 'hooks.json'), label: '~/.gemini/config/hooks.json' }
   ];
 
-  for (const target of flatTargets) {
+  for (const target of readOnlyTargets) {
     if (!fs.existsSync(target.dir)) continue;
     report[target.key].present = true;
-    const cfg = fs.existsSync(target.file) ? readJsonSafe(target.file) : {};
+    if (!fs.existsSync(target.file)) {
+      console.log(`  - ${target.label} absent; hooks for this client come from \`npm run port\``);
+      continue;
+    }
+    const cfg = readJsonSafe(target.file);
     if (cfg === null) {
       report[target.key].malformed = true;
       warnMalformed(target.file);
       continue;
     }
-    // A hooks.json that already carries a `hooks` object is in the harness's real
-    // lifecycle format (Codex: {"hooks": {"PreToolUse": [...]}}, generated by
-    // ~/.claude/tools/harness-sync/sync.cjs). Writing the flat `pre_tool_use` key
-    // into that file is what clobbered the shared guards on 2026-08-18: Codex
-    // never read the flat key, then "repaired" the file to `hooks: {}` on
-    // 2026-09-05 and every guard was gone. Leave such a file alone; the guard is
-    // wired there by the sync (or, for Codex, by the DashClaw block in config.toml).
-    if (cfg.hooks && typeof cfg.hooks === 'object' && !Array.isArray(cfg.hooks)) {
-      const text = JSON.stringify(cfg);
-      report[target.key].dashclawGuard = /dashclaw-guard/i.test(text);
-      report[target.key].secretGuard = /secret-guard/i.test(text);
-      console.log(`  - ${target.label} is in lifecycle format (managed by harness-sync); not touched`);
-      continue;
-    }
-    try {
-      const existing = cfg[target.field];
-      if (existing && !/dashclaw-guard/i.test(existing)) {
-        console.warn(`  ! Preserved existing ${target.field} hook in ${target.label}; guard NOT installed (only one command is supported there).`);
-      } else {
-        cfg[target.field] = hookCommand('dashclaw-guard.cjs');
-        cfg.governance = 'agnostic-harness';
-        report[target.key].dashclawGuard = true;
-        // dashclaw-guard runs the secret-path check internally, so the single
-        // flat-format hook covers secret scanning on these targets too.
-        report[target.key].secretGuard = true;
-      }
-      backup(target.file);
-      fs.writeFileSync(target.file, JSON.stringify(cfg, null, 2), 'utf8');
-      if (report[target.key].dashclawGuard) {
-        console.log(`  ✓ Guard hook registered in ${target.label}`);
-      }
-    } catch (err) {
-      console.warn(`  ! Could not wire hook in ${target.label}: ${err.message}`);
-    }
+    const text = JSON.stringify(cfg);
+    report[target.key].dashclawGuard = /dashclaw-guard/i.test(text);
+    report[target.key].secretGuard = /secret-guard/i.test(text);
+    const wired = [report[target.key].dashclawGuard && 'dashclaw-guard', report[target.key].secretGuard && 'secret-guard'].filter(Boolean).join(' + ') || 'no agnostic guard';
+    console.log(`  - ${target.label}: ${wired} (read only; \`npm run port\` owns this file)`);
   }
 
   return report;
@@ -258,14 +256,30 @@ async function runFirstRunSetup() {
       }
     },
     {
-      title: '[3/5] Synchronizing and compiling 18 agent targets...',
+      title: `[3/5] Porting your harness into ${registryIds().length} client targets...`,
       run: async () => {
-        const { run } = require('../sync/sync.cjs');
-        return run();
+        const { capture, detectSource } = require('../harness/capture.cjs');
+        const { apply } = require('../harness/apply.cjs');
+        const source = detectSource(HOME);
+        if (!source) {
+          console.log('  - no source client on disk (~/.claude/CLAUDE.md or ~/.codex/AGENTS.md); compiling the repo template rules instead');
+          const { run } = require('../sync/sync.cjs');
+          return run();
+        }
+        try {
+          const { bundle, warnings } = capture({ home: HOME });
+          for (const warning of warnings) console.log(`  ! ${warning}`);
+          return apply({ bundle, home: HOME });
+        } catch (err) {
+          // A port that cannot run must still leave the user with rules files.
+          console.warn(`  ! Port from ${source} failed (${err.message}); compiling the repo template rules instead`);
+          const { run } = require('../sync/sync.cjs');
+          return run();
+        }
       }
     },
     {
-      title: '[4/5] Wiring Universal Hook proxies and DashClaw governance...',
+      title: '[4/5] Wiring Claude Code guards and DashClaw governance...',
       run: async () => {
         const { autoConfigureDashClaw } = require('../hooks/dashclaw-setup.cjs');
         const dashclawResult = await autoConfigureDashClaw();
@@ -274,7 +288,7 @@ async function runFirstRunSetup() {
         const wired = Object.entries(hookReport)
           .filter(([, r]) => r.present)
           .map(([name, r]) => `${name}(${[r.dashclawGuard && 'dashclaw-guard', r.secretGuard && 'secret-guard', r.delegateGuard && 'fable-delegate-guard', r.graphGuard && 'capability-graph-guard'].filter(Boolean).join('+') || 'none'})`);
-        console.log(`  ✓ Hook targets wired: ${wired.length ? wired.join(', ') : 'none detected'}`);
+        console.log(`  ✓ Guard hooks: ${wired.length ? wired.join(', ') : 'none detected'} (claude wired here; the rest are written by \`npm run port\`)`);
 
         return dashclawResult;
       }
@@ -288,7 +302,7 @@ async function runFirstRunSetup() {
           installedAt: new Date().toISOString(),
           root: ROOT,
           version: require(path.join(ROOT, 'package.json')).version,
-          defaultFor: ['claude', 'codex', 'agy', 'cursor', 'windsurf', 'cline', 'openhands', 'goose', 'continue', 'zed', 'trae', 'amazonq', 'cody', 'openclaw', 'hermes']
+          defaultFor: registryIds()
         };
         fs.writeFileSync(STATE_FILE, JSON.stringify(installState, null, 2), 'utf8');
         console.log(`  ✓ Default harness state persisted: ${STATE_FILE}`);
@@ -307,9 +321,11 @@ async function runFirstRunSetup() {
     console.log('');
   }
 
+  const ids = registryIds();
   console.log('==================================================');
-  console.log('  ✓ Agnostic AI Harness is now the default harness');
-  console.log('    for Claude, Codex, agy, Cursor, and all agents.');
+  console.log('  ✓ Agnostic AI Harness is installed');
+  console.log(`    ${ids.length} client targets known: ${ids.join(', ')}`);
+  console.log('    Re-run any time with: npm run port');
   console.log('==================================================\n');
 }
 

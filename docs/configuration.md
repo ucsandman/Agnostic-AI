@@ -4,15 +4,35 @@
 
 | File | Purpose |
 |---|---|
-| `core/rules/global-rules.md` | Your working agreement. The only rules file you maintain; every client's file is compiled from it. |
-| `core/traits/traits.md` | Tier-3 dispositions appended after the rules. |
-| `core/safety/guards.json` | Secret paths, blocked commands, hard-stop patterns, DashClaw thresholds. Read by the Python guard, the Node hooks and the dashboard simulator. |
-| `core/templates/targets.json` | The 18 clients: rules file path, hook config path, skills dir, dialect, preamble. |
+| `core/port.json` | Port policy: the source client (`auto`, `claude`, `codex`), which targets receive it (`installed`, `all`, or a list), hooks / skills / MCP servers deliberately not ported (each with a reason), target-only extra hooks, the model ladder per target. |
+| `core/templates/targets.json` | The client registry: home, rules file, hook config, skills dir, agents dir, commands dir, MCP file and adapter per client. `npm run docs:targets` after editing. |
+| `core/safety/guards.json` | Secret paths, blocked commands, hard-stop patterns, DashClaw thresholds. Read by the Node hooks and the dashboard simulator. |
+| `core/rules/global-rules.md`, `core/traits/traits.md` | Optional. A working agreement authored here instead of in a client; `npm run sync` compiles it into the primary client. |
 | `core/examples/` | Few-shot fixtures produced by `prune.cjs`. |
-| `.agnostic/orchestration.json` | Optional project role graph, models, permissions, workspaces, limits, and routing preferences. |
 
-`npm run sync` after editing any of the first three. `npm run docs:targets`
-after editing the fourth.
+The source of truth for everything else is the client you use. Edit your
+`CLAUDE.md`, `settings.json`, skills, agents, commands and MCP servers there,
+then `npm run port`.
+
+## Commands
+
+| Command | What |
+|---|---|
+| `npm run port` | Capture the source client, apply to every other installed client. The everyday command. |
+| `npm run port:check` | Same, writes nothing, exits 1 if any generated file drifted. Put it in a scheduled job or a shell prompt. |
+| `npm run capture` | Only read the source into `harness/`. |
+| `npm run apply` | Only render `harness/` into the targets. |
+| `npm run status` / `status:open` | Per-client, per-component matrix in the terminal, or as a page. |
+| `npm run explain` | Every hook, skill, agent, server or permission that was not ported, with its reason. |
+| `npm run parity` | The status page as a local server with a "Port now" button. |
+| `npm run sync` / `sync:check` | Compile `core/rules` into the primary client (authoring mode). |
+| `npm run setup:default` | First-run onboarding: harvest, consolidate skills, port, install the shipped guards into the primary client. |
+| `npm run launch` | First-run check, port check, engine tests, then the command center. |
+| `npm run harvest`, `distill`, `merge`, `dashboard`, `recall`, `skills:*`, `dashclaw:*` | The rule-learning loop and its surfaces. |
+
+CLI flags (`node engine/harness/cli.cjs <command> [flags]`): `--from <id>`,
+`--to <id,id>`, `--check`, `--dry-run`, `--force`, `--home <dir>`,
+`--bundle <dir>`, `--storage <dir>`, `--json`, `--html`, `--open`.
 
 ## Environment variables
 
@@ -21,169 +41,59 @@ Nothing loads `.env` for you; export variables in your shell or CI.
 
 | Variable | Used by | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `DEEPSEEK_API_KEY` | hosted presets in `/model` | unset (preset refuses to start) |
-| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | generic OpenAI-compatible preset | `http://localhost:1234/v1`, `local-model`, `lm-studio` |
 | `DASHCLAW_BASE_URL`, `DASHCLAW_API_KEY`, `DASHCLAW_AGENT_ID`, `DASHCLAW_AGENT_NAME` | `engine/hooks/dashclaw-setup.cjs` | unset; governance stays local |
-| `FABLE_DELEGATE_GUARD` | `engine/hooks/fable-delegate-guard.cjs` | unset; set to `off` to silence the Fable delegation briefing and the hand-work log for one session (the hook denies nothing since 2026-09-06) |
+| `FABLE_DELEGATE_GUARD` | `engine/hooks/fable-delegate-guard.cjs` | unset; `off` silences the briefing and the log |
+| `CAPABILITY_GRAPH_GUARD` | `engine/hooks/capability-graph-guard.cjs` | unset; `off` disables the guard |
 | `PORT` | dashboard | 7842 (next free port if taken) |
 | `RECALL_PORT` | recall | 7844 |
-| `PARITY_PORT` | parity | 7845 |
+| `PARITY_PORT` | parity / status page | 7845 |
 | `AGNOSTIC_STORAGE` | harvest / distill / prune | `<repo>/storage` |
 | `AGNOSTIC_EXAMPLES_DIR` | prune | `<repo>/core/examples` |
 | `AGNOSTIC_PROJECTS_DIR` | skill recommender, dashboard Projects tab | `C:\Projects` on Windows, `~/Projects` elsewhere |
 
-The agent's web companion (`agnostic --web`, `/web`) starts on 7843. Every
-server here walks up to the next free port when its default is already taken by
-another local app, and prints the URL it actually bound.
+MCP credentials: the port replaces a secret-looking env value with `${NAME}`
+and tells you to export `NAME`. Each client then reads it from its own
+environment at launch.
 
-## Agent command-line flags
+## The bundle (`harness/`)
 
-```
-agnostic [--url URL] [--model NAME] [--api-key KEY] [--full-prompt]
-         [--prompt TEXT | -p TEXT | --print TEXT] [--output-format text|json]
-         [--yes] [--ask-permissions] [--web] [--version]
-agnostic-legacy   (same flags, prompt_toolkit shell)
-```
-
-| Flag | Effect |
-|---|---|
-| `--url` | OpenAI-compatible base URL (LM Studio `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`, ...). |
-| `--model` | Model id. `/doctor` can detect it from the endpoint. |
-
-With `--url` and `--model` untouched, startup does **not** assume a local
-endpoint: it picks the last `/model` choice (persisted in
-`~/.agnostic/settings.json`), else the best installed subscription CLI
-(`claude`, then `codex`, then `agy`), else the first API-key preset whose env
-var is set, and only then falls back to the local endpoint.
-
-| `--api-key` | Key for `--url`; defaults to `lm-studio`. |
-| `--full-prompt` | Send the whole compiled rules file as system prompt. Without it the agent runs on the same rules clipped to ~4 KB for small local context windows — never on a summary. |
-| `-p`, `--prompt`, `--print` | Run one prompt headlessly and exit — see [Headless / scripting](#headless--scripting). `-` reads the prompt from stdin. |
-| `--output-format` | `text` (default) or `json`, for `-p` runs. |
-| `-y`, `--yes` | `-p` only: approve hard stops instead of denying them. |
-| `--ask-permissions` | Prompt y/n on hard-stop commands. **Without it hard stops are denied**, never auto-approved. |
-| `--web` | Start the companion UI on 7843 (next free port if taken). |
-| `--legacy` | (`agnostic` only) Run the prompt_toolkit shell instead of the TUI; same as `agnostic-legacy`. |
-| `--version` | Print the version and exit. |
-
-Presets, effort levels and subscription bridges are chosen at runtime with
-`/model`; see [`slash-commands.md`](slash-commands.md).
-
-## Adaptive orchestration
-
-Orchestration is off when `.agnostic/orchestration.json` is absent. Enable it
-for the current interactive session with `/org on`, or set `"enabled": true`
-in the project file so TUI, legacy, and headless runs start consistently. The
-optional config supports base roles, preset/provider/model/effort selection,
-visible fallback targets, child and advisor allowlists, tool permissions,
-workspace mode, graph/model-call limits, and routing thresholds.
-
-Role model settings reuse `LLMConfig.PRESETS` and subscription bridges. They do
-not load keys or implement provider clients independently (a provider without a
-preset takes `base_url` and, optionally, `api_key_env`). Subagents run on
-subscriptions or local models only (`allow_api_models` opts a project into metered
-providers), and an expensive interactive model (Fable) forces delegate-first
-orchestration. Graph limits reset at the start of each turn and each `/research`,
-`/review`, or `/swarm`. Invalid JSON,
-unknown roles, delegation cycles, or unsafe limits disable orchestration with a
-visible error; flat `invoke_subagent`, `/research`, `/review`, and `/swarm`
-remain usable. See [adaptive orchestration](orchestration.md) for the complete
-schema and mixed-provider example.
-
-## Headless / scripting
-
-`-p` (aliases `--prompt`, `--print`) runs exactly one turn with no TUI:
-
-- **stdout** — the final assistant text and nothing else (or one JSON object with
-  `--output-format json`), so it pipes.
-- **stderr** — every tool, system and error line, prefixed `[tool_start]`, `[error]`, ...
-- **exit code** — `0` on a clean turn, `1` if the turn emitted an error (including the
-  max-steps cap), `2` for an empty prompt.
-- Hard-stop confirmations are **denied** unless you pass `--yes`; `--ask-permissions`
-  does nothing here because there is no terminal to answer on.
-- `--model <preset key>` switches preset (e.g. `--model sub-claude-code`); any other
-  value is a model id. `--web` still starts the companion, but never opens a browser.
-
-```bash
-agnostic -p 'summarise README.md' 2>/dev/null          # answer only
-git diff | agnostic -p - --output-format json          # prompt from stdin
-agnostic -p 'how many python files?' --output-format json | jq -r .result
-```
-
-The JSON object:
-
-```json
-{
-  "result": "37",
-  "tool_calls": [{"name": "run_command", "preview": "run_command({\"command\": \"...\"})"}],
-  "usage": {"prompt_tokens": 5123, "completion_tokens": 88, "cost_usd": 0.02, "calls": 2},
-  "model": "claude-opus-5",
-  "ok": true,
-  "orchestration": {"nodes": [{"relationship": "root"}], "edges": []}
-}
-```
-
-`usage` is `null` when the run recorded nothing in `.agnostic/usage.jsonl`, and
-`cost_usd` is `null` when any call in the run had no price (see [`usage.md`](usage.md)).
-
-## System prompt
-
-The agent's system prompt is `storage/compiled/system_prompt.md`, compiled from
-`core/rules/global-rules.md` by `npm run sync` — it is gitignored, so run the
-sync once after cloning or the agent starts on a two-sentence stub and says so.
-
-Appended to it, if present in the workspace: the first of `AGENTS.md`,
-`CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, plus `.agnostic/state.md`, clipped to
-~6 KB under a `### [Project Agreement: <file>]` heading. Without `--full-prompt`
-the project agreement is dropped when it would push the prompt past ~8 KB.
-
-## Trust tiers
-
-`/trust reads|tests|all` sets the session tier (`strict`, `trust-reads`
-(default), `trust-tests`, `trust-all`); `/untrust` returns to `strict`. What the
-tier changes today (`agent/governance/guard.py → check_command_safety`):
-
-| Tier | Hard-stop commands (force push, deploys, destructive git/db ops, ...) |
-|---|---|
-| `strict`, `trust-reads`, `trust-tests` | Require a human. Prompted if the agent was started with `--ask-permissions`, otherwise **denied**. |
-| `trust-all` | Run without confirmation. |
-
-Commands and file paths matching the secret patterns in `guards.json` are
-blocked in every tier, with no override. Every hard-stop decision is written to
-the session audit (`/audit`).
+Gitignored by default because it holds absolute paths from this machine. To
+version your harness, remove the `harness/` line from `.gitignore`; the bundle
+is plain markdown and JSON and never contains a secret (the save refuses one).
+Shape: `docs/porting.md` and `engine/harness/README.md`.
 
 ## DashClaw (optional)
 
 Set `DASHCLAW_BASE_URL` (and `DASHCLAW_API_KEY` for a remote instance) and run
 `npm run dashclaw:setup`. The guard then asks DashClaw for a decision on any
-call scoring at or above `guards.json → dashclaw.defaultRiskThreshold` (50)
+call scoring at or above `guards.json -> dashclaw.defaultRiskThreshold` (50)
 and holds hard stops (>= `hardBlockRiskThreshold`, 90) for remote approval.
-Opt out at any time: dashboard → Governed Decisions → Settings → Opt Out, or
+Opt out at any time: dashboard -> Governed Decisions -> Settings -> Opt Out, or
 set `"active": false` in `storage/dashclaw-config.json`. When opted out the
-harness makes no network requests for governance; the agent itself still
-talks to whichever model endpoint you configured.
+harness makes no network requests for governance.
 
 ## Scheduled jobs (Windows)
 
-`jobs/sync-targets.ps1` runs `npm run sync`; `jobs/daily-distill.ps1` runs
+`jobs/sync-targets.ps1` runs `npm run port`; `jobs/daily-distill.ps1` runs
 harvest + distill and logs to `storage/daily-distill.log`. Register them with
-Task Scheduler (for example nightly) or run them by hand. On other platforms
-call the same `node` commands from cron.
+Task Scheduler (for example nightly, after whatever job edits your primary
+client's rules) or run them by hand. On other platforms call the same `node`
+commands from cron.
 
 ## Uninstall
 
-The harness writes only inside this repo's `storage/` and `skills/definitions/`,
-plus one rules/hooks/skills entry per client under your home directory (the
-paths in [`targets.md`](targets.md)), each backed up to
+The port writes only inside this repo's `harness/`, `storage/` and
+`skills/definitions/`, plus the surfaces listed per client in
+[`targets.md`](targets.md), each backed up to
 `storage/backups/<client>-<file>-<timestamp>.bak` before every overwrite.
 
-1. Restore a client's previous rules file from the newest `.bak` for it, or
-   delete the target path.
-2. Remove hook wiring: delete the `PreToolUse` entries pointing at
-   `engine/hooks/dashclaw-guard.cjs` and `engine/hooks/fable-delegate-guard.cjs`
-   from `~/.claude/settings.json` (the delegate guard also has a
-   `UserPromptSubmit` and a `SessionStart` entry), and
-   `~/.codex/hooks.json` / `~/.gemini/config/hooks.json` for Codex / Antigravity.
-3. Delete the skills junction or directory in the client's skills column.
-4. Delete this repo's `storage/` and `skills/definitions/`.
-5. `pip uninstall agnostic-agent`.
+1. Restore a client's rules file from the newest `.bak` for it, or delete the
+   generated file (its first line says `GENERATED by agnostic-ai`).
+2. Remove the managed regions (`# >>> agnostic-ai ... start` to
+   `# <<< agnostic-ai ... end`) from `config.toml`, and the hook groups and MCP
+   servers the port added to `settings.json`, `hooks.json`, `mcp.json` and
+   `.claude.json` (`storage/harness-state.json` lists exactly which ones).
+3. Delete the skill links in each client's skills dir (links only; real
+   directories were never touched) and the generated agents, prompts and
+   commands (`GENERATED by agnostic-ai` in their first line).
+4. Delete this repo's `harness/`, `storage/` and `skills/definitions/`.

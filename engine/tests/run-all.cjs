@@ -349,12 +349,16 @@ async function run() {
   // 7. Test Parity Engine — tracked-target shape from the repo SSOT config, plus a
   // fixture in-sync/drifted round-trip through the real compileTarget/loadSource
   // pipeline. No real home-directory rules files are read or compared here.
-  await test('Parity: tracks 16 targets and detects in-sync vs. drifted fixtures', () => {
+  await test('Parity: tracks every registry target and detects in-sync vs. drifted fixtures', () => {
     const targetsConfig = JSON.parse(
       fs.readFileSync(path.join(ROOT, 'core', 'templates', 'targets.json'), 'utf8')
     );
     const targets = targetsConfig.targets || [];
-    assert.strictEqual(targets.length, 16, 'Should track exactly 16 targets');
+    // The count is not a literal: it is whatever the registry holds, and the
+    // loader the port engine uses must return every one of them.
+    const loaded = require('../harness/capture.cjs').loadRegistry(os.homedir());
+    assert.strictEqual(targets.length, loaded.length, `loadRegistry dropped targets: ${loaded.length} of ${targets.length}`);
+    assert(targets.length >= 16, `Should track at least 16 targets, found ${targets.length}`);
     for (const t of targets) {
       assert.strictEqual(typeof t.id, 'string', 'Each target needs a string id');
       assert.strictEqual(typeof t.name, 'string', 'Each target needs a string name');
@@ -372,8 +376,6 @@ async function run() {
     const pkgVersion = require('../../package.json').version;
     assert(compiled.includes(`[Agnostic Harness v${pkgVersion} | DashClaw Governed]`), `Badge should read v${pkgVersion}`);
     assert(!compiled.includes('{{VERSION}}'), 'Compiled rules must not leak the {{VERSION}} placeholder');
-    const pyVersion = (fs.readFileSync(path.join(ROOT, 'agent', '__init__.py'), 'utf8').match(/__version__\s*=\s*"([^"]+)"/) || [])[1];
-    assert.strictEqual(pyVersion, pkgVersion, `agent/__init__.py (${pyVersion}) and package.json (${pkgVersion}) must agree`);
 
     const tmpDir = makeTmpDir('agnostic-parity-fixture-');
     try {
@@ -705,6 +707,158 @@ async function run() {
     const fabricated = ['SAFETY_SCAN', 'ENDPOINT_SYNC', 'GOVERNANCE_ACTIVE'];
     for (const evt of decisions.recentEvents) {
       assert(!fabricated.includes(evt.type), `Event type ${evt.type} asserts work that never ran`);
+    }
+  });
+
+  // 19-22. Harness porter (engine/harness). Pure: every write goes to a temp
+  // home and a temp storage dir, and the render adapters are stubs injected
+  // through apply's `adapters` option, so no client config is ever touched.
+  const harnessCapture = require('../harness/capture.cjs');
+  const { apply: harnessApply } = require('../harness/apply.cjs');
+  const harnessBundle = require('../harness/bundle.cjs');
+
+  const registrySnapshot = harnessCapture.loadRegistry(os.homedir());
+  const adaptersDir = path.join(ROOT, 'engine', 'harness', 'targets');
+  const adapterFiles = fs.existsSync(adaptersDir) ? fs.readdirSync(adaptersDir).filter((f) => f.endsWith('.cjs')) : [];
+
+  await test(`Harness Registry: ${registrySnapshot.length} targets carry the fields the port engine reads (${adapterFiles.length} adapter modules on disk)`, () => {
+    const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'core', 'templates', 'targets.json'), 'utf8')).targets;
+    registrySnapshot.forEach((t, i) => {
+      const src = raw[i];
+      for (const field of ['id', 'name', 'rulesFile', 'preamble']) {
+        assert(typeof t[field] === 'string' && t[field].trim(), `target ${t.id || i} needs a ${field}`);
+      }
+      assert.strictEqual(typeof t.installed, 'boolean', `target ${t.id} needs an installed boolean`);
+      if (src.home) {
+        assert(src.home.startsWith('~'), `target ${t.id}: home must be ~-relative in the registry, got ${src.home}`);
+        assert(path.isAbsolute(t.home), `target ${t.id}: loadRegistry must expand home to an absolute path`);
+      } else {
+        assert.strictEqual(t.installed, true, `target ${t.id} has no home dir, so it is always writable`);
+      }
+      // An adapter name is a promise that engine/harness/targets/<name>.cjs exists.
+      if (src.adapter && src.adapter !== 'generic') {
+        assert(adapterFiles.includes(`${src.adapter}.cjs`),
+          `target ${t.id} names adapter "${src.adapter}" but engine/harness/targets/${src.adapter}.cjs is missing`);
+      }
+    });
+  });
+
+  await test('Harness Capture: the source client is decided by what is on disk', () => {
+    const base = makeTmpDir('agnostic-capture-');
+    const mkHome = (name, file) => {
+      const home = path.join(base, name);
+      if (file) {
+        fs.mkdirSync(path.join(home, path.dirname(file)), { recursive: true });
+        fs.writeFileSync(path.join(home, file), '# rules\n');
+      } else {
+        fs.mkdirSync(home, { recursive: true });
+      }
+      return home;
+    };
+    try {
+      const claudeHome = mkHome('claude-only', '.claude/CLAUDE.md');
+      const codexHome = mkHome('codex-only', '.codex/AGENTS.md');
+      const bothHome = mkHome('both', '.claude/CLAUDE.md');
+      fs.mkdirSync(path.join(bothHome, '.codex'), { recursive: true });
+      fs.writeFileSync(path.join(bothHome, '.codex', 'AGENTS.md'), '# rules\n');
+      const emptyHome = mkHome('empty', null);
+
+      assert.strictEqual(harnessCapture.detectSource(claudeHome), 'claude', 'a CLAUDE.md means Claude Code is the source');
+      assert.strictEqual(harnessCapture.detectSource(codexHome), 'codex', 'an AGENTS.md means Codex is the source');
+      assert.strictEqual(harnessCapture.detectSource(bothHome), 'claude', 'with both present, Claude Code wins');
+      assert.strictEqual(harnessCapture.detectSource(emptyHome), null, 'an empty home has no source client');
+
+      const auto = { source: 'auto', targets: 'installed' };
+      assert.throws(() => harnessCapture.capture({ home: emptyHome, port: auto }), /no source client found/,
+        'capture with nothing on disk must say so, not guess');
+      assert.strictEqual(harnessCapture.resolveSourceId({ from: 'codex', port: auto, home: claudeHome }), 'codex', '--from overrides detection');
+      assert.strictEqual(harnessCapture.resolveSourceId({ port: { source: 'codex' }, home: claudeHome }), 'codex', 'core/port.json overrides detection');
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  await test('Harness Apply: selection honours installed / all / --to, and never writes to the source', () => {
+    const home = makeTmpDir('agnostic-apply-home-');
+    const storageDir = makeTmpDir('agnostic-apply-storage-');
+    try {
+      fs.mkdirSync(path.join(home, '.codex'), { recursive: true }); // codex installed; claude and cursor are not
+      const bundle = harnessBundle.createBundle('claude', path.join(home, '.claude'));
+      bundle.rules = '# Rules\n';
+
+      const ran = [];
+      const stub = { id: 'stub', components: ['rules'], rules(ctx) { ran.push(ctx.target.id); return { status: 'synced', files: [], dropped: [] }; } };
+      const adapters = {};
+      for (const t of harnessCapture.loadRegistry(home)) adapters[t.id] = stub;
+      const run = (extra) => harnessApply(Object.assign({ bundle, home, storageDir, adapters, log: () => {} }, extra));
+
+      const installed = run({ port: { targets: 'installed' } });
+      assert(Object.keys(installed.targets).includes('codex'), 'codex has a home dir on disk, so it is installed');
+      assert(Object.keys(installed.targets).includes('generic'), 'the generic system card has no home dir and is always a target');
+      assert(!Object.keys(installed.targets).includes('cursor'), 'a client with no home dir must not be written to');
+
+      const all = run({ port: { targets: 'all' } });
+      assert.strictEqual(Object.keys(all.targets).length, registrySnapshot.length, '"all" means every registry entry');
+
+      const listed = run({ to: ['codex', 'gemini'] });
+      assert.deepStrictEqual(Object.keys(listed.targets).sort(), ['codex', 'gemini'], '--to picks exactly those ids');
+
+      const sourceRow = all.targets.claude;
+      assert.strictEqual(sourceRow.status, 'source', 'the source client is reported as the source');
+      assert.deepStrictEqual(sourceRow.components, {}, 'no component runs against the source client');
+      assert(!ran.includes('claude'), 'the source client must never be written to');
+
+      assert.throws(() => run({ to: ['not-a-client'] }), /unknown target id/, 'a typo in --to must fail loudly');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(storageDir, { recursive: true, force: true });
+    }
+  });
+
+  await test('Harness Apply: --check reports the whole matrix and writes no state', () => {
+    const home = makeTmpDir('agnostic-check-home-');
+    const storageDir = makeTmpDir('agnostic-check-storage-');
+    try {
+      fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+      const bundle = harnessBundle.createBundle('claude', path.join(home, '.claude'));
+      bundle.rules = '# Rules\n';
+
+      // A stub that really writes, so "would-write" and "written" differ.
+      const stub = {
+        id: 'stub',
+        components: ['rules'],
+        rules(ctx) {
+          const dest = path.join(ctx.home, `${ctx.target.id}-rules.md`);
+          const r = ctx.write(dest, ctx.bundle.rules);
+          return { status: r.action === 'unchanged' ? 'synced' : r.action === 'would-write' ? 'stale' : 'written', files: [{ path: dest, action: r.action }] };
+        }
+      };
+      const adapters = {};
+      for (const t of harnessCapture.loadRegistry(home)) adapters[t.id] = stub;
+      const run = (extra) => harnessApply(Object.assign({ bundle, home, storageDir, adapters, to: ['codex'], log: () => {} }, extra));
+
+      const stateFile = path.join(storageDir, 'harness-state.json');
+      const reportFile = path.join(storageDir, 'harness-report.json');
+
+      const checked = run({ check: true });
+      assert.strictEqual(checked.mode, 'check', 'the report records the mode it ran in');
+      assert.strictEqual(checked.stale, true, 'a target that has never been written is stale');
+      assert.strictEqual(fs.existsSync(path.join(home, 'codex-rules.md')), false, '--check must not write to a client');
+      assert.strictEqual(fs.existsSync(stateFile), false, '--check must not create the state file');
+      assert.strictEqual(fs.existsSync(reportFile), true, '--check must still write harness-report.json for the status page');
+      assert.strictEqual(JSON.parse(fs.readFileSync(reportFile, 'utf8')).targets.codex.components.rules.status, 'stale');
+
+      const written = run({});
+      assert.strictEqual(written.mode, 'apply');
+      assert.strictEqual(fs.readFileSync(path.join(home, 'codex-rules.md'), 'utf8'), bundle.rules, 'apply writes the bundle content');
+      const stateAfterWrite = fs.readFileSync(stateFile, 'utf8');
+
+      const recheck = run({ check: true });
+      assert.strictEqual(recheck.stale, false, 'a second check with no source change reports in sync');
+      assert.strictEqual(fs.readFileSync(stateFile, 'utf8'), stateAfterWrite, '--check must leave the state file byte-identical');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(storageDir, { recursive: true, force: true });
     }
   });
 

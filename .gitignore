@@ -20,7 +20,11 @@ storage/distill-digest.json
 storage/compiled/
 storage/dashclaw*.json
 storage/skills-config.json
-storage/harness-installed.json
+# Captured harness bundle + port state: machine paths, rebuilt by `npm run port`.
+# Leading slash on purpose — a bare `harness/` would also ignore engine/harness/.
+/harness/
+storage/harness-*.json
+storage/harness-status.html
 
 # OS & Editor
 .DS_Store

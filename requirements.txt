@@ -1,4 +1,0 @@
-# Dependencies live in pyproject.toml — this file is only a shim so that
-# `pip install -r requirements.txt` works. Use `pip install -e ".[dev]"` to get
-# the dev tools (pytest, ruff) as well.
--e .

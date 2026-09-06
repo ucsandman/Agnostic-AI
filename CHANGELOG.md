@@ -4,9 +4,61 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0] - 2026-09-06
+
+The repository is now one product: a harness porter. Capture the harness you
+already run in one AI coding client and apply it, identically, to every other
+client you have installed.
+
+### Added
+- `engine/harness/`: the port engine. `capture` reads a client into a
+  client-neutral bundle (`harness/`: rules with imports inlined, identity,
+  hooks, skills, agents, commands, MCP servers, permissions); `apply` renders it
+  into every installed client through a guarded writer with backups, hand-edit
+  detection, managed regions inside user-owned files, per-key ownership and
+  pruning. `status` and `explain` report per client and per component what is
+  in sync and what was dropped, with a reason for every drop.
+- Sources: Claude Code and Codex CLI. Targets with their own dialect: Codex CLI
+  (`config.toml` hooks with pre-computed trust hashes so no `/hooks` review is
+  needed, `agents/*.toml` with the model ladder mapped, `prompts/`,
+  `[mcp_servers]`, `rules/*.rules` prefix rules, duplicate-skill disabling),
+  Claude Code (reverse direction), Gemini CLI, Antigravity CLI, Cursor; a
+  generic adapter (rules, identity, skill links, MCP, commands, agents) for
+  Windsurf, Copilot, Cline, Aider, OpenHands, Goose, Continue, Zed, OpenCode,
+  Trae, Amazon Q, Cody, OpenClaw, Hermes and the generic system prompt.
+- `engine/hooks/shim.cjs`: runs unmodified Claude-dialect hooks under Cursor,
+  Gemini CLI and Antigravity by translating the payload in and the decision
+  out, chaining several guards into one call so the first deny and its reason
+  survive clients that merge hook results.
+- `core/port.json`: the port policy (source, targets, exclusions with
+  reasons, target-only hooks, model ladders).
+- Registry entries for Codex CLI, Gemini CLI, Antigravity CLI and OpenCode; every
+  entry now carries its home, hook config, skills, agents, commands and MCP
+  surfaces. `docs/targets.md` regenerated with the component matrix.
+- `engine/tests/reg-harness.cjs`: capture, apply twice, check, drift, prune,
+  reverse port, shim wire tests and the CLI, all in throwaway homes.
+- `docs/porting.md`: what each component is, how it maps per client, what is
+  deliberately not ported and why, how ownership and secrets are handled.
+- `tools/sync/parity`: the status page now shows the per-component matrix,
+  dropped items and a "Port now" button.
+- `npm run port`, `port:check`, `capture`, `apply`, `status`, `status:open`,
+  `explain`, `launch`.
 
 ### Changed
+- The Python coding agent moved to its own repository,
+  https://github.com/ucsandman/agnostic-agent (history preserved). This repo
+  has no Python and no `pip install`; CI runs Node 18 and 22 on Ubuntu and
+  Node 22 on Windows.
+- `engine/setup/first-run.cjs` runs the port instead of the rules-only sync
+  when a source client is present, and no longer writes flat
+  `{"pre_tool_use": ...}` hook files for Codex and Gemini (a format neither
+  client reads, which clobbered a real config on 2026-08-18). Hooks for those
+  clients come from the port.
+- `launch.py` replaced by `engine/setup/launch.cjs` (`npm run launch`).
+- `npm run sync` is now the optional authoring mode (compile `core/rules` into
+  the primary client); the everyday command is `npm run port`.
+- README, architecture, configuration, contributing and security docs
+  rewritten for the single product.
 - `fable-delegate-guard` no longer denies anything. It briefs the session once with
   the measured token economics and logs large edits and code-writing shell commands
   for `--report`. Its own log (1,046 events) showed 714 `# FABLE_OK` overrides, 266
@@ -19,6 +71,12 @@ All notable changes to this project are documented here. The format follows
   briefing and the log. `isMutatingShell` is unchanged and still owned here for the
   Codex twin, with the 2026-09-05 token-boundary fix (`git show --no-patch` is not
   a mutation).
+
+### Removed
+- `agent/`, `tests/`, `pyproject.toml`, `requirements.txt`, `MANIFEST.in`,
+  `.vulture_whitelist.py`, `launch.py`, and the agent docs (orchestration,
+  slash commands, MCP client, memory, subscriptions, usage), all now in
+  agnostic-agent.
 
 ## [1.5.2] - 2026-09-05
 

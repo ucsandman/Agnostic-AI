@@ -7,17 +7,17 @@ on:
 
 jobs:
   test:
-    name: test (${{ matrix.os }} py${{ matrix.python }})
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: "3.9" }
-          - { os: ubuntu-latest, python: "3.12" }
-          # The project is developed on Windows (mklink /J junctions, CRLF, .cmd
+          - { os: ubuntu-latest, node: "18" }
+          - { os: ubuntu-latest, node: "22" }
+          # The project is developed on Windows (junctions, CRLF, cmd.exe
           # entry points); one Windows leg keeps those paths honest.
-          - { os: windows-latest, python: "3.12" }
+          - { os: windows-latest, node: "22" }
     defaults:
       run:
         shell: bash
@@ -30,23 +30,11 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node }}
 
-      - name: Install Python package with dev extras
-        run: pip install -e ".[dev]"
-
-      - name: Lint (ruff)
-        run: ruff check .
-
-      - name: Python tests
-        run: python -m pytest tests/ -q
-
+      # There are no npm dependencies; every engine runs on Node's standard library.
       - name: Engine test suite
         run: node engine/tests/run-all.cjs
 
@@ -62,5 +50,8 @@ jobs:
       - name: Hook installation preservation regression tests
         run: node engine/tests/reg-hook-install.cjs
 
+      - name: Harness port regression tests (capture, apply, shim, CLI)
+        run: node engine/tests/reg-harness.cjs
+
       - name: Generated docs are current
-        run: node engine/docs/targets-doc.cjs --check && python -m agent.orchestration.docs --check
+        run: node engine/docs/targets-doc.cjs --check

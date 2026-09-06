@@ -1,7 +1,7 @@
 # 🛡️ Agnostic AI Universal Harness — ACTIVE
 
 > **Harness Status:** `[AGNOSTIC-HARNESS v{{VERSION}}: ACTIVE & GOVERNED]`
-> **Single Source of Truth:** Agnostic AI Engine (16 configured sync targets)
+> **Single Source of Truth:** Agnostic AI Engine (every client in core/templates/targets.json)
 > **Governance Provider:** DashClaw Governed Autonomy / Local Fallback
 
 **Operator Visibility Requirement:**

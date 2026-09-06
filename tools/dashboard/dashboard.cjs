@@ -743,7 +743,7 @@ function serveDashboard() {
     if (await isOurDashboard(PORT)) {
       console.log(`[Agnostic-Dashboard] Command Center is already running at ${url}`);
       openBrowser(url);
-      // Keep alive for launch.py child process monitoring
+      // Keep alive for the launcher (engine/setup/launch.cjs) child process monitoring
       setInterval(() => {}, 10000);
       return;
     }

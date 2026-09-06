@@ -1,8 +1,8 @@
 {
   "name": "agnostic-ai",
-  "version": "1.5.2",
+  "version": "2.0.0",
   "private": true,
-  "description": "Model-agnostic AI agent harness: one rules file compiled to 16 AI coding clients, with safety hooks, a rule-distillation ladder, and a local command center",
+  "description": "Harness porter: captures the AI coding client you actually use (Claude Code or Codex) and applies its rules, hooks, skills, subagents, commands and MCP servers to every other client installed on the machine",
   "repository": {
     "type": "git",
     "url": "https://github.com/ucsandman/agnostic-harness.git"
@@ -11,15 +11,20 @@
     "node": ">=18"
   },
   "scripts": {
+    "capture": "node engine/harness/cli.cjs capture",
+    "apply": "node engine/harness/cli.cjs apply",
+    "port": "node engine/harness/cli.cjs port",
+    "port:check": "node engine/harness/cli.cjs port --check",
+    "status": "node engine/harness/cli.cjs status",
+    "status:open": "node engine/harness/cli.cjs status --html --open",
+    "explain": "node engine/harness/cli.cjs explain",
+    "launch": "node engine/setup/launch.cjs",
     "sync": "node engine/sync/sync.cjs",
     "sync:check": "node engine/sync/sync.cjs --check",
     "distill": "node engine/distill/distill.cjs",
-    "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs && node engine/tests/reg-hook-protocol.cjs && node engine/tests/reg-hook-install.cjs",
-    "test:py": "python -m pytest tests/ -q",
-    "lint": "ruff check .",
+    "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs && node engine/tests/reg-hook-protocol.cjs && node engine/tests/reg-hook-install.cjs && node engine/tests/reg-harness.cjs",
     "docs:targets": "node engine/docs/targets-doc.cjs",
-    "docs:orchestration": "python -m agent.orchestration.docs",
-    "docs:check": "node engine/docs/targets-doc.cjs --check && python -m agent.orchestration.docs --check",
+    "docs:check": "node engine/docs/targets-doc.cjs --check",
     "merge": "node engine/ingest/merge.cjs",
     "merge:global": "node engine/ingest/merge.cjs --global",
     "dashboard": "node tools/dashboard/dashboard.cjs --open",
@@ -32,10 +37,7 @@
     "dashclaw:setup": "node engine/hooks/dashclaw-setup.cjs",
     "dashclaw:status": "node engine/hooks/dashclaw-setup.cjs --status",
     "recall": "node tools/recall/recall.cjs",
-    "parity": "node tools/sync/parity.cjs --open",
-    "agent": "python -m agent.tui",
-    "agent:legacy": "python -m agent.cli",
-    "agent:lmstudio": "python -m agent.tui --url http://localhost:1234/v1"
+    "parity": "node tools/sync/parity.cjs --open"
   },
   "keywords": ["ai", "harness", "agent", "agnostic", "claude", "gemini", "codex", "hermes", "openclaw"],
   "author": "Wes Sander",

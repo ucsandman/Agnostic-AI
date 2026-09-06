@@ -3,48 +3,40 @@
 Durable architecture and product decisions, newest first. One entry per
 decision: what, why, what it rules out.
 
-## 2026-09-02 — Agnostic owns one capability graph for every agent strategy
+## 2026-09-06 — The client you use is the source of truth; the port is the only writer of every other client
 
-Hierarchy, direct delegation, advisor consultation, and swarm execution share
-one bounded orchestration runtime. Roles define model targets, child/advisor
-edges, tools, and workspace access; provider names do not define hierarchy.
-Every active agent gets an independent `LLMClient` and context, while every tool
-still crosses `ToolRegistry.execute` and the canonical safety hooks. Native
-Claude Code or Codex agent features may become transport optimizations, but
-they are not the source of truth because their recursion, permissions, and
-provider reach differ. A separate hierarchy engine, prompt-only permission
-rules, shared subscription sessions between siblings, and implicit workspace
-ownership are ruled out.
+A harness lives in the client the operator actually works in (Claude Code
+today, Codex CLI tomorrow). `capture` reads it into a client-neutral bundle;
+`apply` renders that bundle into every other installed client. Each generated
+file has exactly one writer: a header marks the port's own files, a marked
+region or per-key ownership marks its entries inside user-owned files, and
+everything else is preserved byte for byte. Two writers for one file (the old
+rules-only sync and a personal harness-sync script) ping-ponged the Codex
+agreement in September 2026; that shape is ruled out. Authoring rules inside
+this repo stays supported as a way to feed the primary client, never as a
+second writer of the targets.
 
-## 2026-08-20 — A tool the model cannot use successfully is removed, not kept
+## 2026-09-06 — Hooks are ported by reference, never by copy
 
-`ask_question` (no input channel), `generate_artifact` (a `write_file` with a
-worse path) and `manage_subagents` (`kill` unimplemented) were re-sent as JSON
-schemas on every completion and could never succeed. The rule: every tool in
-`ToolRegistry` must be able to return a real result in the default UI, or it
-goes. Half-built capabilities live behind a slash command or not at all — the
-model's tool list is not a roadmap. Same rule for modules: the MCP stub, the
-fake `TaskManager`, `planner.py` and the Python harvester were deleted rather
-than whitelisted.
+The same guard scripts run in every client. Where a client speaks another hook
+dialect (Cursor, Gemini CLI, Antigravity) the port wraps the call in
+`engine/hooks/shim.cjs`, which translates payload and decision. A second copy of
+a guard per client drifts within weeks (the hand-written Codex files of June
+2026 ran a three-month-old agreement); a shim is one file to fix.
 
-## 2026-08-20 — A turn can always be cancelled and history stays well-formed
+## 2026-09-06 — Every drop is explained, in data
 
-`AgentLoop.cancel_event` is the one cancellation primitive: checked between
-steps and before each dispatch, handed to `ToolRegistry` so `run_command` can
-kill its child. Whatever ends a turn early — Esc, an exception, Ctrl+C — every
-pending `tool_call` gets a synthetic result (`[cancelled by user]` /
-`[aborted]`) before the lock is released, because an OpenAI-style backend
-rejects a transcript with an unanswered tool call forever after. New
-background work in the loop must honour the event and must not append an
-assistant tool-call message it cannot answer.
+What is not ported is policy, not code: `core/port.json` lists each excluded
+hook, skill and MCP server with a reason, and every run prints what it dropped.
+A silent omission is indistinguishable from a bug; a hardcoded exclusion list is
+one machine's opinion shipped as everyone's.
 
-## 2026-08-20 — Compact prompt mode shortens the rules; it never replaces them
+## 2026-09-06 — The coding agent is a separate product
 
-Small-context local models get the compiled `global-rules.md` clipped at a
-line boundary (~4 KB) under the harness badge, followed by the workspace's own
-`AGENTS.md`/`CLAUDE.md` if it fits. A hand-written summary beside the real
-rules drifted silently and made the repo's headline claim false by default;
-that shape is ruled out.
+The Python terminal agent moved to its own repository (agnostic-agent) with its
+history. One repo carried two products with one README, one CI matrix and two
+toolchains; a harness porter that needs `pip install` to run its tests is
+harder to adopt than one that needs Node alone.
 
 ## 2026-08-20 — Default ports are a starting guess, never an assumption
 
@@ -88,43 +80,9 @@ reimplementing it.
 client table in the old README drifted within days; anything that is a
 projection of config gets generated.
 
-## 2026-08-20 — `pyproject.toml` is the Python source of truth
-
-`setup.py` removed. Dependencies live in `pyproject.toml` (`requirements.txt`
-is a one-line `-e .` shim so `pip install -r` still works), dev tools in the
-`dev` extra,
-ruff and pytest config alongside. The npm package is `private`; it exists for
-scripts only and is never published.
-
 ## 2026-08-20 — Generated runtime state is not tracked
 
 `storage/` holds only `.gitkeep`. Manifests, prune reports and tombstones are
 rebuilt by the engines on each machine; tracking them made a clean clone
 describe files that did not exist there.
 
-## 2026-08-20 - MCP is back, as a real client, not a stub
-
-The old MCP stub was deleted under the "no half-built capabilities" rule. It
-returns as a working zero-dependency stdio JSON-RPC client (agent/tools/mcp.py):
-servers from .agnostic/mcp.json / .mcp.json / ~/.agnostic/mcp.json register as
-mcp__<server>__<tool> and run through the governed registry.execute path, so
-guard, audit and hard-stop confirms apply to remote tools exactly as to local
-ones. http/sse transports are deliberately unsupported (stdio only) - the rule
-stands: a listed tool must be able to return a real result.
-
-## 2026-08-20 - Costs are never invented
-
-agent/llm/pricing.json ships with null prices and a fill-me-in note.
-UsageLog reports cost as unknown rather than estimating from made-up numbers;
-subscription and local calls are 0.0 by definition. Latency (p50/p95) comes
-from the local .agnostic/usage.jsonl journal only.
-
-## 2026-08-31 - Startup default is availability-ranked, never assumed local
-
-With --url/--model untouched, startup picks: the persisted last /model choice
-(home-level ~/.agnostic/settings.json - global preference, distinct from the
-workspace .agnostic/settings.json state file), else subscription CLIs ranked by
-how well each cooperates with the bridge (claude: json envelope + resume;
-codex: resume; agy: one-shot re-flatten), else the first API-key preset with
-its env var set, else local. Local is the explicit fallback because a dead
-localhost:1234 probe was the worst first-run experience the harness had.

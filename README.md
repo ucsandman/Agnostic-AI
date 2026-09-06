@@ -1,173 +1,179 @@
 # Agnostic AI
 
-[![CI](https://github.com/ucsandman/agnostic-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/ucsandman/agnostic-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/ucsandman/Agnostic-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/ucsandman/Agnostic-AI/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 [![Node 18+](https://img.shields.io/badge/node-18%2B-green.svg)](package.json)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
+[![Clients](https://img.shields.io/badge/clients-20-blue.svg)](docs/targets.md)
 
-One rules file for every AI coding tool you use, plus a terminal coding agent
-that runs against local or hosted models under the same safety policy.
+**Your AI coding harness, ported to every client you use.**
 
-- **Harness.** Write your working agreement once in
-  `core/rules/global-rules.md`. `npm run sync` compiles it into the rules file
-  of 16 clients (Claude Code, Cursor, Windsurf, Copilot, Cline, Aider,
-  OpenHands, Goose, Continue, Zed, Trae, Amazon Q, Cody,
-  OpenClaw, Hermes, generic system prompt), links your skills directory into
-  the 12 that have one, and registers the same guard hook in the 8 that
-  support hooks. Corrections and errors from those sessions are harvested back into
-  candidate rules, which you approve from a local dashboard.
-- **Agent.** `agnostic` is a Textual TUI coding agent with file / shell /
-  search tools, subagents, an AST symbol index, checkpoints, a test-and-fix
-  loop and an arrow-key `/model` picker covering LM Studio and Ollama, hosted
-  Gemini / Claude / GPT / DeepSeek presets, and logged-in `claude` / `codex` /
-  `agy` CLIs with no API key (with per-subscription model pinning and session
-  continuity). It has persistent auto-memory, MCP tool servers (`.mcp.json`),
-  per-model cost/latency tracking, a multi-line composer, double-Esc rewind,
-  a `/diff` turn browser, `!cmd` shell escape and a headless `agnostic -p`
-  mode for scripting it as a subagent. Adaptive orchestration adds bounded
-  recursive delegation, direct cross-level delegation, parallel specialists,
-  and focused stronger-model advisors through the same provider abstraction.
-- **Policy.** `core/safety/guards.json` is read by the Python guard, the Node
-  hooks and the dashboard. Secret paths are always blocked; hard-stop commands
-  need a human unless you opt in; a missing or unreachable policy fails closed.
+You spent months tuning Claude Code: a working agreement in `CLAUDE.md`, guard
+hooks that block secrets and destructive commands, skills, custom subagents,
+slash commands, MCP servers. Then you open Codex, or Cursor, or Gemini CLI, and
+none of it is there. Agnostic AI captures that harness once and applies it,
+identically, to every other client on the machine. Switch models and tools
+without switching how the agent behaves.
 
-Developed on Windows 11; CI runs on Ubuntu with Python 3.9 and 3.12 and
-Node 20.
-
-## Quick start
-
-Requirements: Python 3.9+, Node 18+. There are no npm dependencies.
-
-```bash
-git clone https://github.com/ucsandman/agnostic-harness.git
-cd agnostic-harness
-pip install -e .
-
-# Edit your rules, then compile them to every client
-#   core/rules/global-rules.md
-npm run sync:check     # what would change (exit 1 if stale)
-npm run sync           # write, with a backup of every file it overwrites
-
-# Start the coding agent (auto-picks your last /model choice, else the best
-# installed subscription CLI, else an API-key preset, else local LM Studio)
-agnostic
-agnostic --url http://localhost:11434/v1 --model qwen2.5-coder   # Ollama
-agnostic -p "explain #CodebaseIndexer in @agent/tools/indexer.py"  # one shot
-
-# Open the command center
-npm run dashboard      # http://127.0.0.1:7842
+```sh
+git clone https://github.com/ucsandman/Agnostic-AI.git && cd Agnostic-AI
+npm run port
 ```
 
-`python launch.py` runs first-run setup (harvest, skill consolidation, sync),
-checks parity, checks DashClaw, runs the engine self-tests and then opens the
-dashboard. It is not interactive.
+That is the whole install. No npm dependencies, no Python, nothing phones
+home. Node 18 or newer.
 
-## The agent in two minutes
+## What gets ported
+
+| Component | From (Claude Code) | To Codex CLI | To Gemini CLI | To Cursor | To 16 others |
+|---|---|---|---|---|---|
+| Rules (`CLAUDE.md`, imports inlined) | ✓ | `AGENTS.md` | `GEMINI.md` | `rules/*.mdc` | each client's rules file |
+| Identity (`SOUL.md`) | ✓ | inlined | inlined | inlined | inlined or traits file |
+| Hooks (`settings.json`) | ✓ | `config.toml`, pre-trusted | `settings.json` via shim | `hooks.json` via shim | where the client has hooks |
+| Skills (`skills/*/SKILL.md`) | ✓ | linked | linked | linked | linked |
+| Subagents (`agents/*.md`) | ✓ | `agents/*.toml`, model ladder mapped | – | `agents/*.md` | where supported |
+| Slash commands (`commands/*.md`) | ✓ | `prompts/*.md` | `commands/*.toml` | `commands/*.md` | where supported |
+| MCP servers (`.claude.json`) | ✓ | `[mcp_servers]` | `mcpServers` | `mcp.json` | where supported |
+| Permissions | ✓ | `rules/*.rules` | – | – | – |
+
+Codex CLI works as the source too: the same eight components are read back
+from `~/.codex` and written into Claude Code and the rest. The live matrix for
+your machine is `npm run status`; the generated per-client table is
+[docs/targets.md](docs/targets.md).
+
+Supported clients: Claude Code, Codex CLI, Gemini CLI, Antigravity CLI,
+Cursor, Windsurf, GitHub Copilot, Cline, Aider, OpenHands, Goose, Continue,
+Zed, OpenCode, Trae, Amazon Q, Sourcegraph Cody, OpenClaw, Hermes, and a
+generic system prompt for any local or API model.
+
+## How it works
 
 ```
-agnostic > /model                      # pick endpoint, preset and effort
-agnostic > @agent/loop.py how does tool dispatch work?
-agnostic > /plan add a --dry-run flag to sync
-agnostic > /test                       # detect runner, loop fixes until green
-agnostic > /review                     # reviewer subagent over the diff
-agnostic > /org on                     # enable adaptive hierarchy + advisors
-agnostic > /org tree                   # inspect delegation and advisor edges
-agnostic > /commit
+capture  ~/.claude  ──▶  harness/  ──▶  apply  ~/.codex  ~/.gemini  ~/.cursor  ...
+         (the client        (client-neutral        (each client's own dialect,
+          you use)           bundle)                same guard scripts, same skills)
 ```
 
-- `@path` injects a file, `#symbol` injects one function or class from the
-  AST index. Tab completes both against the workspace index, in either shell.
-- Read-only tools (`read_file`, `grep_search`, `find_files`, `get_outline`,
-  `find_symbol`) run in parallel when the model asks for several at once.
-  `read_file` and `get_outline` truncate past 120 lines to head and tail (an
-  explicit line range is never truncated); `grep_search` and `find_files` stop
-  at 40 and 50 results and say so.
-- `/trust reads|tests|all` sets the session tier. Only `all` lets hard-stop
-  commands run without a prompt; start with `--ask-permissions` to be asked
-  instead of denied. Secret paths are blocked in every tier.
-- `/undo`, `/checkpoint`, `/session`, `/compact`, `/swarm`, `/diagram`,
-  `/pr`, `/learn` and the rest are in
-  [docs/slash-commands.md](docs/slash-commands.md).
-- `/org` enables and inspects adaptive orchestration. Roles are capability
-  profiles, not hard-coded model ranks; see
-  [docs/orchestration.md](docs/orchestration.md) for hierarchy, advisor,
-  mixed-provider, permission, cancellation, and workspace behavior.
-- `agnostic --web` (or `/web`) starts a browser companion on 7843 (next free
-  port if taken) with live telemetry, diffs and a context meter.
-- Prefer a classic readline shell? `agnostic-legacy` runs the same loop with
-  prompt_toolkit.
+1. **Capture** reads the client you use into a client-neutral bundle:
+   markdown rules with every `@import` inlined, hooks in one canonical dialect,
+   the list of skills, agents, commands, MCP servers and permissions. A
+   credential never enters the bundle: an env value that looks like a token is
+   replaced with `${NAME}` and you are told which variable to export.
+2. **Apply** renders the bundle into every other installed client, in that
+   client's dialect. Hooks are not copied; each client is pointed at the same
+   scripts, wrapped in a [shim](docs/porting.md#hooks-one-dialect-one-shim)
+   where the client speaks another payload format. Codex gets its hook trust
+   hashes pre-computed so nothing asks for a `/hooks` review. Skills are
+   linked, not copied, so an edit is live everywhere at once.
+3. **Nothing is destroyed.** Generated files carry a header that marks them
+   as the port's; user-owned files (`config.toml`, `settings.json`, `mcp.json`)
+   get a marked region or per-key ownership and are otherwise preserved byte
+   for byte. Every overwrite is backed up first. `--check` exits 1 on drift.
+4. **Every drop is explained.** A hook that only makes sense in one client, a
+   skill that needs a tool only one client has, an MCP server bound to one
+   OAuth grant: each is listed by `npm run explain` with its reason, and the
+   list lives in `core/port.json` where you can change it.
 
-## The harness in two minutes
+Details, dialect tables and the not-ported list: [docs/porting.md](docs/porting.md).
+
+## Commands
 
 | Command | What |
 |---|---|
-| `npm run sync` / `sync:check` | Compile rules + traits + policy into every client listed in `core/templates/targets.json`. Drifted (hand-edited) targets are backed up and skipped unless `--force`. |
-| `npm run merge` / `merge:global` | Pull lessons from project `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` files back into the rules. |
-| `npm run harvest` | Collect errors and corrections from local agent logs into `storage/candidates.jsonl`. |
-| `npm run distill` | Run the promotion ladder (observation → fact → rule) and the pruner; write a digest and proposal. Rules are only written into the SSOT when you approve them. |
-| `npm run dashboard` | Command center on 7842: candidates, rules, skills matrix, per-project recommendations, routines, governance settings, guard simulator. |
-| `npm run skills:consolidate` / `skills:recommend` | Gather skills from every client into one catalog; score them per project. |
-| `npm run parity` / `recall` | Per-target sync status (7845), rule and memory search (7844). |
-| `npm run setup:default` | First-run onboarding (what `launch.py` calls). |
-| `npm run dashclaw:setup` / `dashclaw:status` | Optional governed autonomy via [DashClaw](https://github.com/ucsandman/DashClaw). |
+| `npm run port` | Capture the source client and apply to every other installed client. The everyday command. |
+| `npm run port:check` | Same, writes nothing; exit 1 if anything drifted. Put it in a nightly job. |
+| `npm run status` / `npm run status:open` | Per-client, per-component matrix, in the terminal or as a page. |
+| `npm run explain` | Everything that was not ported, with reasons. |
+| `npm run parity` | The status page as a local server with a "Port now" button (`127.0.0.1` only). |
+| `npm run capture` / `npm run apply` | The two halves separately. |
+| `npm run setup:default` | First-run onboarding: harvest past lessons, consolidate skills, port, install the shipped guards into your primary client. |
+| `npm run launch` | Setup check, port check, engine tests, then the command center. |
 
-All local UIs bind `127.0.0.1`. Mutating routes need a per-process token and a
-loopback origin, so a page in another tab cannot trigger a sync or approve a
-rule.
+Flags: `--from claude|codex`, `--to codex,gemini`, `--check`, `--dry-run`,
+`--force`, `--home <dir>`, `--json`. Full list:
+[docs/configuration.md](docs/configuration.md).
 
-Full client table (rules file, hook config, skills dir per client), generated
-from `targets.json`: [docs/targets.md](docs/targets.md).
+## Also in the box
+
+- **Safety policy.** `core/safety/guards.json` is one file read by the
+  shipped guards (`secret-guard`, `dashclaw-guard`) and the dashboard
+  simulator. Secret paths are always blocked; hard-stop commands need a human;
+  a missing or unreachable policy fails closed. `npm run setup:default`
+  installs the guards into your primary client, and the port carries them
+  everywhere else.
+- **A learning loop.** `npm run harvest` collects errors and corrections from
+  local agent logs into candidate rules; `npm run distill` runs a promotion
+  ladder (observation, fact, rule) and writes a proposal; you approve from the
+  dashboard and the rule lands in your working agreement.
+- **Authoring mode.** Prefer to keep the working agreement in this repo?
+  Write `core/rules/global-rules.md`, run `npm run sync` to compile it into
+  your primary client, then `npm run port`.
+- **Human surfaces.** `npm run dashboard` (command center: candidates, rules,
+  skills matrix, project recommendations, DashClaw settings, guard simulator),
+  `npm run recall` (search rules and memory), `npm run parity` (port status).
+  All bind `127.0.0.1`; mutating routes need a per-process token and a loopback
+  origin.
+- **Governed autonomy (optional).** Point `DASHCLAW_BASE_URL` at a
+  [DashClaw](https://github.com/ucsandman/DashClaw) instance and risky calls
+  are held for remote approval.
 
 ## Documentation
 
 | | |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | How sync, hooks, harvest, distill and the agent loop fit together; storage layout. |
-| [docs/configuration.md](docs/configuration.md) | Files you edit, every env var, CLI flags, trust tiers, DashClaw, scheduled jobs, uninstall. |
-| [docs/slash-commands.md](docs/slash-commands.md) | Every slash command, and whether the TUI or legacy shell handles it. |
-| [docs/orchestration.md](docs/orchestration.md) | Adaptive role graph, hierarchy/advisor/swarm semantics, limits, mixed-provider configuration, and lifecycle. |
-| [docs/targets.md](docs/targets.md) | The 16 supported sync targets. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, test commands, where things live, rules for a change. |
+| [docs/porting.md](docs/porting.md) | What each component is, how it maps per client, the hook shim, what is deliberately not ported, ownership and secrets. |
+| [docs/targets.md](docs/targets.md) | The generated per-client table: home, rules file, hook config, skills, agents, commands, MCP. |
+| [docs/architecture.md](docs/architecture.md) | How capture, apply, the shim, harvest and distill fit together; storage layout. |
+| [docs/configuration.md](docs/configuration.md) | `core/port.json`, every command and flag, env vars, scheduled jobs, uninstall. |
+| [engine/harness/README.md](engine/harness/README.md) | The adapter contract: add a client in one file. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, tests, where things live, rules for a change. |
 | [SECURITY.md](SECURITY.md) | Scope, reporting, what the guard is not. |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes. |
 
 ## Repository layout
 
 ```
-agent/          Python coding agent: tui.py (default), cli.py (legacy), loop.py,
-                llm/ (client, presets, endpoint detector), tools/ (registry, indexer,
-                subagents), orchestration/ (roles, routing, graph, execution, workspaces),
-                governance/ (guard, audit, undo, context, sessions),
-                workflows/ (swarm, tester, pr_pilot, diagram, scheduler), web/
-core/           Single source of truth: rules/, traits/, safety/guards.json,
-                templates/targets.json, examples/
-engine/         Zero-dependency Node: sync/, hooks/, harvest/, distill/, ingest/,
-                skills/, audit/, setup/, docs/, tests/
-tools/          Local web UIs: dashboard/, recall/, sync/ (parity)
-jobs/           PowerShell wrappers for scheduled sync and nightly distill
-tests/          pytest suite for the agent
-storage/        Runtime state (gitignored except .gitkeep); backups of every synced file
-launch.py       First-run + dashboard launcher
+engine/harness/   capture.cjs, apply.cjs, status.cjs, cli.cjs, bundle.cjs, toml.cjs, common.cjs
+                  sources/ (claude, codex)   targets/ (codex, claude, gemini, agy, cursor, generic)
+engine/hooks/     shim.cjs (dialect translation), universal-adapter.cjs, secret-guard, dashclaw-guard,
+                  fable-delegate-guard, capability-graph-guard, correction-tracker
+engine/           sync/ (authoring mode), harvest/, distill/, ingest/, skills/, audit/, setup/, docs/, tests/
+core/             port.json (policy), templates/targets.json (registry), safety/guards.json,
+                  rules/ + traits/ (authoring mode), examples/
+tools/            Local web UIs: sync/ (port status), dashboard/, recall/
+harness/          Your captured bundle (gitignored; holds machine paths, never secrets)
+storage/          Runtime state (gitignored): ownership, reports, backups of every overwritten file
+jobs/             PowerShell wrappers for a scheduled port and the nightly distill
 ```
 
 ## Development
 
-```bash
-pip install -e ".[dev]"
-ruff check .
-python -m pytest tests/ -q
-npm test                 # engine + sync + hook regression suites
-npm run docs:check
+```sh
+npm test               # engine suite + sync, hook, wire-protocol and port regressions
+npm run docs:check     # generated docs are current
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Every test builds a throwaway home directory; nothing in the suite touches
+yours. CI runs on Ubuntu (Node 18 and 22) and Windows (Node 22). See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Using this repository as a template
 
-Click **Use this template** on GitHub, clone your copy, replace
-`core/rules/global-rules.md` and `core/traits/traits.md` with your own
-working agreement, and run `npm run sync`. Set `AGNOSTIC_PROJECTS_DIR` if
-your projects do not live in `C:\Projects` / `~/Projects`.
+Click **Use this template** on GitHub, clone your copy, run `npm run port`.
+Edit `core/port.json` to change the source client, restrict the targets, or
+exclude a hook, skill or MCP server with a reason. To version your harness,
+remove the `harness/` line from `.gitignore`; the bundle is plain markdown and
+JSON and the save refuses anything that looks like a secret.
+
+## Related
+
+- [agnostic-agent](https://github.com/ucsandman/agnostic-agent): the terminal
+  coding agent that used to live in this repo. Local or hosted models,
+  subagents, the same safety policy.
+- [DashClaw](https://github.com/ucsandman/DashClaw): remote approvals and
+  execution evidence for unattended agents.
+- [agent-capsule](https://github.com/ucsandman/agent-capsule): move a whole
+  Claude Code harness onto a fresh Linux box.
 
 ## License
 

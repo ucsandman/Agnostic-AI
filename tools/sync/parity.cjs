@@ -1,29 +1,35 @@
 #!/usr/bin/env node
 /**
- * tools/sync/parity.cjs — Agnostic Harness Parity Monitor.
+ * tools/sync/parity.cjs — the human surface of the harness port.
  *
- * Inspects all configured targets and checks their sync status against SSOT.
+ * Serves the component matrix produced by engine/harness/status.cjs: for every
+ * installed client, whether its rules, hooks, skills, agents, commands, MCP
+ * servers and permissions match the captured source harness, plus everything
+ * that could not be ported and why. Two buttons: check, and port now.
  *
  * Usage:
- *   node tools/sync/parity.cjs           # Print terminal status
- *   node tools/sync/parity.cjs --open    # Serve and open interactive web dashboard
+ *   node tools/sync/parity.cjs           # print the matrix in the terminal
+ *   node tools/sync/parity.cjs --open    # serve the page and open a browser
+ *   node tools/sync/parity.cjs --serve   # serve only
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 const { exec } = require('child_process');
-const { compileTarget, loadSource, expandPath } = require('../../engine/sync/sync.cjs');
 
-const ROOT = path.resolve(__dirname, '..', '..');
-const TARGETS_CONFIG = path.join(ROOT, 'core', 'templates', 'targets.json');
+const { capture, loadRegistry, loadPort } = require('../../engine/harness/capture.cjs');
+const { apply, selectTargets, formatTable } = require('../../engine/harness/apply.cjs');
+const { status: harnessStatus, formatDropped, NO_BUNDLE } = require('../../engine/harness/status.cjs');
+
 const HTML_FILE = path.join(__dirname, 'parity.html');
 
 const OPEN_FLAG = process.argv.includes('--open');
-const PORT = process.env.PARITY_PORT || 7845;
+let PORT = parseInt(process.env.PARITY_PORT || '7845', 10);
 
-// POST /api/sync rewrites 18 config files under the home directory. Loopback
+// POST /api/port rewrites config files under the home directory. Loopback
 // binding alone does not stop a page on any site from triggering it, so it
 // needs the per-process token this server injects into parity.html.
 const SESSION_TOKEN = crypto.randomBytes(24).toString('hex');
@@ -46,76 +52,78 @@ function authorized(req) {
   return true;
 }
 
-function getParityStatus() {
-  const source = loadSource();
-  const rawConfig = JSON.parse(fs.readFileSync(TARGETS_CONFIG, 'utf8'));
-  const targets = rawConfig.targets || [];
+/** A target is "in parity" when every component the adapter supports is synced. */
+function targetInSync(target) {
+  if (target.status === 'source') return true;
+  const supported = Object.values(target.components || {}).filter((r) => r.status !== 'unsupported');
+  return supported.length > 0 && supported.every((r) => r.status === 'synced');
+}
 
-  const results = targets.map(target => {
-    const targetPath = expandPath(target.rulesFile);
-    let inSync = false;
-    let exists = false;
-    let lastModified = null;
+function summarise(report) {
+  const targets = Object.values(report.targets || {});
+  const inSyncCount = targets.filter(targetInSync).length;
+  return {
+    total: targets.length,
+    inSyncCount,
+    staleCount: targets.length - inSyncCount,
+    allInSync: targets.length > 0 && inSyncCount === targets.length,
+  };
+}
 
-    if (fs.existsSync(targetPath)) {
-      exists = true;
-      const existing = fs.readFileSync(targetPath, 'utf8');
-      const compiled = compileTarget(target, source);
-      inSync = existing === compiled;
-      try {
-        lastModified = fs.statSync(targetPath).mtime.toISOString();
-      } catch (_) {}
-    }
-
-    // A target with its own traits file is only in sync when that file matches
-    // core/traits/traits.md too — otherwise editing traits reads as "IN SYNC".
-    if (inSync && target.traitsFile && source.traits) {
-      const traitsPath = expandPath(target.traitsFile);
-      inSync = fs.existsSync(traitsPath) && fs.readFileSync(traitsPath, 'utf8') === source.traits;
-    }
-
-    let skillsLinked = false;
-    if (target.skillsDir) {
-      const sPath = expandPath(target.skillsDir);
-      // Honest check: only a managed symlink/junction counts as linked. A plain
-      // real directory is the target's own skills folder, NOT our synced catalog.
-      try {
-        skillsLinked = fs.lstatSync(sPath).isSymbolicLink();
-      } catch (_) {
-        skillsLinked = false;
-      }
-    }
-
-    return {
-      id: target.id,
-      name: target.name,
-      category: target.category || 'Agent',
-      path: targetPath,
-      skillsDir: target.skillsDir ? expandPath(target.skillsDir) : null,
-      skillsLinked,
-      hooksConfigFile: target.hooksConfigFile ? expandPath(target.hooksConfigFile) : null,
-      exists,
-      inSync,
-      dialect: target.dialect,
-      lastModified
-    };
-  });
-
-  let dashclawConfig = null;
+function dashclaw() {
   try {
     const { getStoredDashClawConfig } = require('../../engine/hooks/dashclaw-setup.cjs');
-    dashclawConfig = getStoredDashClawConfig();
-  } catch (_) {}
+    return getStoredDashClawConfig() || { configured: false };
+  } catch (_) {
+    return { configured: false };
+  }
+}
 
-  return {
-    timestamp: new Date().toISOString(),
-    targets: results,
-    total: results.length,
-    inSyncCount: results.filter(r => r.inSync).length,
-    staleCount: results.filter(r => !r.inSync).length,
-    allInSync: results.every(r => r.inSync),
-    dashclaw: dashclawConfig || { configured: false }
-  };
+/**
+ * The live report: an apply run in check mode, so nothing is written to any
+ * client. Also the shape tools/dashboard/dashboard.cjs reads
+ * ({ total, inSyncCount, staleCount, allInSync }).
+ */
+function getParityStatus() {
+  const result = harnessStatus({ quiet: true });
+  if (!result.report) {
+    // Nothing captured yet: every selected client is out of parity, and we say
+    // how many that is rather than reporting a meaningless zero.
+    const selected = selectTargets(loadRegistry(os.homedir()), { port: loadPort() });
+    return {
+      timestamp: new Date().toISOString(),
+      message: NO_BUNDLE,
+      report: null,
+      targets: [],
+      total: selected.length,
+      inSyncCount: 0,
+      staleCount: selected.length,
+      allInSync: false,
+      dashclaw: dashclaw(),
+    };
+  }
+  const report = result.report;
+  return Object.assign({
+    timestamp: report.appliedAt,
+    message: null,
+    report,
+    targets: Object.values(report.targets),
+    dashclaw: dashclaw(),
+  }, summarise(report));
+}
+
+/** The "Port now" button: capture the source client, then write every target. */
+function runPort() {
+  const { bundle, warnings } = capture({});
+  const report = apply({ bundle, quiet: true });
+  return Object.assign({
+    timestamp: report.appliedAt,
+    message: null,
+    report,
+    warnings,
+    targets: Object.values(report.targets),
+    dashclaw: dashclaw(),
+  }, summarise(report));
 }
 
 // parity.html and SESSION_TOKEN are both fixed for the life of the process:
@@ -131,33 +139,36 @@ function renderPage() {
   return cachedPage;
 }
 
-function serve() {
+function serve({ port = PORT, open = OPEN_FLAG } = {}) {
+  const json = (res, code, body) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(body));
+  };
+
   const server = http.createServer((req, res) => {
-    if (req.url === '/api/status') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(getParityStatus()));
-    }
+    const url = (req.url || '').split('?')[0];
 
-    if (req.url === '/api/sync' && req.method === 'POST') {
-      if (!authorized(req)) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Forbidden' }));
-      }
+    if (url === '/api/status') {
       try {
-        const { run } = require('../../engine/sync/sync.cjs');
-        // Explicit: the button means "write the targets", never --check/--force.
-        const syncResult = run({ check: false, force: false });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: true, result: syncResult }));
+        return json(res, 200, getParityStatus());
       } catch (err) {
-        // A half-written target must surface as a failed sync, not a dead server.
-        console.error('[Parity] Sync failed:', err);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, error: err.message }));
+        console.error('[Parity] status failed:', err.message);
+        return json(res, 500, { error: err.message });
       }
     }
 
-    if (req.url === '/' || req.url === '/index.html') {
+    if (url === '/api/port' && req.method === 'POST') {
+      if (!authorized(req)) return json(res, 403, { error: 'Forbidden' });
+      try {
+        return json(res, 200, Object.assign({ success: true }, runPort()));
+      } catch (err) {
+        // A half-written target must surface as a failed port, not a dead server.
+        console.error('[Parity] port failed:', err.message);
+        return json(res, 500, { success: false, error: err.message });
+      }
+    }
+
+    if (url === '/' || url === '/index.html') {
       const page = renderPage();
       if (page !== null) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -169,26 +180,48 @@ function serve() {
     res.end('Not Found');
   });
 
-  server.listen(PORT, '127.0.0.1', () => {
-    const url = `http://127.0.0.1:${PORT}`;
-    console.log(`[Parity] Dashboard live at ${url}`);
-    if (OPEN_FLAG) {
-      const openCmd = process.platform === 'win32' ? `start ${url}` : `open ${url}`;
-      exec(openCmd);
+  // Another app on 7845 must not stop the monitor from coming up; walk the port
+  // up and print the URL we actually got. (The dashboard does the same.)
+  const firstPort = port;
+  let current = port;
+  server.on('error', (err) => {
+    if (err.code !== 'EADDRINUSE') {
+      console.error('[Parity] server error:', err.message);
+      process.exit(1);
     }
+    if (current - firstPort >= 10) {
+      console.error(`[Parity] ports ${firstPort}-${current} are all taken by other apps.`);
+      process.exit(1);
+    }
+    console.log(`[Parity] port ${current} belongs to another app; trying ${current + 1}.`);
+    current += 1;
+    server.listen(current, '127.0.0.1');
   });
+
+  server.listen(current, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${server.address().port}`;
+    console.log(`[Parity] Harness port monitor live at ${url}`);
+    if (open) exec(process.platform === 'win32' ? `start ${url}` : `open ${url}`);
+  });
+
+  return server;
 }
 
 if (require.main === module) {
   if (OPEN_FLAG || process.argv.includes('--serve')) {
     serve();
   } else {
-    const status = getParityStatus();
-    console.log('[Agnostic Parity Status]');
-    for (const t of status.targets) {
-      console.log(`  ${t.inSync ? '✓' : '✗'} ${t.name.padEnd(25)} [${t.inSync ? 'IN SYNC' : 'STALE'}] -> ${t.path}`);
+    const result = getParityStatus();
+    if (!result.report) {
+      console.log(`[Agnostic Parity] ${result.message} (${result.total} clients waiting)`);
+      process.exitCode = 1;
+    } else {
+      console.log(formatTable(result.report));
+      console.log('');
+      console.log(formatDropped(result.report));
+      console.log(`\n${result.inSyncCount} of ${result.total} clients in full parity with ${result.report.source}.`);
     }
   }
 }
 
-module.exports = { getParityStatus, authorized, SESSION_TOKEN };
+module.exports = { getParityStatus, runPort, summarise, targetInSync, authorized, serve, SESSION_TOKEN };

@@ -1,0 +1,242 @@
+{
+  "_note": "Port policy: which client is the source of truth, which clients receive it, and what is deliberately not carried over. Every exclusion needs a reason; the CLI prints them. Edit this file, never the generated targets.",
+  "source": "auto",
+  "targets": "installed",
+  "rules": {
+    "dropSectionsForTargets": [
+      "Delegation and Model Routing"
+    ],
+    "addenda": {
+      "codex": "core/rules/addenda/codex.md"
+    }
+  },
+  "hooks": {
+    "exclude": [
+      {
+        "match": "capability-graph-guard",
+        "reason": "polices Claude Code's model ladder (Fable/Opus/Sonnet/Haiku)"
+      },
+      {
+        "match": "fable-delegate-guard",
+        "reason": "briefs a Fable main loop; other clients run other models"
+      },
+      {
+        "match": "agent-model-guard",
+        "reason": "caps Claude Code Fable spawns"
+      },
+      {
+        "match": "opus-handoff-inject",
+        "reason": "Opus-specific routing pack"
+      },
+      {
+        "match": "guard-canary",
+        "reason": "reads Claude Code's own guard state"
+      },
+      {
+        "match": "session-count",
+        "reason": "counts Claude Code transcripts"
+      },
+      {
+        "match": "output-secret-watch",
+        "reason": "needs the MessageDisplay event, which only Claude Code has"
+      },
+      {
+        "match": "skill-telemetry",
+        "reason": "reads the Claude Code transcript"
+      },
+      {
+        "match": "sync-main-checkout",
+        "reason": "housekeeping; one client runs the git sync"
+      },
+      {
+        "match": "context-nudge",
+        "reason": "reads the Claude Code statusline context percentage"
+      },
+      {
+        "match": "dashclaw_pretool|dashclaw_posttool|dashclaw_stop|enforcement_liveness_probe",
+        "reason": "DashClaw installs its own per-client handlers (dashclaw install <client>)"
+      },
+      {
+        "match": "repowise-rewrite|rtk hook claude",
+        "reason": "command rewriters need permissionDecision allow + updatedInput; Codex gets them through hooks.extra"
+      }
+    ],
+    "extra": {
+      "_note": "Target-only hooks appended after the ported ones, in that client's own dialect. A leading ~/ inside a command is expanded at apply time. Codex-only adapters below live in the Claude harness (~/.claude/hooks); DashClaw handlers come from `dashclaw install codex`.",
+      "codex": {
+        "PreToolUse": [
+          {
+            "matcher": "apply_patch",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/rm-guard.cjs\"",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "matcher": "Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/adapters/codex-rewrite.cjs\"",
+                "timeout": 8,
+                "statusMessage": "rtk rewrite..."
+              }
+            ]
+          },
+          {
+            "matcher": "Bash|apply_patch|spawn_agent|wait_agent",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/adapters/codex-delegate-guard.cjs\"",
+                "timeout": 10,
+                "statusMessage": "Delegate-first check..."
+              }
+            ]
+          },
+          {
+            "matcher": "Bash|Edit|Write|MultiEdit",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "python \"~/.codex/hooks/dashclaw/dashclaw_pretool.py\" --agent-id codex",
+                "timeout": 3600
+              }
+            ]
+          },
+          {
+            "matcher": "Bash|Edit|Write|MultiEdit|apply_patch|mcp__.*",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"C:/Projects/agnostic-ai/engine/hooks/dashclaw-guard.cjs\"",
+                "timeout": 60
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "matcher": "Bash|Edit|Write|MultiEdit",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "python \"~/.codex/hooks/dashclaw/dashclaw_posttool.py\" --agent-id codex"
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "python \"~/.codex/hooks/dashclaw/dashclaw_stop.py\" --agent-id codex"
+              }
+            ]
+          }
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/codex-memory-inject.cjs\"",
+                "timeout": 10,
+                "statusMessage": "Loading shared memory...",
+                "additionalContextLimit": 12000
+              }
+            ]
+          },
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/adapters/codex-delegate-guard.cjs\"",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "python \"~/.codex/hooks/dashclaw/enforcement_liveness_probe.py\" --source session-start --runtime codex --settings \"~/.codex/config.toml\""
+              }
+            ]
+          }
+        ],
+        "UserPromptSubmit": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"~/.claude/hooks/adapters/codex-delegate-guard.cjs\"",
+                "timeout": 10
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "skills": {
+    "exclude": {
+      "adversarial-review": "runs the Claude Code-only Workflow tool",
+      "show-me": "renders through the Claude Code-only Artifact tool",
+      "meditate": "operates on Claude Code's own meditation state",
+      "harness-health": "audits Claude Code's settings.json and plugins",
+      "team": "fans out to Claude Code + OpenClaw from a Claude session",
+      "fable-gpt": "orchestrates Codex from Claude; circular from inside Codex"
+    },
+    "codexDisable": [
+      [
+        "skills/.system/plugin-creator/SKILL.md",
+        "Codex plugin scaffolding, not a work skill"
+      ],
+      [
+        "skills/.system/skill-installer/SKILL.md",
+        "Codex skill installer; skills are ported from the source client"
+      ],
+      [
+        "skills/.system/review-agent/SKILL.md",
+        "Codex review agent; the harness has its own review path"
+      ],
+      [
+        "plugins/cache/openai-curated-remote/plugin-management/*/skills/plugin-management/SKILL.md",
+        "Codex plugin management, not a work skill"
+      ]
+    ]
+  },
+  "mcp": {
+    "exclude": {
+      "xapi": "X keeps one live OAuth grant per (client_id, user); a second client needs its own X app and consent, not a copied config",
+      "dashclaw-local": "each client gets its own DashClaw server entry from `dashclaw install <client>`"
+    }
+  },
+  "agents": {
+    "modelLadder": {
+      "codex": {
+        "fable": [
+          "gpt-6-astra",
+          "high"
+        ],
+        "opus": [
+          "gpt-5.6-sol",
+          "high"
+        ],
+        "sonnet": [
+          "gpt-5.6-terra",
+          "medium"
+        ],
+        "haiku": [
+          "gpt-5.6-luna",
+          "low"
+        ]
+      }
+    }
+  }
+}

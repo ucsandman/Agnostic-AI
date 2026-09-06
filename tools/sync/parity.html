@@ -1,362 +1,254 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agnostic AI — Multi-Harness Parity Monitor</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnostic AI — Harness Port Monitor</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --surface: #f6f8fa; --surface-2: #eaeef2; --border: #d0d7de;
+    --text: #1f2328; --muted: #656d76;
+    --ok: #1a7f37; --ok-bg: rgba(26,127,55,.12);
+    --bad: #cf222e; --bad-bg: rgba(207,34,46,.12);
+    --warn: #9a6700; --warn-bg: rgba(154,103,0,.12);
+    --accent: #0969da; --accent-fg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface-hover: #1f242c;
-      --border: #30363d;
-      --border-accent: #388bfd33;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #79b8ff;
-      --success: #3fb950;
-      --success-bg: rgba(63, 185, 80, 0.12);
-      --danger: #f85149;
-      --danger-bg: rgba(248, 81, 73, 0.12);
-      --badge-bg: #21262d;
+      --bg: #0d1117; --surface: #161b22; --surface-2: #21262d; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e;
+      --ok: #3fb950; --ok-bg: rgba(63,185,80,.14);
+      --bad: #f85149; --bad-bg: rgba(248,81,73,.14);
+      --warn: #d29922; --warn-bg: rgba(210,153,34,.14);
+      --accent: #58a6ff; --accent-fg: #0d1117;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      padding: 28px 24px;
-    }
-    .container { max-width: 1200px; margin: 0 auto; }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
-    .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
-    .btn-sync {
-      background: var(--accent);
-      color: #0d1117;
-      border: none;
-      padding: 9px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-    }
-    .btn-sync:hover { background: var(--accent-hover); }
-    .btn-sync:active { transform: scale(0.98); }
-    .btn-sync:disabled { opacity: 0.6; cursor: not-allowed; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px 24px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap;
+           border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; }
+  h1 { font-size: 22px; font-weight: 650; letter-spacing: -.3px; }
+  h2 { font-size: 15px; font-weight: 650; margin: 28px 0 10px; }
+  .lede { font-size: 14px; color: var(--muted); margin-top: 6px; max-width: 70ch; }
+  .actions { display: flex; gap: 10px; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 16px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  button:hover:not(:disabled) { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .stat-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-    }
-    .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .verdict { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px;
+             border: 1px solid var(--border); background: var(--surface); font-size: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .verdict.ok { border-color: var(--ok); background: var(--ok-bg); }
+  .verdict.bad { border-color: var(--bad); background: var(--bad-bg); }
+  .verdict strong { font-weight: 650; }
+  .verdict .sub { color: var(--muted); }
 
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 20px;
-      align-items: center;
-    }
-    .search-box {
-      flex: 1;
-      min-width: 250px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 9px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      outline: none;
-    }
-    .search-box:focus { border-color: var(--accent); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .card .name { font-weight: 650; font-size: 15px; }
+  .card .path, .card .meta { font-size: 12px; color: var(--muted); margin-top: 4px; word-break: break-all; }
+  .card .path { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .pill { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+          padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.muted { background: var(--surface-2); color: var(--muted); }
+  .pill.src { background: var(--surface-2); color: var(--accent); }
 
-    .category-filters {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .filter-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 6px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-    .filter-btn:hover, .filter-btn.active {
-      background: #21262d;
-      color: var(--text);
-      border-color: var(--accent);
-    }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 6px 8px; text-align: left; white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); font-weight: 600; }
+  td.c { text-align: center; font-size: 15px; cursor: help; }
+  tr:hover td { background: var(--surface); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .muted { color: var(--muted); } .src { color: var(--accent); }
 
-    .parity-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .parity-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: border-color 0.2s, background 0.2s;
-      gap: 16px;
-    }
-    .parity-card:hover {
-      background: var(--surface-hover);
-      border-color: var(--border-accent);
-    }
-    .target-info { flex: 1; min-width: 0; }
-    .target-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .target-title { font-size: 16px; font-weight: 600; color: var(--text); }
-    .target-category {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: var(--badge-bg);
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-    .target-path {
-      font-size: 12px;
-      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-      color: var(--text-muted);
-      margin-top: 6px;
-      word-break: break-all;
-    }
-    .target-meta {
-      display: flex;
-      gap: 12px;
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-    }
-    .tag {
-      background: var(--badge-bg);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-    }
-    .status-badge {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 5px 12px;
-      border-radius: 16px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-    }
-    .badge-sync { background: var(--success-bg); color: var(--success); }
-    .badge-stale { background: var(--danger-bg); color: var(--danger); }
-    .empty-state {
-      text-align: center;
-      padding: 48px;
-      color: var(--text-muted);
-      background: var(--surface);
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-    }
-  </style>
+  .legend, .foot { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  ul { margin-left: 20px; font-size: 13px; }
+  li { margin: 3px 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px;
+         background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+        overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+  .empty { padding: 32px; text-align: center; color: var(--muted); background: var(--surface);
+           border: 1px dashed var(--border); border-radius: 8px; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>Multi-Harness Parity Monitor</h1>
-        <div class="subtitle">Ensuring 100% rule, trait, and security guard parity across all 18 AI coding agents & runtimes</div>
-      </div>
-      <button class="btn-sync" id="sync-btn" onclick="triggerSync()">Sync All Targets</button>
-    </header>
-
-    <div class="dashclaw-banner" id="dashclaw-banner" style="background: rgba(56, 139, 253, 0.08); border: 1px solid rgba(56, 139, 253, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <span style="font-weight: 600; color: var(--accent);">Governed Autonomy (DashClaw):</span>
-        <span id="dashclaw-status-text" style="color: var(--text-muted);">Detecting instance...</span>
-      </div>
-      <span id="dashclaw-pill" class="tag" style="font-weight: 600;">LOCAL POLICY</span>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Harness port monitor</h1>
+      <p class="lede">The harness you actually use — rules, hooks, skills, subagents, commands, MCP servers, permissions — copied into every other AI coding client on this machine. Every cell below was read from that client's own files just now.</p>
     </div>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Runtimes</div>
-        <div class="stat-value" id="stat-total">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">In Parity</div>
-        <div class="stat-value" id="stat-sync" style="color: var(--success)">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Out of Sync</div>
-        <div class="stat-value" id="stat-stale" style="color: var(--danger)">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Skill Junctions Active</div>
-        <div class="stat-value" id="stat-skills" style="color: var(--accent)">0</div>
-      </div>
+    <div class="actions">
+      <button id="btn-check" onclick="check()">Check</button>
+      <button id="btn-port" class="primary" onclick="portNow()">Port now</button>
     </div>
+  </header>
 
-    <div class="toolbar">
-      <input type="text" id="search-input" class="search-box" placeholder="Filter by target name, path, dialect, or category...">
-      <div class="category-filters">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="CLI Agent">CLI Agents</button>
-        <button class="filter-btn" data-filter="Agentic IDE">IDEs</button>
-        <button class="filter-btn" data-filter="VS Code Extension">VS Code</button>
-        <button class="filter-btn" data-filter="Autonomous Agent">Autonomous</button>
-        <button class="filter-btn" data-filter="Enterprise Assistant">Enterprise</button>
-      </div>
-    </div>
+  <div class="verdict" id="verdict"><span class="sub">Reading every client...</span></div>
 
-    <div class="parity-grid" id="parity-list">
-      <div class="empty-state">Loading runtime targets...</div>
-    </div>
-  </div>
+  <div class="cards" id="cards"></div>
 
-  <script>
-    // Injected by parity.cjs when it serves this page; gates POST /api/sync.
-    const PARITY_TOKEN = '__PARITY_TOKEN__';
-    let rawData = null;
-    let currentCategory = 'all';
+  <h2>Component matrix</h2>
+  <div id="matrix"><div class="empty">Loading...</div></div>
+  <p class="legend">
+    <span class="ok">&#10003;</span> in sync &middot;
+    <span class="ok">&#9679;</span> just written &middot;
+    <span class="bad">&#10007;</span> out of date &middot;
+    <span class="warn">!</span> skipped, hand-edited &middot;
+    <span class="muted">&ndash;</span> this client has no such surface &middot;
+    <span class="bad">E</span> error &middot;
+    <span class="src">=</span> the source client (never written to).
+    Hover any cell for detail.
+  </p>
 
-    async function loadStatus() {
-      try {
-        const res = await fetch('/api/status');
-        rawData = await res.json();
-        render();
-      } catch (err) {
-        document.getElementById('parity-list').innerHTML = '<div class="empty-state" style="color: var(--danger)">Error loading parity status from server.</div>';
-      }
+  <h2 id="dropped-heading">What was not ported</h2>
+  <div id="dropped"></div>
+
+  <h2>Bundle</h2>
+  <p class="foot" id="bundle-line"></p>
+
+  <h2>Same thing from a terminal</h2>
+  <pre>npm run port         # capture the source client, write every target
+npm run port:check   # report only (exit 1 when something is out of date)
+npm run explain      # every dropped item and why
+npm run status       # this matrix in the terminal</pre>
+</div>
+
+<script>
+  // Injected by parity.cjs when it serves this page; gates POST /api/port.
+  const PARITY_TOKEN = '__PARITY_TOKEN__';
+  const COMPONENTS = ['rules', 'identity', 'hooks', 'skills', 'agents', 'commands', 'mcp', 'permissions'];
+  const CELL = { synced: '✓', written: '●', stale: '✗', skipped: '!', unsupported: '–', error: 'E', source: '=' };
+  const CLS = { synced: 'ok', written: 'ok', stale: 'bad', skipped: 'warn', unsupported: 'muted', error: 'bad', source: 'src' };
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function busy(on, label) {
+    for (const id of ['btn-check', 'btn-port']) document.getElementById(id).disabled = on;
+    if (on) document.getElementById('verdict').innerHTML = '<span class="sub">' + esc(label) + '</span>';
+  }
+
+  async function check() {
+    busy(true, 'Reading every client...');
+    try {
+      render(await (await fetch('/api/status')).json());
+    } catch (err) {
+      fail('Could not reach the parity server: ' + err.message);
+    } finally {
+      busy(false);
+    }
+  }
+
+  async function portNow() {
+    busy(true, 'Porting the harness into every selected client...');
+    try {
+      const res = await fetch('/api/port', { method: 'POST', headers: { 'X-Parity-Token': PARITY_TOKEN } });
+      const data = await res.json();
+      if (!res.ok || data.success === false) return fail('Port failed: ' + esc(data.error || res.status));
+      render(data);
+    } catch (err) {
+      fail('Port failed: ' + err.message);
+    } finally {
+      busy(false);
+    }
+  }
+
+  function fail(message) {
+    const v = document.getElementById('verdict');
+    v.className = 'verdict bad';
+    v.innerHTML = '<strong>' + esc(message) + '</strong>';
+  }
+
+  function render(data) {
+    const report = data.report;
+    const verdict = document.getElementById('verdict');
+
+    if (!report) {
+      verdict.className = 'verdict bad';
+      verdict.innerHTML = '<strong>Nothing captured yet.</strong>'
+        + '<span class="sub">' + esc(data.message || '') + ' &mdash; press <em>Port now</em> to read your source client and write the other '
+        + esc(data.total) + '.</span>';
+      document.getElementById('cards').innerHTML = '';
+      document.getElementById('matrix').innerHTML = '<div class="empty">No bundle to compare against.</div>';
+      document.getElementById('dropped').innerHTML = '<p class="foot">Nothing has been ported yet.</p>';
+      document.getElementById('bundle-line').textContent = 'No bundle in <repo>/harness yet.';
+      return;
     }
 
-    function render() {
-      if (!rawData) return;
-      const targets = rawData.targets || [];
-      const dc = rawData.dashclaw || {};
-      const query = (document.getElementById('search-input').value || '').toLowerCase();
+    const targets = data.targets || Object.values(report.targets || {});
+    const totals = report.totals || {};
+    verdict.className = 'verdict ' + (data.allInSync ? 'ok' : 'bad');
+    verdict.innerHTML =
+      '<strong>' + esc(data.inSyncCount) + ' of ' + esc(data.total) + ' clients carry your '
+      + esc(report.source || 'source') + ' harness.</strong>'
+      + '<span class="sub">'
+      + esc(totals.wouldWrite || 0) + ' files out of date &middot; '
+      + esc(totals.unchanged || 0) + ' already in sync &middot; '
+      + esc(totals.dropped || 0) + ' items dropped &middot; checked '
+      + esc(new Date(report.appliedAt).toLocaleString())
+      + '</span>';
 
-      // DashClaw banner
-      const statusText = document.getElementById('dashclaw-status-text');
-      const pill = document.getElementById('dashclaw-pill');
-      if (dc && dc.configured && dc.active) {
-        statusText.innerHTML = `Agent <strong>${escapeHtml(dc.agentId || 'agnostic-harness')}</strong> configured &rarr; <code>${escapeHtml(dc.baseUrl)}</code> (${escapeHtml(dc.source)})`;
-        pill.textContent = 'CONNECTED';
-        pill.style.background = 'rgba(63, 185, 80, 0.2)';
-        pill.style.color = 'var(--success)';
-      } else {
-        statusText.textContent = dc.reason || 'Local fail-closed guard policies active. No remote DashClaw instance connected.';
-        pill.textContent = 'STANDALONE';
-        pill.style.background = 'rgba(139, 148, 158, 0.2)';
-        pill.style.color = 'var(--text-muted)';
-      }
+    document.getElementById('cards').innerHTML = targets.map(function (t) {
+      const supported = Object.values(t.components || {}).filter(function (r) { return r.status !== 'unsupported'; });
+      const synced = supported.filter(function (r) { return r.status === 'synced'; }).length;
+      const detail = t.status === 'source'
+        ? 'source of truth &mdash; never written to'
+        : synced + ' of ' + supported.length + ' components in sync &middot; ' + (t.dropped || 0) + ' dropped';
+      return '<div class="card"><div class="top"><span class="name">' + esc(t.name) + '</span>'
+        + '<span class="pill ' + (CLS[t.status] || 'muted') + '">' + esc(t.status) + '</span></div>'
+        + '<div class="path">' + esc(t.home || t.adapter) + '</div>'
+        + '<div class="meta">' + (t.installed ? 'installed' : 'not installed') + ' &middot; ' + detail + '</div>'
+        + (t.error ? '<div class="meta bad">' + esc(t.error) + '</div>' : '')
+        + '</div>';
+    }).join('');
 
-      document.getElementById('stat-total').textContent = targets.length;
-      document.getElementById('stat-sync').textContent = rawData.inSyncCount || targets.filter(t => t.inSync).length;
-      document.getElementById('stat-stale').textContent = rawData.staleCount || targets.filter(t => !t.inSync).length;
-      document.getElementById('stat-skills').textContent = targets.filter(t => t.skillsLinked).length;
-      document.getElementById('stat-skills').textContent = targets.filter(t => t.skillsLinked).length;
+    const head = '<tr><th>Client</th>' + COMPONENTS.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '<th>dropped</th></tr>';
+    const rows = targets.map(function (t) {
+      const cells = COMPONENTS.map(function (c) {
+        if (t.status === 'source') return '<td class="c src" title="source of truth">' + CELL.source + '</td>';
+        const r = (t.components || {})[c] || { status: 'unsupported' };
+        const bits = [r.status, r.note, r.error, ((r.files || []).length + ' files')].filter(Boolean).join(' — ');
+        return '<td class="c ' + (CLS[r.status] || 'muted') + '" title="' + esc(bits) + '">' + (CELL[r.status] || '?') + '</td>';
+      }).join('');
+      return '<tr><td>' + esc(t.name) + '</td>' + cells + '<td>' + esc(t.dropped || 0) + '</td></tr>';
+    }).join('');
+    document.getElementById('matrix').innerHTML = '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
 
-      const filtered = targets.filter(t => {
-        if (currentCategory !== 'all' && t.category !== currentCategory) return false;
-        if (query) {
-          const matchName = t.name.toLowerCase().includes(query);
-          const matchPath = (t.path || '').toLowerCase().includes(query);
-          const matchDialect = (t.dialect || '').toLowerCase().includes(query);
-          const matchCat = (t.category || '').toLowerCase().includes(query);
-          if (!matchName && !matchPath && !matchDialect && !matchCat) return false;
-        }
-        return true;
+    const blocks = targets.map(function (t) {
+      const items = [];
+      Object.keys(t.components || {}).forEach(function (component) {
+        (t.components[component].dropped || []).forEach(function (d) {
+          items.push('<li><code>' + esc(component) + '</code> ' + esc(d.item) + ' &mdash; ' + esc(d.reason) + '</li>');
+        });
       });
+      return items.length ? '<p class="foot"><strong>' + esc(t.name) + '</strong> (' + items.length + ')</p><ul>' + items.join('') + '</ul>' : '';
+    }).filter(Boolean).join('');
+    document.getElementById('dropped').innerHTML = blocks || '<p class="foot">Nothing was dropped: every client took the whole harness.</p>';
+    document.getElementById('dropped-heading').textContent = 'What was not ported (' + (totals.dropped || 0) + ')';
 
-      const listEl = document.getElementById('parity-list');
-      if (filtered.length === 0) {
-        listEl.innerHTML = '<div class="empty-state">No client targets match your filter.</div>';
-        return;
-      }
+    const b = report.bundle || {};
+    const counts = Object.keys(b.components || {}).map(function (k) { return k + ' ' + b.components[k]; }).join(' · ');
+    document.getElementById('bundle-line').innerHTML =
+      'captured from <code>' + esc(b.source || '?') + '</code> at ' + esc(b.capturedAt || 'never')
+      + (counts ? ' &middot; ' + esc(counts) : '');
+  }
 
-      listEl.innerHTML = filtered.map(t => `
-        <div class="parity-card">
-          <div class="target-info">
-            <div class="target-header">
-              <span class="target-title">${escapeHtml(t.name)}</span>
-              <span class="target-category">${escapeHtml(t.category)}</span>
-            </div>
-            <div class="target-path">${escapeHtml(t.path)}</div>
-            <div class="target-meta">
-              <span class="tag">Dialect: ${escapeHtml(t.dialect)}</span>
-              ${t.skillsDir ? `<span class="tag">Skills: ${t.skillsLinked ? '✓ Junction Active' : '○ Standalone'}</span>` : ''}
-              ${t.hooksConfigFile ? `<span class="tag">Hooks: ${escapeHtml(t.hooksConfigFile.split(/[\\\\/]/).pop())}</span>` : ''}
-              ${t.lastModified ? `<span class="tag">Modified: ${new Date(t.lastModified).toLocaleTimeString()}</span>` : ''}
-            </div>
-          </div>
-          <span class="status-badge ${t.inSync ? 'badge-sync' : 'badge-stale'}">
-            ${t.inSync ? '✓ In Sync' : '✗ Stale'}
-          </span>
-        </div>
-      `).join('');
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    async function triggerSync() {
-      const btn = document.getElementById('sync-btn');
-      btn.textContent = 'Syncing...';
-      btn.disabled = true;
-      try {
-        await fetch('/api/sync', { method: 'POST', headers: { 'X-Parity-Token': PARITY_TOKEN } });
-        await loadStatus();
-      } finally {
-        btn.textContent = 'Sync All Targets';
-        btn.disabled = false;
-      }
-    }
-
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentCategory = btn.dataset.filter;
-        render();
-      });
-    });
-
-    document.getElementById('search-input').addEventListener('input', render);
-
-    loadStatus();
-  </script>
+  check();
+</script>
 </body>
 </html>

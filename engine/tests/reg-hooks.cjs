@@ -192,30 +192,36 @@ async function run() {
     assert.strictEqual(after.pre_tool_use, 'node "C:/mine.js"', 'existing user hook must not be overwritten');
   });
 
-  await test('FirstRun: installs codex hook when none exists, preserving other keys', () => {
+  // first-run no longer writes a Codex or Gemini hook file at all: it writes the
+  // flat key those clients never read (the 2026-08-18 clobbering), so their hooks
+  // now come from `npm run port` in the lifecycle format they do read. What
+  // first-run still owes is a truthful report of what is already wired there.
+  await test('FirstRun: never writes ~/.codex/hooks.json; the port owns that file', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agnostic-reg-codex2-'));
     fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
     const hooksFile = path.join(home, '.codex', 'hooks.json');
-    fs.writeFileSync(hooksFile, JSON.stringify({ custom: 'keep-me' }, null, 2), 'utf8');
+    const original = JSON.stringify({ custom: 'keep-me' }, null, 2);
+    fs.writeFileSync(hooksFile, original, 'utf8');
 
-    firstRun.wireAgentHooks(home);
+    const report = firstRun.wireAgentHooks(home).codex;
 
-    const after = JSON.parse(fs.readFileSync(hooksFile, 'utf8'));
-    assert.strictEqual(after.custom, 'keep-me', 'existing user key must survive');
-    assert(/dashclaw-guard/.test(after.pre_tool_use || ''), 'guard hook must be installed');
+    assert.strictEqual(fs.readFileSync(hooksFile, 'utf8'), original, 'the hook file must be left byte-identical');
+    assert.strictEqual(report.present, true, 'an installed Codex must still be reported present');
+    assert.strictEqual(report.dashclawGuard, false, 'no guard is in that file, so none may be claimed');
   });
 
-  await test('FirstRun: merges existing ~/.gemini/config/hooks.json instead of clobbering', () => {
+  await test('FirstRun: never writes ~/.gemini/config/hooks.json; the port owns that file', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agnostic-reg-gemini-'));
     fs.mkdirSync(path.join(home, '.gemini', 'config'), { recursive: true });
     const hooksFile = path.join(home, '.gemini', 'config', 'hooks.json');
-    fs.writeFileSync(hooksFile, JSON.stringify({ custom: 'keep-me' }, null, 2), 'utf8');
+    const original = JSON.stringify({ custom: 'keep-me' }, null, 2);
+    fs.writeFileSync(hooksFile, original, 'utf8');
 
-    firstRun.wireAgentHooks(home);
+    const report = firstRun.wireAgentHooks(home).gemini;
 
-    const after = JSON.parse(fs.readFileSync(hooksFile, 'utf8'));
-    assert.strictEqual(after.custom, 'keep-me', 'existing user key must survive');
-    assert(/dashclaw-guard/.test(after.preToolUse || ''), 'guard hook must be installed');
+    assert.strictEqual(fs.readFileSync(hooksFile, 'utf8'), original, 'the hook file must be left byte-identical');
+    assert.strictEqual(report.present, true, 'an installed Gemini must still be reported present');
+    assert.strictEqual(report.dashclawGuard, false, 'no guard is in that file, so none may be claimed');
   });
 
   // --- 6. secret-guard is actually wired into Claude Code ---

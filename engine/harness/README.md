@@ -1,0 +1,168 @@
+# engine/harness — the port engine
+
+One harness, captured from the client you actually use, applied to every other
+client so it behaves the same. This directory is the contract every adapter is
+written against. Read it before adding a source or a target.
+
+```
+capture (sources/<client>.cjs)  ->  harness/ bundle  ->  apply (targets/<client>.cjs)
+```
+
+- `capture.cjs`  reads the live config of ONE client (the *source*) into the
+  client-neutral bundle under `<repo>/harness/`.
+- `apply.cjs`    renders the bundle into every other installed client (the
+  *targets*), one guarded write per file, and records what it dropped and why.
+- `status.cjs`   reads every target from disk and reports, per component, whether
+  it is in sync. Nothing here is asserted from memory.
+- `cli.cjs`      `capture | apply | port | status | explain`.
+- `bundle.cjs`   load / save / validate the bundle; secret scan.
+- `common.cjs`   shared helpers (paths, guarded writes, links, managed regions,
+  frontmatter, TOML strings).
+
+## The bundle (`<repo>/harness/`)
+
+Client-neutral, human-readable, gitignored by default (it holds machine paths).
+The Claude Code dialect is the canonical one for hooks and tool names because
+Codex adopted a near-clone of it and every other client is mapped from it.
+
+| File | Shape |
+|---|---|
+| `manifest.json` | `{ version, source, sourceHome, capturedAt, components: {rules, hooks, skills, agents, commands, mcp, permissions} }` (counts) |
+| `rules.md` | The global working agreement with every `@import` inlined and the source client's own header stripped. Plain markdown, no client name in the prose that the port can avoid. |
+| `identity.md` | Optional. SOUL.md / traits. |
+| `hooks.json` | `{ "dialect": "claude", "events": { "<Event>": [ { "matcher"?: "A\|B", "hooks": [ { "type": "command", "command": "...", "timeout"?: 10, "statusMessage"?: "...", "async"?: false } ] } ] } }`. Events and matcher tokens use Claude Code names (`PreToolUse`, `Bash`, `Edit`, ...). |
+| `mcp.json` | `{ "servers": { "<name>": { "transport": "stdio" \| "http" \| "sse", "command"?, "args"?: [], "env"?: {K: V}, "cwd"?, "url"?, "headers"?: {} } } }`. A secret-looking env value is replaced at capture by `"${NAME}"` and reported; targets render that as "read NAME from the environment". |
+| `agents/<name>.md` | Frontmatter `name`, `description`, `model` (`fable` \| `opus` \| `sonnet` \| `haiku` \| `inherit` \| raw id), `tools` (comma list, Claude names), `readonly` (`true` when no edit tool is listed); body = the agent's instructions. |
+| `commands/<name>.md` | Frontmatter `description`, `argument-hint`; body = the prompt. |
+| `skills.json` | `{ "sourceDir": "<abs>", "skills": [ { "name", "path": "<abs dir with SKILL.md>" } ] }`. Skills are never copied: targets link each one, so an edit at the source is live everywhere. |
+| `permissions.json` | `{ "allow": [...], "deny": [...], "ask": [...] }` in Claude pattern syntax (`Bash(git *)`). Targets map what they can and drop the rest with a reason. |
+
+`bundle.cjs` validates the shape and refuses to save a bundle that carries a
+value matching `core/safety/guards.json -> sensitivePatterns`.
+
+## `core/port.json`
+
+The user-editable port policy (tracked; a template user commits their own):
+
+```jsonc
+{
+  "source": "auto",              // "auto" | "claude" | "codex"
+  "targets": "installed",        // "installed" | "all" | ["codex", "gemini"]
+  "rules": { "dropSectionsForTargets": ["Delegation and Model Routing"] },
+  "hooks": {
+    "exclude": [ { "match": "<regex on the command>", "reason": "..." } ],
+    "extra": { "<targetId>": { "<Event>": [ <group> ] } }   // target-only hooks appended after the ported ones
+  },
+  "skills": { "exclude": { "<name>": "reason" } },
+  "mcp":    { "exclude": { "<name>": "reason" } },
+  "agents": { "modelLadder": { "<targetId>": { "fable": ["<model>", "<effort>"], "opus": [...], "sonnet": [...], "haiku": [...] } } }
+}
+```
+
+## Target registry (`core/templates/targets.json`)
+
+Every client is one entry. Paths are `~`-relative and expanded with
+`common.expandPath`. Presence of `home` on disk means "installed".
+
+| Field | Meaning |
+|---|---|
+| `id`, `name`, `category` | identity |
+| `home` | the client's config dir; absent on disk = not installed = skipped by `"targets": "installed"` |
+| `adapter` | which `targets/<adapter>.cjs` renders it (`generic` when omitted) |
+| `rulesFile`, `preamble`, `traitsFile` | rules surface (every target has one) |
+| `hooksConfigFile` | hook config the adapter manages (omit = client has no hooks) |
+| `skillsDir`, `sharedSkillDirs` | where skills are linked; dirs the client already reads natively (a skill living there is not linked twice) |
+| `agentsDir`, `commandsDir` | subagent and slash-command surfaces |
+| `mcpConfigFile`, `mcpFormat` | MCP surface; `mcpFormat` is `mcpServers-json` (Claude/Cursor/Windsurf/Cline/Gemini shape), `codex-toml`, `opencode-json` |
+| `dialect` | hook payload dialect for `engine/hooks/shim.cjs` (`claude`, `codex`, `gemini`, `agy`, `cursor`) |
+
+## Adapter contract
+
+### `sources/<id>.cjs`
+
+```js
+module.exports = {
+  id: 'claude',
+  // Returns { bundle, warnings: [string] }. Never throws on a missing optional
+  // surface (no agents dir = zero agents). Throws only when the rules file is missing.
+  capture({ home, target, port }) {}
+};
+```
+
+`bundle` is the in-memory shape of the directory above: `{ manifest, rules,
+identity, hooks, mcp, agents: [{name, meta, body}], commands: [{name, meta,
+body}], skills, permissions }`. Use `bundle.createBundle()` to get an empty one.
+
+### `targets/<id>.cjs`
+
+```js
+module.exports = {
+  id: 'codex',
+  components: ['rules', 'identity', 'hooks', 'skills', 'agents', 'commands', 'mcp', 'permissions'],
+  rules(ctx) {}, identity(ctx) {}, hooks(ctx) {}, skills(ctx) {}, agents(ctx) {}, commands(ctx) {}, mcp(ctx) {}, permissions(ctx) {}
+};
+```
+
+Every component function receives the same `ctx`:
+
+| Field | What |
+|---|---|
+| `target` | the registry entry with every path already expanded to an absolute path |
+| `bundle` | the loaded bundle |
+| `port` | `core/port.json` |
+| `home` | home dir being written (tests pass a temp dir; production passes `os.homedir()`) |
+| `check` | true = report only, write nothing |
+| `dryRun` | true = print what would change, write nothing (same as check but verbose) |
+| `force` | true = overwrite hand-edited files |
+| `state` | mutable object persisted to `storage/harness-state.json`; use `ctx.state.files[path] = sha` via `ctx.write` and `ctx.state.owned[targetId]` for links / entries the adapter created so it can prune them later |
+| `write(path, content, opts)` | the guarded writer: backs up, refuses hand edits unless `force`, honours `check`; returns `{ action: 'written' \| 'unchanged' \| 'would-write' \| 'skipped-hand-edited', backup }` |
+| `link(src, dest)` | junction / symlink one directory; returns `{ action }`; never replaces a real directory |
+| `log(line)` | human line for the CLI |
+
+And returns a `ComponentResult`:
+
+```js
+{
+  status: 'synced' | 'written' | 'stale' | 'skipped' | 'unsupported' | 'error',
+  files: [ { path, action } ],           // every file touched or inspected
+  dropped: [ { item, reason } ],         // what was NOT ported and why (shown by `explain`)
+  note: 'one line for the status table', // optional
+  error: 'message'                        // when status === 'error'
+}
+```
+
+Rules for every adapter:
+
+1. **One writer per file.** A file the adapter manages carries
+   `GENERATED by agnostic-ai` within its first five lines (the preamble; a
+   title line may come first) or a marked region
+   `# >>> agnostic-ai <component> start` / `# <<< agnostic-ai <component> end`
+   (files the user also edits, like `config.toml` and `settings.json` arrays).
+   Everything outside the region is preserved byte for byte.
+2. **Idempotent.** A second run with no source change writes nothing and
+   `--check` exits 0. Regions are rebuilt deterministically.
+3. **Never destroy user content.** `ctx.write` backs up before overwriting and
+   refuses a hand-edited file without `force`; links never replace a real
+   directory; prune only what `ctx.state.owned` says we created.
+4. **Every drop is explained.** A hook, skill, agent or server that cannot be
+   ported lands in `dropped` with a reason a stranger understands.
+5. **Facts come from disk.** A model id, a hook trust hash, a skill list is read
+   from the target's own files, never asserted from memory. Where a hash scheme
+   is reproduced (Codex hook trust), keep a self-test against a value the client
+   itself wrote.
+6. **Secrets never move.** An env value that looks like a token is written as an
+   environment reference, and the user is told which variable to export.
+
+## Hook dialect shim (`engine/hooks/shim.cjs`)
+
+Hooks are written once, in the Claude Code dialect (JSON on stdin, decision on
+stdout / exit 2). Clients that speak another dialect run them through the shim:
+
+```
+node engine/hooks/shim.cjs --client cursor --event preToolUse -- node ~/.claude/hooks/rm-guard.cjs ++ node ~/.claude/hooks/scope-lock.cjs
+```
+
+The shim translates the incoming payload to the Claude shape, runs each command
+in the chain (first deny wins), and translates the decision back. Fail-open: a
+crashed guard or unparseable payload yields "no opinion", never a deny that wedges
+the client. Codex needs no shim.

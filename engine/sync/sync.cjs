@@ -339,4 +339,4 @@ if (require.main === module) {
   run();
 }
 
-module.exports = { run, compileTarget, loadSource, expandPath, linkSkillsDirectory, backupTarget };
+module.exports = { run, compileTarget, loadSource, expandPath, linkSkillsDirectory, backupTarget, writeGuarded, stripSections };
