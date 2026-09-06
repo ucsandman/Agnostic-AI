@@ -18,6 +18,12 @@
   is data-driven and lives where the tests run. Every hardcoded machine fact in
   that script (a hook name, a skill list, a model slug) became a field in
   core/port.json or a value read from the target's own files.
+- **Retro, one change each:** grep `engine/tests/` for a behaviour BEFORE removing it (two
+  first-run tests went red after the flat-format hook path was deleted, found only when the
+  suite ran); a test fixture that hardcodes a `C:/` path is not absolute on the Ubuntu CI
+  legs (`path.isAbsolute`), so fixtures build paths from a temp dir; and a value that YAML
+  reads as a flow sequence (`argument-hint: [text]`) must be quoted by the frontmatter
+  renderer, which the staged diff against the live Codex prompts caught before the real apply.
 
 ## 2026-09-05 - Preserve shared lifecycle hook configuration
 
