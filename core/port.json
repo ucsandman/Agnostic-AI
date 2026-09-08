@@ -180,6 +180,20 @@
             ]
           }
         ]
+      },
+      "agy": {
+        "PreToolUse": [
+          {
+            "matcher": "run_command|write_to_file|replace_file_content",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"C:/Projects/agnostic-ai/engine/hooks/dashclaw-guard.cjs\"",
+                "timeout": 60
+              }
+            ]
+          }
+        ]
       }
     }
   },
