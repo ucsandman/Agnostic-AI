@@ -7,8 +7,8 @@
 - Rules file written: **20 of 20**
 - Hooks driven (an adapter writes the client's own hook config): **5 of 20**
 - Skills linked (junction or symlink, never a copy): **15 of 20**
-- Subagents written: **3 of 20**
-- Slash commands written: **5 of 20**
+- Subagents written: **4 of 20**
+- Slash commands written: **6 of 20**
 - MCP servers written: **8 of 20**
 
 | Client | Category | Home | Rules | Hooks | Skills | Agents | Commands | MCP |
@@ -16,7 +16,7 @@
 **Claude Code** | CLI Agent | `~/.claude` | `~/.claude/agnostic-rules.md` | `~/.claude/settings.json` | `~/.claude/skills` | `~/.claude/agents` | `~/.claude/commands` | `~/.claude.json`
 **Codex CLI** | CLI Agent | `~/.codex` | `~/.codex/AGENTS.md` | `~/.codex/config.toml` | `~/.codex/skills` | `~/.codex/agents` | `~/.codex/prompts` | `~/.codex/config.toml`
 **Gemini CLI** | CLI Agent | `~/.gemini` | `~/.gemini/GEMINI.md` | `~/.gemini/settings.json` | `~/.gemini/skills` | - | `~/.gemini/commands` | `~/.gemini/settings.json`
-**Antigravity CLI** | CLI Agent | `~/.gemini/antigravity-cli` | `~/.gemini/GEMINI.md` | `~/.gemini/config/hooks.json` | `~/.gemini/config/skills` | - | - | `~/.gemini/config/mcp_config.json`
+**Antigravity CLI** | CLI Agent | `~/.gemini/antigravity-cli` | `~/.gemini/GEMINI.md` | `~/.gemini/config/hooks.json` | `~/.gemini/config/skills` | `~/.gemini/config/agents` | `~/.gemini/config/commands` | `~/.gemini/config/mcp_config.json`
 **Cursor** | Agentic IDE | `~/.cursor` | `~/.cursor/rules/global-rules.mdc` | `~/.cursor/hooks.json` | `~/.cursor/skills` | `~/.cursor/agents` | `~/.cursor/commands` | `~/.cursor/mcp.json`
 **Windsurf (Cascade)** | Agentic IDE | `~/.windsurf` | `~/.windsurf/rules/global-rules.md` | - | `~/.windsurf/skills` | - | - | `~/.codeium/windsurf/mcp_config.json`
 **GitHub Copilot** | VS Code Extension | `~/.copilot` | `~/.github/copilot-instructions.md` | - | `~/.copilot/skills` | - | - | -
