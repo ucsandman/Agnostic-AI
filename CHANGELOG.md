@@ -5,6 +5,12 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-14 (twenty-sixth sync)
 
+- CLAUDE.md rule 2 (Simplicity first) gains one line: read the installed
+  library's types and docs before writing your own implementation, and add a
+  package only when the dependencies already in the project do not cover it.
+  It is the one idea worth keeping from a circulating AGENTS.md ruleset; the
+  rest of that list was already covered here, or contradicted it (no backward
+  compatibility ever, architect every decision for the long term).
 - memory-lint picked up the fix from the tiered-memory rollout, and the shared
   config file picked up the current hook and env set.
 - Not mirrored, but worth stating since the private harness changed for it: the
