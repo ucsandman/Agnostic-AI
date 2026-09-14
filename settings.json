@@ -47,6 +47,7 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "opus[1m]",
   "fallbackModel": [
     "sonnet",
     "haiku"
@@ -611,7 +612,7 @@
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
-      "Liner Actions — First 1,000 to join the waitlist go free"
+      "OpenLens — Track what AI says about you"
     ]
   },
   "effortLevel": "high",
@@ -620,10 +621,10 @@
       "effortLevel": "high"
     },
     "claude-fable-5-1": {
-      "effortLevel": "medium"
+      "effortLevel": "high"
     },
     "claude-opus-5": {
-      "effortLevel": "medium"
+      "effortLevel": "xhigh"
     }
   },
   "autoUpdatesChannel": "latest",
@@ -633,6 +634,5 @@
   "remoteControlAtStartup": true,
   "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "model": "claude-fable-5-1[1m]"
+  "agentPushNotifEnabled": true
 }

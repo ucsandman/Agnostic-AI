@@ -3,6 +3,16 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-14 (twenty-sixth sync)
+
+- memory-lint picked up the fix from the tiered-memory rollout, and the shared
+  config file picked up the current hook and env set.
+- Not mirrored, but worth stating since the private harness changed for it: the
+  Bash-tool startup file now unsets the four ANTHROPIC auth variables after
+  loading shared secrets. Model work runs on CLI subscriptions, and a one-shot
+  claude print run typed inside a tool shell used to inherit an API key and
+  bill it instead.
+
 ## 2026-09-11 (twenty-fifth sync)
 
 - New `tools/memory-lint/`: machine checks for the tiered memory store (ROM,
