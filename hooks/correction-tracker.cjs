@@ -9,6 +9,7 @@
 // works iff its bucket stops accruing records.
 // Ported from correction-tracker.ps1 on 2026-09-06: pwsh -NoProfile cost 246 ms per
 // prompt, node costs 45 ms. Same buckets, same log file, same output text.
+// Updated 2026-09-15: Expanded with evolving-lite correction detection buckets (undo/revert/that broke).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +26,9 @@ const buckets = [
   ['run-it-yourself', /why\s+(can'?t|don'?t)\s+you\s+just\s+run/i],
   ['stop-doing-that', /\bstop\s+(fucking\s+)?(using|doing|running|touching|messing\s+with|fucking\s+with)\b/i],
   ['question-not-task', /(didn'?t\s+ask\s+you\s+to\s+(do|change|edit|build)|just\s+answer\s+(my|the)\s+question|only\s+asked\s+a\s+question)/i],
-  ['still-broken', /(still\s+(broken|not\s+working|doesn'?t\s+work)|\bno\b.{0,15}just\s+tested\s+it\s+again)/i],
+  ['still-broken', /(still\s+(broken|not\s+working|doesn'?t\s+work)|\bno\b.{0,15}just\s+tested\s+it\s+again|that\s+broke\s+(it|everything))/i],
+  ['revert-undo', /(revert\s+(that|your\s+changes?)|undo\s+(that|what\s+you\s+did)|put\s+it\s+back)/i],
+  ['wrong-direction', /(that'?s\s+not\s+what\s+i\s+(meant|wanted|asked)|completely\s+wrong|stop\s+going\s+in\s+circles)/i]
 ];
 const hit = (buckets.find(([, re]) => re.test(p)) || [])[0];
 if (!hit) process.exit(0);

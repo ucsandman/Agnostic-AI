@@ -3,6 +3,15 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-15 (twenty-eighth sync)
+
+- New hooks and safety policies adapted from `evolving-lite`:
+  - `hooks/security-tiers.json` & `hooks/security-tier-check.cjs`: Multi-tier command safety check with declarative risk tiers (destructive commands, network exfil, raw credential dumps, persistence tampering).
+  - `hooks/dynamic-recall.cjs`: Dynamic pre-tool context injection for matched rules and architectural patterns (e.g. SEO floor, secrets discipline).
+  - `hooks/precompact-extract.cjs`: Automatic context snapshotting before Claude Code conversation compaction into local project memory.
+  - `hooks/forced-verify-stop-gate.cjs`: Verification gate on session stop ensuring code modifications include proper test/lint/build evidence.
+  - `hooks/correction-tracker.cjs`: Expanded detection buckets for negative feedback patterns (undo/revert, direction corrections).
+
 ## 2026-09-15 (twenty-seventh sync)
 
 - Update `hooks/subagent-budget-guard.cjs`: added warm cache prefix awareness.

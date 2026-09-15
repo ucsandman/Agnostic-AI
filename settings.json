@@ -234,6 +234,28 @@
             "statusMessage": "declick adapter check..."
           }
         ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/security-tier-check.cjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking security tiers..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/dynamic-recall.cjs\"",
+            "timeout": 5,
+            "statusMessage": "Recalling contextual patterns..."
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -347,6 +369,15 @@
             "command": "py -3.12 -m context_handoff_bundle.cli checkpoint --hook-stdin",
             "timeout": 5,
             "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/forced-verify-stop-gate.cjs\"",
+            "timeout": 5
           }
         ]
       }
@@ -472,6 +503,18 @@
             "type": "command",
             "command": "node \"C:/Projects/agnostic-ai/engine/hooks/capability-graph-guard.cjs\"",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto|manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/precompact-extract.cjs\"",
+            "timeout": 5
           }
         ]
       }

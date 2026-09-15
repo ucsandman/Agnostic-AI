@@ -1,0 +1,73 @@
+{
+  "description": "Declarative multi-tier command classification schema inspired by evolving-lite & DashClaw",
+  "version": "1.0.0",
+  "tiers": {
+    "10": {
+      "name": "CRITICAL_SYSTEM_DESTRUCTION",
+      "action": "BLOCK",
+      "description": "Catastrophic or root destruction",
+      "patterns": [
+        "(?:^|\\s|;|&|\\|)rm\\s+-[rfRF]*[rfRF]\\s+/(?:\\s|$)",
+        "(?:^|\\s|;|&|\\|)rm\\s+-[rfRF]*[rfRF]\\s+~(?:\\s|$)",
+        "(?:^|\\s|;|&|\\|)mkfs(?:\\.[a-z0-9]+)?\\s+",
+        "(?:^|\\s|;|&|\\|)dd\\s+if=.*\\s+of=/dev/[hs]d[a-z]",
+        ":\\(\\)\\s*\\{\\s*:\\|:&\\s*\\};:",
+        ">\\s*/dev/sd[a-z]"
+      ]
+    },
+    "9": {
+      "name": "NETWORK_ATTACK_SURFACE",
+      "action": "BLOCK",
+      "description": "Reverse shells, remote execution pipes, or remote tunnel endpoints",
+      "patterns": [
+        "nc(?:at)?\\s+.*-e\\s+/(?:bin/)?(?:ba)?sh",
+        "bash\\s+-i\\s+>&\\s*/dev/tcp/",
+        "/dev/tcp/\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+",
+        "python(?:3)?\\s+-c\\s+['\"].*import\\s+socket.*subprocess",
+        "curl\\s+.*\\|\\s*(?:ba)?sh",
+        "wget\\s+.*\\|\\s*(?:ba)?sh"
+      ]
+    },
+    "8": {
+      "name": "PERSISTENCE_TAMPERING",
+      "action": "BLOCK",
+      "description": "Unauthorized persistence tampering, crontab, systemd root installation",
+      "patterns": [
+        "(?:^|\\s|;|&|\\|)crontab\\s+-[re]",
+        "/etc/cron\\.(?:daily|hourly|weekly|monthly)/",
+        "systemctl\\s+(?:enable|disable|mask)\\s+",
+        "authorized_keys"
+      ]
+    },
+    "7": {
+      "name": "PROMPT_INJECTION_EVASION",
+      "action": "BLOCK",
+      "description": "Jailbreak and system prompt override attempts in command pipelines",
+      "patterns": [
+        "ignore\\s+(?:previous|all|prior)\\s+instructions",
+        "disregard\\s+(?:previous|all|prior)",
+        "forget\\s+(?:previous|all|your)\\s+instructions"
+      ]
+    },
+    "6": {
+      "name": "DATA_EXFILTRATION",
+      "action": "BLOCK",
+      "description": "Blind network exfiltration attempts",
+      "patterns": [
+        "curl\\s+.*-(?:X\\s*POST|-data|d\\s+).*(?:pastebin|webhook\\.site|requestbin|ngrok)",
+        "cat\\s+.*\\|\\s*curl\\s+.*-(?:d|F)",
+        "tar\\s+.*\\|\\s*ssh\\s+"
+      ]
+    },
+    "5": {
+      "name": "CREDENTIAL_RAW_DUMP",
+      "action": "BLOCK",
+      "description": "Dumping sensitive credentials or env files",
+      "patterns": [
+        "(?:^|\\s|;|&|\\|)cat\\s+.*(?:\\.secrets\\.env|/etc/shadow|id_rsa|id_ed25519)",
+        "(?:^|\\s|;|&|\\|)printenv\\s+.*(?:TOKEN|SECRET|PASSWORD|AUTH)",
+        "(?:^|\\s|;|&|\\|)echo\\s+\\$(?:[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|AUTH))\\b"
+      ]
+    }
+  }
+}
