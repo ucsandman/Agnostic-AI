@@ -5,6 +5,10 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-15 (twenty-seventh sync)
 
+- Update `hooks/subagent-budget-guard.cjs`: added warm cache prefix awareness.
+  Spawns within a 5-minute window (`SBG_WARM_WINDOW_MS`) receive a discounted
+  overhead constant (`SBG_WARM_DISCOUNT`, 0.25x default), lowering the break-even
+  tool call threshold for tightly chained subagent delegations.
 - New hook `hooks/subagent-budget-guard.cjs`: prices a subagent spawn before it
   happens. A one-line edit delegated to a subagent cost 77,000 tokens here, and
   nothing in the chain asked whether the spawn was worth its overhead --
