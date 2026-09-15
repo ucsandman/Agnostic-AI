@@ -497,7 +497,7 @@
     "chrome-devtools-mcp@chrome-devtools-plugins": false,
     "mcp-server-dev@claude-plugins-official": false,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "vercel@claude-plugins-official": false,
     "core-3d-animation@claude-design-skillstack": false,
     "ponytail@ponytail": false,
@@ -612,7 +612,7 @@
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
-      "box — 📦 cheapest, most powerful sandboxes for agents"
+      "Argent — let Claude inspect your native apps, save tokens"
     ]
   },
   "effortLevel": "high",

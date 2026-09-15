@@ -149,3 +149,48 @@ test('throws on nesting outside the accepted subset', () => {
   const md = '```yaml\ncontract_version: 1\nsubject: "x"\nmust_haves:\n  - id: MH-01\n    nested:\n      deeper: 1\n```\n';
   assert.throws(() => docOf(md), /expected "key: value"|value outside/);
 });
+
+// --- quoted scalars ---------------------------------------------------------
+// A `check` is a shell command, so it contains quotes. Handing the backslashes
+// through unchanged ran a corrupted command that failed for an invisible
+// reason — found by the td-parlay contract, whose PR-01 uses a pytest -k
+// expression. Half-parsing is the failure this reader exists to prevent.
+
+test('unescapes quotes inside a double-quoted check', () => {
+  const md = '```yaml\ncontract_version: 1\nsubject: "x"\nmust_haves:\n  - id: MH-01\n'
+    + '    requirement: "r"\n    shape: [text]\n    edge_category: none\n'
+    + '    disposition: specify\n    tier: test\n    non_inferable: false\n'
+    + '    check: "pytest -q -k \\"not slow and not db\\""\n```\n';
+  assert.equal(docOf(md).must_haves[0].check, 'pytest -q -k "not slow and not db"');
+});
+
+test('handles the other double-quoted escapes', () => {
+  // The YAML source contains the two characters backslash-t, not a tab.
+  const md = [
+    '```yaml',
+    'contract_version: 1',
+    String.raw`subject: "a\tb and a \\ backslash"`,
+    'must_haves:',
+    '```',
+    '',
+  ].join('\n');
+  assert.equal(docOf(md).subject, 'a\tb and a \\ backslash');
+});
+
+test('single-quoted scalars take no escapes but collapse a doubled quote', () => {
+  // A Windows path in single quotes keeps both backslashes; '' is the only escape.
+  const md = [
+    '```yaml',
+    'contract_version: 1',
+    String.raw`subject: 'it''s C:\Projects\x'`,
+    'must_haves:',
+    '```',
+    '',
+  ].join('\n');
+  assert.equal(docOf(md).subject, String.raw`it's C:\Projects\x`);
+});
+
+test('an unquoted value is left exactly as written', () => {
+  const md = '```yaml\ncontract_version: 1\nsubject: plain value here\nmust_haves:\n```\n';
+  assert.equal(docOf(md).subject, 'plain value here');
+});

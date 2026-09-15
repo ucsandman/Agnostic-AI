@@ -14,8 +14,21 @@ const SCALAR_FALSE = /^(false|no)$/i;
 
 function stripQuotes(raw) {
   const s = raw.trim();
-  if (s.length >= 2 && ((s[0] === '"' && s.at(-1) === '"') || (s[0] === "'" && s.at(-1) === "'"))) {
-    return s.slice(1, -1);
+  if (s.length >= 2 && s[0] === '"' && s.at(-1) === '"') {
+    // A check is a shell command, and shell commands contain quotes — a pytest
+    // -k expression is the common one. Unescaping here rather than handing the
+    // backslashes through is the difference between running the command the
+    // author wrote and running a corrupted one that fails for a reason nobody
+    // can see. YAML's double-quoted escapes, minus the ones this subset has no
+    // use for.
+    return s
+      .slice(1, -1)
+      .replace(/\\(["\\/nrt])/g, (_, c) =>
+        ({ n: '\n', r: '\r', t: '\t' })[c] ?? c);
+  }
+  // Single-quoted YAML has no escapes at all except '' for a literal quote.
+  if (s.length >= 2 && s[0] === "'" && s.at(-1) === "'") {
+    return s.slice(1, -1).replace(/''/g, "'");
   }
   return s;
 }
