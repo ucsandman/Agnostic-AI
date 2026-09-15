@@ -62,8 +62,10 @@ const TURNS_REMAINING = num("SBG_TURNS_REMAINING", 20);
 const CACHE_DISCOUNT = num("SBG_CACHE_DISCOUNT", 0.1);
 // A file edited inline also lands in main context, roughly one result's worth.
 const FILE_TOKENS = num("SBG_FILE_TOKENS", 2000);
-// Warm prefix window: within 5 minutes of previous spawn, subagent hits cached prefix
-// instead of paying full arrival write overhead.
+// Warm prefix window: per Anthropic caching docs, cache TTL refreshes on each
+// request that hits the cache (counted from start of request). Within 5 minutes
+// of any earlier subagent request, a spawn hits cached prefix instead of paying
+// full arrival write overhead. (Confirmed by PrimeLine's logs 2026-09-15).
 const WARM_WINDOW_MS = num("SBG_WARM_WINDOW_MS", 5 * 60 * 1000);
 // Effective multiplier on spawn overhead when warm (cache read discount on common prefix)
 const WARM_DISCOUNT = num("SBG_WARM_DISCOUNT", 0.25);
@@ -107,6 +109,21 @@ const prompt = String(ti.prompt || "");
 
 if (EXEMPT_TYPES.has(subagentType)) process.exit(0);
 
+// PostToolUse / completion handling:
+// When a subagent completes, its final turn made a request. Record this completion
+// as the latest active cache-hit time so subsequent spawns recognize a warm prefix.
+const isPost =
+  process.argv.includes("--post") ||
+  data.hook_event_name === "PostToolUse" ||
+  data.tool_result !== undefined ||
+  data.tool_response !== undefined;
+
+if (isPost) {
+  recordActivity(subagentType, "complete");
+  log({ decision: "complete", type: subagentType || "(default)", model });
+  process.exit(0);
+}
+
 // ─────────────────────────────────────────── helpers
 
 function emit(obj) {
@@ -123,7 +140,7 @@ function log(entry) {
 }
 
 function allow(entry) {
-  recordSpawn(subagentType);
+  recordActivity(subagentType, "spawn");
   log({ decision: "allow", ...entry });
   process.exit(0);
 }
@@ -184,24 +201,68 @@ function readSpawns() {
   }
 }
 
-function getLastSpawn(type) {
-  const s = readSpawns();
-  const key = type || "(default)";
-  return s[key] || s["*"] || 0;
-}
-
-function recordSpawn(type) {
+function recordActivity(type, action) {
   const s = readSpawns();
   const now = Date.now();
   const key = type || "(default)";
   for (const k of Object.keys(s)) {
-    if (now - (s[k] || 0) > 24 * 3600 * 1000) delete s[k]; // prune
+    const val = s[k];
+    const ts = typeof val === "number" ? val : (val && (val.active || val.spawn)) || 0;
+    if (now - ts > 24 * 3600 * 1000) delete s[k]; // prune
   }
-  s[key] = now;
-  s["*"] = now; // track global last spawn too
+  const entry =
+    s[key] && typeof s[key] === "object"
+      ? s[key]
+      : { spawn: typeof s[key] === "number" ? s[key] : 0, active: 0 };
+  if (action === "spawn") entry.spawn = now;
+  entry.active = now;
+  s[key] = entry;
+
+  const star =
+    s["*"] && typeof s["*"] === "object"
+      ? s["*"]
+      : { spawn: typeof s["*"] === "number" ? s["*"] : 0, active: 0 };
+  if (action === "spawn") star.spawn = now;
+  star.active = now;
+  s["*"] = star;
+
   try {
     fs.writeFileSync(SPAWNS_FILE, JSON.stringify(s));
   } catch {}
+}
+
+function getLatestSubagentMtime(transcriptPath) {
+  if (!transcriptPath || typeof transcriptPath !== "string") return 0;
+  try {
+    const sessionDir = path.dirname(transcriptPath);
+    const sessionBase = path.basename(transcriptPath, ".jsonl");
+    const subagentsDir = path.join(sessionDir, sessionBase, "subagents");
+    if (!fs.existsSync(subagentsDir)) return 0;
+    const files = fs.readdirSync(subagentsDir);
+    let max = 0;
+    for (const f of files) {
+      if (!f.endsWith(".jsonl")) continue;
+      const st = fs.statSync(path.join(subagentsDir, f));
+      if (st.mtimeMs > max) max = st.mtimeMs;
+    }
+    return max;
+  } catch {
+    return 0;
+  }
+}
+
+function getLastActive(type, transcriptPath) {
+  const s = readSpawns();
+  const key = type || "(default)";
+  const getTs = (entry) => {
+    if (!entry) return 0;
+    if (typeof entry === "number") return entry;
+    return Math.max(entry.active || 0, entry.spawn || 0);
+  };
+  const typeTs = getTs(s[key]);
+  const starTs = getTs(s["*"]);
+  const transcriptTs = getLatestSubagentMtime(transcriptPath);
+  return Math.max(typeTs, starTs, transcriptTs);
 }
 
 // ─────────────────────────────────────────── scope declaration
@@ -246,15 +307,16 @@ if (override) {
 const isLean = LEAN_TYPES.has(subagentType);
 const baseOverhead = isLean ? LEAN_SPAWN : FULL_SPAWN;
 
-// Check warm cache prefix state: was a spawn issued within WARM_WINDOW_MS?
-const lastSpawn = getLastSpawn(subagentType);
-const deltaMs = lastSpawn > 0 ? Date.now() - lastSpawn : Infinity;
+// Check warm cache prefix state: was any subagent active within WARM_WINDOW_MS?
+// Anthropic cache TTL refreshes on each request that hits cache (counted from request start).
+const lastActive = getLastActive(subagentType, data.transcript_path);
+const deltaMs = lastActive > 0 ? Date.now() - lastActive : Infinity;
 const isWarm = deltaMs < WARM_WINDOW_MS;
 const overhead = isWarm ? Math.round(baseOverhead * WARM_DISCOUNT) : baseOverhead;
 const deltaMin = Number.isFinite(deltaMs) ? (deltaMs / 60000).toFixed(1) : null;
 const warmHint = isWarm
-  ? ` (warm cache: last spawn was ${deltaMin}m ago, overhead discounted from ~${Math.round(baseOverhead / 1000)}k to ~${Math.round(overhead / 1000)}k)`
-  : (lastSpawn > 0 ? ` (cold cache: last spawn was ${deltaMin}m ago, outside the 5m window)` : "");
+  ? ` (warm cache: last subagent request was ${deltaMin}m ago, overhead discounted from ~${Math.round(baseOverhead / 1000)}k to ~${Math.round(overhead / 1000)}k)`
+  : (lastActive > 0 ? ` (cold cache: last subagent request was ${deltaMin}m ago, outside the 5m window)` : "");
 
 const amplification = 1 + TURNS_REMAINING * CACHE_DISCOUNT;
 

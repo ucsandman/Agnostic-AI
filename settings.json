@@ -260,6 +260,16 @@
         ]
       },
       {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/subagent-budget-guard.cjs\" --post",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Agent|Task|Bash|PowerShell|Edit|Write|MultiEdit|mcp__.*",
         "hooks": [
           {
