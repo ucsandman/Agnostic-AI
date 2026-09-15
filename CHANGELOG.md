@@ -5,6 +5,28 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-15 (twenty-seventh sync)
 
+- New hook `hooks/subagent-budget-guard.cjs`: prices a subagent spawn before it
+  happens. A one-line edit delegated to a subagent cost 77,000 tokens here, and
+  nothing in the chain asked whether the spawn was worth its overhead --
+  `agent-model-guard` checks which model, `capability-graph-guard` checks who
+  may call whom. A PreToolUse hook cannot predict cost, since it sees only
+  `tool_input`, so this one does not guess: each `Agent`/`Task` dispatch
+  declares its scope as `# EST: <n> calls, <n> files`, the hook prices that
+  against working inline, and denies a spawn that does not pay for itself,
+  showing the arithmetic. `# SPAWN_OK: <why>` covers work whose scope is not
+  knowable up front. The same dispatch is denied at most once per session --
+  a second attempt passes -- because an earlier guard's log showed a model
+  treats a deny as a transient error and retries rather than re-routing.
+  Off switch: `SUBAGENT_BUDGET_GUARD=off`. Constants are env-overridable.
+- New tool `tools/subagent-budget/calibrate.cjs`: re-fits those constants from
+  real subagent transcripts. Counts, does not price. Three independent
+  measurements of lean-type spawn overhead agree: 15,746 weighted tokens
+  (median of 21 startup-only spawns across 5,496 transcripts), a ~17,000 spot
+  measurement, and 18,664 observed live from a scout that made zero tool calls.
+  Two findings shaped it: cache reads need weighting at ~0.1 of fresh input or
+  per-call cost overstates by 8x, and a linear fit returns a negative intercept
+  because per-call cost is superlinear as context accumulates, so overhead comes
+  from per-type startup-only medians instead.
 - New tool `tools/task-contract`: a dependency-free Node CLI that validates a
   `TASK_CONTRACT.md` and, with `--run`, discharges it. Exit codes are the
   verdict, so CI can branch on them -- 0 pass, 1 fail, 2 insufficient_spec,

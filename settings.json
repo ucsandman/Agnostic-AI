@@ -47,7 +47,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "sonnet",
   "fallbackModel": [
     "sonnet",
     "haiku"
@@ -117,6 +117,17 @@
             "command": "node \"C:/Users/sandm/.claude/hooks/agent-model-guard.cjs\"",
             "timeout": 5,
             "statusMessage": "Checking subagent model routing..."
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/subagent-budget-guard.cjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking subagent budget..."
           }
         ]
       },
@@ -612,7 +623,7 @@
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
-      "Argent — let Claude inspect your native apps, save tokens"
+      "No activity for 30 min - ads paused"
     ]
   },
   "effortLevel": "high",
