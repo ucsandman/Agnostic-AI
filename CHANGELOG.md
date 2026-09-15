@@ -3,6 +3,52 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-15 (twenty-seventh sync)
+
+- New tool `tools/task-contract`: a dependency-free Node CLI that validates a
+  `TASK_CONTRACT.md` and, with `--run`, discharges it. Exit codes are the
+  verdict, so CI can branch on them -- 0 pass, 1 fail, 2 insufficient_spec,
+  3 malformed.
+
+  The premise, from a measurement worth knowing about (Sienkowski, *Verifier
+  Reach Is Spec Reach*, 2026): an LLM verifier catches only what the
+  specification named. Where an obligation was never written down and no
+  convention settles it, the verifier is not failing to reason -- it is
+  reasoning correctly over an input that does not contain the answer, and it
+  reports roughly the confidence it uses when it is right. Measured at 100%
+  [94-100] confident false-pass with the edge omitted, converting to a 98%
+  [91-100] catch once the same edge is written into the spec. The failure is
+  model-invariant and a ~30x spend increase recovers none of it.
+
+  So the tool holds two rules that are easy to argue away and worth keeping.
+  A test-tier check that could not be RUN *fails*; it tells you exactly as much
+  about the code as a check that ran and failed, and calling it a skip is how a
+  pipeline manufactures a green. And `insufficient_spec` is not a softer
+  failure -- it means the artifact does not contain the answer, so no amount of
+  re-reading produces one, and it routes to a person. It fires from a
+  `non_inferable` tag written at spec time, never from asking a model whether
+  it feels unsure: self-assessed uncertainty fires on whatever ambiguity the
+  model happens to notice and essentially never on the real blind spot.
+
+  The YAML reader is deliberately not a YAML parser. It accepts exactly the
+  subset the schema uses and throws on anything else, because silently
+  half-parsing a drifted contract is the same class of failure the contract
+  exists to prevent. Its own tests caught that on the first run -- nested maps
+  were being flattened rather than rejected. 16 tests, each deliberate-breakage
+  case observed failing before the rule that catches it was written.
+
+- `.gitignore`: `tools/*/*` denies `.mjs`, which had silently swallowed two
+  tools in a row. A `.mjs` tool reads as committed, pushes as nothing, and the
+  gap only surfaces on a clean clone. Now re-included by name, with the note
+  saying why.
+
+- `tools/gates/gate-manifest.lock.json` relocked for three DashClaw guard hooks
+  that drifted and were never relocked. Reviewed before relocking: they add
+  retry-on-transient to the execution claim, with the single claim guaranteed
+  by the database rather than by the client, and a per-attempt nonce so a lost
+  response is distinguishable from another caller's claim. A refusal the server
+  actually issued still blocks.
+
 ## 2026-09-14 (twenty-sixth sync)
 
 - CLAUDE.md rule 2 (Simplicity first) gains one line: read the installed

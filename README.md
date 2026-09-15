@@ -12,7 +12,7 @@ by better later decisions, and nightly artifact production is optional.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011-0078d4)](docs/windows-gotchas.md)
 [![Runtime](https://img.shields.io/badge/runtime-Node%20%2B%20PowerShell%20%2B%20Python-333)](#layout)
-[![Last sync](https://img.shields.io/badge/mirror%20synced-2026--09--14-success)](CHANGELOG.md)
+[![Last sync](https://img.shields.io/badge/mirror%20synced-2026--09--15-success)](CHANGELOG.md)
 [![Sponsor](https://img.shields.io/badge/GitHub%20Sponsors-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ucsandman)
 
 This is not a starter kit designed in an afternoon. It grew rule by rule out of
@@ -201,6 +201,7 @@ Zero-dependency, one directory each, each with its own README.
 | [`ears`](tools/ears/) | Hears any audio or video file and returns a transcript. |
 | [`mouth`](tools/mouth/) | Minimal Windows text-to-speech so a long job can say it finished. |
 | [`harness-sync`](tools/harness-sync/) | Generates `AGENTS.md` and `GEMINI.md` from `CLAUDE.md` and reports parity across the three harnesses. |
+| [`task-contract`](tools/task-contract/) | Validates a `TASK_CONTRACT.md` and, with `--run`, discharges it. Exit codes are the verdict: 0 pass, 1 fail, 2 insufficient_spec, 3 malformed. A check that could not be run fails rather than skipping. |
 
 ## Scheduled jobs
 
@@ -332,7 +333,7 @@ The private repo never contained credentials. Before each sync this mirror is
 swept file by file for key shapes, bearer tokens, credentialed URLs,
 `key=value` secrets, emails and phone numbers, and the sweep prints the file
 count beside its verdict so a clean result on zero files cannot pass as clean.
-The last sync scanned 202 files; the only hits were fake keys inside
+The last sync scanned 206 files; the only hits were fake keys inside
 `tools/deskclaw/tests/`, which exist to prove the redaction works.
 
 If you find something that should not be here, see [SECURITY.md](SECURITY.md).
