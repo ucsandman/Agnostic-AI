@@ -3,6 +3,26 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-16 (twenty-ninth sync)
+
+- **Function Hooks (Mods) layer** — `mods/`: a local plugin marketplace with `claude-runtime` (the single
+  adapter that reads Claude Code's experimental function-hook events and republishes them as a normalised
+  bus + JSONL) and `harness-mods` (routing rewrite onto the capability graph, native context nudge from
+  `$.session.usage()`, secret redaction of tool results before the model sees them, measured subagent
+  accounting with learned priors, a target-keyed read cache). Each guard runs `classic | shadow_mod | mod`
+  from `mods/mods-config.json`; all five are `mod` on the source machine.
+- **Stand-down seam** — `hooks/lib/mods-mode.cjs`: a classic guard yields a decision only when the mode
+  is `mod` AND the Mod's per-session heartbeat armed that guard; otherwise it enforces exactly as before.
+  Seams in `agent-model-guard.cjs`, `subagent-budget-guard.cjs`, `capability-graph-guard.cjs`,
+  `context-nudge.py`, `tool-output-secret-watch.cjs`. Probe: `hooks/tests/mods-mode-probe.cjs` (18 checks).
+- **Mods canary** — `mods/canary.cjs` (leg of `guard-canary.ps1`), `hooks/mods-liveness.cjs` (first-prompt
+  witness), a `MOD OK/FAIL` statusline badge, `/mods` in-session. `mods/shadow-report.cjs` pairs the
+  classic-vs-Mod comparison rows. Design and evidence: claude-mods-rnd `SHADOW_MODE_ARCHITECTURE.md`,
+  `PROMOTION_STATUS.md`, `PHASE2_DOGFOOD.md`.
+- Install on a fresh clone: `claude plugin marketplace add ~/.claude/mods`, then
+  `claude plugin install claude-runtime@harness-mods` and `claude plugin install harness-mods@harness-mods`
+  (in that order), add the `mods-liveness.cjs` UserPromptSubmit hook to `settings.json`.
+
 ## 2026-09-15 (twenty-eighth sync)
 
 - New hooks and safety policies adapted from `evolving-lite`:

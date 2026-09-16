@@ -88,6 +88,17 @@ process.stdin.on('end', () => {
     process.exit(0);
   }
 
+  // Mods migration (2026-09-16): when ~/.claude/mods/harness-mods owns secretRedaction for this
+  // session (mods-config.json "secretRedaction": "mod" + a heartbeat that armed it), the value was
+  // already replaced before the model saw it and logged to mods/state/redactions.jsonl; this
+  // after-the-fact alert would fire on a result the model never received. Yield. Any doubt → alert.
+  try {
+    const mm = require('./lib/mods-mode.cjs');
+    const v = mm.standsDown('secretRedaction', evt.session_id);
+    mm.log('tool-output-secret-watch', evt.session_id, v);
+    if (v.standDown) process.exit(0);
+  } catch (_) {}
+
   let hits = [];
   try {
     hits = scanText(resultText(evt));

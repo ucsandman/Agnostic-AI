@@ -30,6 +30,34 @@ def main() -> None:
     if not sid:
         return
 
+    # Mods migration (2026-09-16): ~/.claude/mods/harness-mods reads the context percentage from
+    # $.session.usage() directly and attaches the same nudge itself when mods-config.json says
+    # "contextNudge": "mod" and its heartbeat for this session armed it. Then this hook yields.
+    # (Mirror of hooks/lib/mods-mode.cjs standsDown.)
+    try:
+        import time
+
+        mods = Path(os.environ.get("USERPROFILE") or Path.home()) / ".claude" / "mods"
+        env_mode = os.environ.get("HARNESS_MOD_CONTEXT_NUDGE", "").lower()
+        mode = (
+            env_mode
+            if env_mode in ("classic", "shadow_mod", "mod")
+            else json.loads((mods / "mods-config.json").read_text())
+            .get("guards", {})
+            .get("contextNudge", "classic")
+        )
+        if os.environ.get("HARNESS_MODS", "").lower() == "off":
+            mode = "classic"
+        if mode == "mod":
+            hb = json.loads((mods / "state" / "sessions" / f"{sid}.json").read_text())
+            if (
+                hb.get("armed", {}).get("contextNudge") is True
+                and 0 <= time.time() * 1000 - float(hb.get("ts", 0)) <= 6 * 3600 * 1000
+            ):
+                return
+    except Exception:
+        pass  # any doubt -> this hook enforces as before
+
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", sid)
     tmp = Path(os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp")
     pct_file = tmp / f"claude_ctx_{safe}.txt"

@@ -21,6 +21,13 @@ const fs = require("fs");
 const path = require("path");
 
 const FABLE_CAP = Math.max(0, parseInt(process.env.AGENT_GUARD_FABLE_CAP || "3", 10) || 3);
+// Mods migration (2026-09-16): the Function Hooks layer (~/.claude/mods/harness-mods) owns the
+// Agent/Task routing decision when mods-config.json says "routing": "mod" AND its heartbeat proves it
+// armed routing for this session; then this branch yields (the Workflow lint below never yields).
+// In shadow_mod it still enforces and records its verdict for the classic-vs-Mod comparison.
+let modsMode = null;
+try { modsMode = require("./lib/mods-mode.cjs"); } catch { modsMode = null; }
+let shadowRouting = null; // set when shadow_mod: (decision, reasons) => void
 const STATE_FILE = path.join(__dirname, ".fable-spawn-counts.json");
 
 let raw = "";
@@ -46,6 +53,7 @@ const HIERARCHY =
   ' per session, never a fleet or fan-out. Delegate the bulk to model:"opus" (VP — owns large tasks, instructs Sonnet/Haiku workers in its prompt), model:"sonnet" (manager — mid-size implementation/review/exploration), or model:"haiku" (level-1 worker — searches, mechanical edits, simple checks).';
 
 function deny(reason) {
+  if (shadowRouting) shadowRouting("deny", [reason.slice(0, 60)]);
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
@@ -294,6 +302,17 @@ const PINNED_SAFE_SUBAGENTS = new Set([
 ]);
 
 if (toolName === "Agent" || toolName === "Task") {
+  if (modsMode) {
+    try {
+      const v = modsMode.standsDown("routing", sessionId);
+      modsMode.log("agent-model-guard", sessionId, v);
+      if (v.standDown) process.exit(0);
+      if (v.mode === "shadow_mod") {
+        const key = modsMode.signatureOf(sessionId, String(ti.subagent_type || "general-purpose"), String(ti.prompt || ""), ti.model);
+        shadowRouting = (decision, reasons) => modsMode.recordShadow(sessionId, { subsystem: "routing", action: "Agent " + String(ti.subagent_type || "general-purpose"), key, mode: v.mode, decision, requestedValue: ti.model || null, reasonCodes: ["agent-model-guard", ...reasons], enforced: true });
+      }
+    } catch {}
+  }
   if (PINNED_SAFE_SUBAGENTS.has(String(ti.subagent_type || "").toLowerCase())) {
     process.exit(0);
   }
@@ -322,6 +341,7 @@ if (toolName === "Agent" || toolName === "Task") {
   if (model.includes("fable")) {
     gateFableSpawn("this Fable subagent");
   }
+  if (shadowRouting) shadowRouting("allow", ["explicit-model"]);
   process.exit(0);
 }
 

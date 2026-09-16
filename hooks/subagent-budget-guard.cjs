@@ -124,6 +124,22 @@ if (isPost) {
   process.exit(0);
 }
 
+// Mods migration (2026-09-16): when ~/.claude/mods/harness-mods owns routing for this session it
+// prices the spawn against a MEASURED prior and applies the same break-even + anti-thrash rule
+// itself; this pre-spawn check yields. --post above keeps feeding the calibration log either way.
+// In shadow_mod this guard enforces and records its verdict beside the Mod's.
+let shadowBudget = null;
+try {
+  const mm = require("./lib/mods-mode.cjs");
+  const v = mm.standsDown("routing", sessionId);
+  mm.log("subagent-budget-guard", sessionId, v);
+  if (v.standDown) process.exit(0);
+  if (v.mode === "shadow_mod") {
+    const key = mm.signatureOf(sessionId, String(ti.subagent_type || "general-purpose"), prompt, ti.model);
+    shadowBudget = (decision, reasons) => mm.recordShadow(sessionId, { subsystem: "routing", action: "Agent " + String(ti.subagent_type || "general-purpose"), key, mode: v.mode, decision, requestedValue: model || null, reasonCodes: ["subagent-budget-guard", ...reasons], enforced: true });
+  }
+} catch {}
+
 // ─────────────────────────────────────────── helpers
 
 function emit(obj) {
@@ -141,11 +157,13 @@ function log(entry) {
 
 function allow(entry) {
   recordActivity(subagentType, "spawn");
+  if (shadowBudget) shadowBudget("allow", [String(entry.reason || "")]);
   log({ decision: "allow", ...entry });
   process.exit(0);
 }
 
 function deny(reason, entry) {
+  if (shadowBudget) shadowBudget("deny", [entry && entry.est ? "below-break-even" : "no-est-tag"]);
   log({ decision: "deny", ...entry });
   emit({
     hookSpecificOutput: {

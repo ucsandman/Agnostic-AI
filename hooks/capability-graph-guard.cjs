@@ -270,10 +270,38 @@ function logEvent(entry, opts = {}) {
 
 // --- decision -------------------------------------------------------------------
 
+// Mods migration (2026-09-16): when ~/.claude/mods/harness-mods owns routing for this session
+// (mods-config.json "routing": "mod" + a heartbeat that armed it), the PreToolUse verdict is the
+// Mod's (it REWRITES onto the graph instead of denying); this guard allows. In shadow_mod it
+// enforces and records its verdict beside the Mod's for comparison. SubagentStart/Stop bookkeeping
+// is untouched. Off switch and report unchanged.
+function modsSeam(payload, opts) {
+  try {
+    const mm = require(path.join(homeOf(opts), '.claude', 'hooks', 'lib', 'mods-mode.cjs'));
+    return { mm, verdict: mm.standsDown('routing', payload.session_id, { env: opts.env || process.env }) };
+  } catch (_) {
+    return null;
+  }
+}
+
 function decide(payload = {}, opts = {}) {
   const env = opts.env || process.env;
   if (String(env.CAPABILITY_GRAPH_GUARD || '').toLowerCase() === 'off') {
     return { action: 'allow', kind: 'disabled', reason: '' };
+  }
+  const tool0 = payload.tool_name || '';
+  if ((tool0 === 'Agent' || tool0 === 'Task') && !opts.noMods) {
+    const seam = modsSeam(payload, opts);
+    if (seam) {
+      seam.mm.log('capability-graph-guard', payload.session_id, seam.verdict);
+      if (seam.verdict.standDown) return { action: 'allow', kind: 'mods-owned', reason: '' };
+      if (seam.verdict.mode === 'shadow_mod') {
+        const v = decide(payload, { ...opts, noMods: true });
+        const ti = payload.tool_input || {};
+        seam.mm.recordShadow(payload.session_id, { subsystem: 'routing', action: 'Agent ' + String(ti.subagent_type || 'general-purpose'), key: seam.mm.signatureOf(payload.session_id, String(ti.subagent_type || 'general-purpose'), String(ti.prompt || ''), ti.model), mode: 'shadow_mod', decision: v.action === 'deny' ? 'deny' : v.kind === 'advisor' ? 'rewrite' : 'allow', requestedValue: ti.model || null, resolvedValue: v.model || null, reasonCodes: ['capability-graph-guard', v.kind], wouldRewrite: v.kind === 'advisor', enforced: true });
+        return v;
+      }
+    }
   }
 
   const tool = payload.tool_name || '';

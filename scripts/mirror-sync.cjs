@@ -23,8 +23,8 @@ const HOME = process.env.USERPROFILE || process.env.HOME;
 const SRC = path.join(HOME, '.claude');
 const MIRROR = 'C:\\Projects\\claude-harness';
 const ENGINE_HOOKS = 'C:\\Projects\\agnostic-ai\\engine\\hooks';
-const SYNC_DIRS = ['hooks', 'git-hooks', 'agents', 'tools', 'scripts', 'workflows'];
-const EXCLUDE = [/^hooks\/archive\//, /\.fable-spawn-counts/, /harness-health\.state\.json$/, /^tools\/tokflow\/.*\.json$/];
+const SYNC_DIRS = ['hooks', 'git-hooks', 'agents', 'tools', 'scripts', 'workflows', 'mods'];
+const EXCLUDE = [/^hooks\/archive\//, /\.fable-spawn-counts/, /harness-health\.state\.json$/, /^tools\/tokflow\/.*\.json$/, /^mods\/state\//];
 const ENGINE_GUARDS = ['capability-graph-guard.cjs', 'fable-delegate-guard.cjs'];
 const STRIP_KEYS = ['autoMode'];
 // Phrases that only ever appear in machine-describing blocks. Any survivor fails the sync.

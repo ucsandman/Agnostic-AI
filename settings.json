@@ -47,7 +47,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "claude-fable-5-1[1m]",
   "fallbackModel": [
     "sonnet",
     "haiku"
@@ -472,6 +472,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/mods-liveness.cjs\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "MessageDisplay": [
@@ -520,11 +529,6 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "node \"C:\\\\Users\\\\sandm\\\\.kickbacks\\\\vibe-ads-statusline.mjs\"",
-    "padding": 0
-  },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
@@ -565,7 +569,9 @@
     "vercel@claude-plugins-official": false,
     "core-3d-animation@claude-design-skillstack": false,
     "ponytail@ponytail": false,
-    "i-have-adhd@i-have-adhd": true
+    "i-have-adhd@i-have-adhd": true,
+    "claude-runtime@harness-mods": true,
+    "harness-mods@harness-mods": true
   },
   "extraKnownMarketplaces": {
     "claude-design-skillstack": {
@@ -669,16 +675,16 @@
         "source": "github",
         "repo": "ayghri/i-have-adhd"
       }
+    },
+    "harness-mods": {
+      "source": {
+        "source": "directory",
+        "path": "C:\\Users\\sandm\\.claude\\mods"
+      }
     }
   },
   "outputStyle": "Concise",
   "feedbackDrafts": "off",
-  "spinnerVerbs": {
-    "mode": "replace",
-    "verbs": [
-      "No activity for 30 min - ads paused"
-    ]
-  },
   "effortLevel": "high",
   "modelSettings": {
     "claude-fable-5": {

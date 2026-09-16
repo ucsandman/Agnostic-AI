@@ -65,6 +65,18 @@ try {
   $missing += "settings.json unreadable: $($_.Exception.Message)"
 }
 
+# 5. Mods layer (Function Hooks, ~/.claude/mods): installed + validated + last session healthy + pure tests green.
+# A silent Mod failure must not read as clean; mods/canary.cjs states what it scanned (L2).
+$modsOut = & node (Join-Path $claudeDir 'mods\canary.cjs') --json 2>&1 | Out-String
+try {
+  $mods = ($modsOut -split "`n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1) | ConvertFrom-Json
+  $results['mods-layer-healthy'] = [bool]$mods.ok
+  if (-not $mods.ok) { $missing += @($mods.notes | Where-Object { $_ -match 'FAIL|no |NOT ARMED|unreadable|vs pinned' }) }
+} catch {
+  $results['mods-layer-healthy'] = $false
+  $missing += "mods canary did not run: $($modsOut.Trim())"
+}
+
 $ok = -not ($results.Values -contains $false)
 [ordered]@{
   ranAt = [datetime]::UtcNow.ToString('o')
@@ -76,6 +88,7 @@ $ok = -not ($results.Values -contains $false)
 if (-not $ok) {
   $failed = ($results.GetEnumerator() | Where-Object { -not $_.Value } | ForEach-Object { $_.Key }) -join ', '
   Write-Output "GUARD CANARY FAILED: [$failed]. A safety guard is not enforcing right now. Fix this before trusting any guarded operation this session. Details: $statusPath"
+  if (-not $results['mods-layer-healthy']) { Write-Output "MODS LAYER (Function Hooks) is not healthy: any guard in mod mode falls back to its classic hook automatically (hooks/lib/mods-mode.cjs), so nothing is unguarded, but the Mod features are off. Run: node ~/.claude/mods/canary.cjs" }
   if (-not $results['frozen-guards-match-lock']) { Write-Output "A frozen guard file changed since the last lock (edited by hand, by Codex, or with the guard off). Review it, then from a harness session: node ~/.claude/tools/gates/gates.cjs --lock. Drift: $($missing -join '; ')" }
 }
 exit 0
