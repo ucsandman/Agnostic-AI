@@ -3,6 +3,11 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-16 (thirtieth sync)
+
+- **settings.json** — default model back to `opus[1m]` (the source machine's Fable sprint is over).
+  No hook, guard, or `mods/` change; the twenty-ninth sync's 209 files are byte-identical.
+
 ## 2026-09-16 (twenty-ninth sync)
 
 - **Function Hooks (Mods) layer** — `mods/`: a local plugin marketplace with `claude-runtime` (the single
