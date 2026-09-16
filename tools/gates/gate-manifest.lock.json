@@ -1,6 +1,6 @@
 {
   "_comment": "Content hashes of the frozen guard fileset (tools/gates/gate-manifest.json). The gate-freeze check fails on any drift; re-record deliberately with `node tools/gates/gates.cjs --lock` from a harness session after reviewing the change.",
-  "lockedAt": "2026-09-16T22:04:19.237Z",
+  "lockedAt": "2026-09-16T22:14:24.166Z",
   "files": {
     "C:/Users/sandm/.claude/hooks/agent-model-guard.cjs": "b3bd9894246d9ec4057cc184",
     "C:/Users/sandm/.claude/hooks/batch-guard.cjs": "a5071662747311fe53920047",
@@ -32,7 +32,7 @@
     "C:/Users/sandm/.claude/hooks/agent-reaper.ps1": "0b7ae3228125fa2fbe8c6b41",
     "C:/Users/sandm/.claude/hooks/guard-canary.ps1": "c45369a4886dbbf2f193b8d7",
     "C:/Users/sandm/.claude/hooks/lsp-reaper.ps1": "9e5ce7a3a9c60e00fa83fc1f",
-    "C:/Users/sandm/.claude/hooks/context-nudge.py": "ae6b2e38fb60178186df4b7c",
+    "C:/Users/sandm/.claude/hooks/context-nudge.py": "14c4c5fafea8019b894b1be0",
     "C:/Users/sandm/.claude/hooks/skill-telemetry.py": "c5fc7e5012e52ec8513f43ab",
     "C:/Users/sandm/.claude/hooks/sync-main-checkout.py": "639458717d35fdc02f91f490",
     "C:/Users/sandm/.claude/git-hooks/pre-commit": "fc014edbab962683243a277d",
