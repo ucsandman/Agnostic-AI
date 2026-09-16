@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **The port engine is embeddable.** `engine/harness/index.cjs` is the library
+  entry; `common.configure({ brand, secretPatterns, shimPath, importRoots })`
+  lets a host own the ownership claim, the secret patterns, the hook shim path
+  and the import roots; `loadRegistry(home, { targets })`, `capture({ registry,
+  sources })`, `apply({ registry })` and `status({ bundle, registry })` take the
+  registry and policy as values; `bundle.fingerprint()` hashes a bundle's
+  content. `stripSections` moved to `common.cjs` (sync.cjs re-exports it), the
+  Windows junction fallback runs `mklink` as argv rather than a shell string,
+  `sensitivePatterns()` is compiled once, and path comparison keeps case on
+  Linux. Leg (github.com/ucsandman/legcli) embeds the engine byte for byte.
+  Regression: reg-harness section 10.
+
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).

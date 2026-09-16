@@ -102,15 +102,9 @@ function refreshInstalledVersion(version) {
 
 const DROP_SECTIONS_FOR_NON_CLAUDE = ['Delegation and Model Routing'];
 
-function stripSections(markdown, sectionTitles) {
-  let result = markdown;
-  for (const title of sectionTitles) {
-    // `$(?![\s\S])` is end-of-input; a bare `$` under /m would stop at the first newline.
-    const regex = new RegExp(`(^##\\s+${title}\\b[\\s\\S]*?)(?=^##\\s|$(?![\\s\\S]))`, 'm');
-    result = result.replace(regex, '');
-  }
-  return result.replace(/\n{3,}/g, '\n\n').trim();
-}
+// One definition, shared with the port engine, so the two can never disagree on
+// what a section is.
+const { stripSections } = require('../harness/common.cjs');
 
 function compileTarget(target, source) {
   const parts = [];

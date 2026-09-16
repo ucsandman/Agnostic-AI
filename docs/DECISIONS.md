@@ -3,6 +3,23 @@
 Durable architecture and product decisions, newest first. One entry per
 decision: what, why, what it rules out.
 
+## 2026-09-16 — The port engine is a library first; the repo's CLI is one caller
+
+`engine/harness/index.cjs` is the entry a host product requires. Everything the
+engine used to read from this repo (the ownership mark, the secret patterns,
+the hook shim path, the import roots, the target registry, the port policy) is
+an option with the repo's file as its default, so the same bytes run inside a
+zero-dependency ESM host (Leg, github.com/ucsandman/legcli, vendors them
+verbatim and pins their hashes). Why: a host that patched a copy would drift
+from this repo forever; a host that can pass options needs no patch. Rules
+out: converting the engine to ESM for style (the dynamic adapter loading and
+every regression would have been rewritten for nothing), and a package
+dependency (the host ships zero). Secret scanning now covers the whole
+bundle, not the two env maps: free text is redacted, an unsafe handler or
+server is dropped with a warning, and `save()` refuses what remains; a prune
+takes the same backup an overwrite takes; the Windows junction fallback
+refuses a path with a cmd metacharacter instead of quoting it.
+
 ## 2026-09-06 — The client you use is the source of truth; the port is the only writer of every other client
 
 A harness lives in the client the operator actually works in (Claude Code

@@ -31,8 +31,8 @@ const PATH_FIELDS = [
  * `installed` read from disk. A target with no `home` (the generic system card)
  * is a file we own, so it is always installed.
  */
-function loadRegistry(home = os.homedir()) {
-  const raw = JSON.parse(fs.readFileSync(TARGETS_FILE, 'utf8'));
+function loadRegistry(home = os.homedir(), { file = TARGETS_FILE, targets = null } = {}) {
+  const raw = Array.isArray(targets) ? { targets } : JSON.parse(fs.readFileSync(file, 'utf8'));
   return (raw.targets || []).map((t) => {
     const target = Object.assign({}, t);
     for (const field of PATH_FIELDS) if (t[field]) target[field] = expandPath(t[field], home);
@@ -83,22 +83,30 @@ function loadSourceAdapter(id) {
 }
 
 /**
- * capture({ from, home, port, outDir }) -> { bundle, warnings, dir }
+ * capture({ from, home, port, outDir, registry, sources }) -> { bundle, warnings, dir }
  * Reads the source client and writes <repo>/harness/ (or outDir).
+ *
+ * `registry` is an already-expanded target list (loadRegistry()) for a host
+ * that ships its own; `sources` maps a source id to an adapter module and
+ * replaces the require, the way `adapters` does for apply().
  */
-function capture({ from, home = os.homedir(), port, outDir } = {}) {
+function capture({ from, home = os.homedir(), port, outDir, registry, sources = {} } = {}) {
   const policy = port || loadPort();
   const id = resolveSourceId({ from, port: policy, home });
-  const target = loadRegistry(home).find((t) => t.id === id);
-  if (!target) throw new Error(`source client "${id}" is not in core/templates/targets.json`);
+  const target = (registry || loadRegistry(home)).find((t) => t.id === id);
+  if (!target) throw new Error(`source client "${id}" is not in the target registry`);
 
-  const adapter = loadSourceAdapter(id);
+  const adapter = sources[id] || loadSourceAdapter(id);
   if (typeof adapter.capture !== 'function') throw new Error(`engine/harness/sources/${id}.cjs does not export capture()`);
 
   const result = adapter.capture({ home, target, port: policy }) || {};
   const bundle = result.bundle;
   if (!bundle) throw new Error(`engine/harness/sources/${id}.cjs returned no bundle`);
   const warnings = result.warnings || [];
+  // Whatever the adapter kept, a credential does not travel: free text is
+  // redacted, an unsafe handler or server or a malformed item is dropped with
+  // a warning, and save() still refuses anything that slipped through.
+  warnings.push(...bundleMod.sanitize(bundle));
 
   bundle.manifest.source = bundle.manifest.source && bundle.manifest.source !== 'unknown' ? bundle.manifest.source : id;
   bundle.manifest.sourceHome = bundle.manifest.sourceHome || (target.home || home);

@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const common = require('../common.cjs');
-const { stripSections } = require('../../sync/sync.cjs');
+const { stripSections } = common;
 
 const COMPONENTS = ['rules', 'identity', 'hooks', 'skills', 'agents', 'commands', 'mcp', 'permissions'];
 
@@ -113,10 +113,19 @@ function portedHandlers(ctx, event, group) {
   for (const h of group.hooks || []) {
     if (h.type !== 'command' || !h.command) continue;
     const hit = excludes.find((e) => e.re.test(h.command));
-    if (hit) { dropped.push({ item: `${event}: ${h.command.slice(0, 70)}`, reason: hit.reason }); continue; }
+    // the drop names the script, never the command line: a command can carry an argument nobody should log
+    if (hit) { dropped.push({ item: `${event}: ${scriptName(h.command)}`, reason: hit.reason }); continue; }
+    // the shim splits a chain on ' ++ '; a command carrying it would run as two
+    if (h.command.includes(' ++ ')) { dropped.push({ item: `${event}: ${scriptName(h.command)}`, reason: "the command contains ' ++ ', the shim's chain separator" }); continue; }
     kept.push(h);
   }
   return { kept, dropped };
+}
+
+/** The script a hook command runs, for a drop line (the same rule as the Codex adapter). */
+function scriptName(command) {
+  const m = String(command).match(/([A-Za-z0-9_-]+)\.(?:cjs|mjs|js|ps1|py|sh)\b/);
+  return m ? m[1] : String(command).trim().split(/\s+/)[0];
 }
 
 /** Client-dialect hooks the operator added for this target only (core/port.json hooks.extra). */
@@ -137,7 +146,7 @@ function translateMatcher(matcher, map, { keepUnknown }) {
 
 /** `node "<shim>" --client <c> --event <e> -- cmd1 ++ cmd2` */
 function shimCommand(client, event, commands) {
-  const shim = path.join(common.ROOT, 'engine', 'hooks', 'shim.cjs').replace(/\\/g, '/');
+  const shim = common.shimPath().replace(/\\/g, '/');
   return `node "${shim}" --client ${client} --event ${event} -- ${commands.join(' ++ ')}`;
 }
 
@@ -158,6 +167,7 @@ function pruneFiles(ctx, kind, keep) {
   for (const file of owned(ctx, kind)) {
     if (keepSet.has(file) || !fs.existsSync(file)) continue;
     if (ctx.check || ctx.dryRun) { files.push({ path: file, action: 'would-prune' }); continue; }
+    if (ctx.backup) ctx.backup(file);
     fs.rmSync(file, { force: true });
     delete ctx.state.files[file];
     files.push({ path: file, action: 'pruned' });
@@ -257,7 +267,7 @@ function rules(ctx) {
   parts.push(stripSections(ctx.bundle.rules, drop));
   // A target-specific addendum (core/port.json rules.addenda.<id> -> a markdown file in the repo).
   const addendumRel = ctx.port.rules && ctx.port.rules.addenda && ctx.port.rules.addenda[ctx.target.id];
-  const addendum = addendumRel ? common.readText(path.resolve(common.ROOT, addendumRel)) : null;
+  const addendum = addendumRel ? common.readText(path.resolve(ctx.port.baseDir || common.ROOT, addendumRel)) : null;
   if (addendum && addendum.trim()) parts.push('---\n\n' + addendum.trim());
   if (ctx.bundle.identity && !ctx.target.traitsFile) parts.push('---\n\n' + ctx.bundle.identity.trim());
   parts.push(`<!-- ${common.GENERATED_MARK} from the ${ctx.bundle.manifest.source} harness -->`);

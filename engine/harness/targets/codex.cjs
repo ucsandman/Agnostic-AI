@@ -19,7 +19,7 @@ const path = require('path');
 const crypto = require('crypto');
 const common = require('../common.cjs');
 const toml = require('../toml.cjs');
-const { stripSections } = require('../../sync/sync.cjs');
+const { stripSections } = common;
 
 const ID = 'codex';
 const COMPONENTS = ['rules', 'identity', 'hooks', 'skills', 'agents', 'commands', 'mcp', 'permissions'];
@@ -330,7 +330,7 @@ function rules(ctx) {
     // A target-specific addendum (core/port.json rules.addenda.<id> -> a markdown
     // file in the repo) carries guidance that only makes sense in this client.
     const addendumRel = ctx.port && ctx.port.rules && ctx.port.rules.addenda && ctx.port.rules.addenda[ID];
-    const addendum = addendumRel ? readText(path.resolve(common.ROOT, addendumRel)) : null;
+    const addendum = addendumRel ? readText(path.resolve((ctx.port && ctx.port.baseDir) || common.ROOT, addendumRel)) : null;
     if (addendum && addendum.trim()) parts.push('', '---', '', addendum.trim());
     if (ctx.bundle.identity) parts.push('', '---', '', '# Identity', '', String(ctx.bundle.identity).trim());
     parts.push('', `<!-- ${common.GENERATED_MARK} from the ${source} harness -->`, '');
@@ -632,10 +632,11 @@ function agents(ctx) {
       const file = path.join(dir, name);
       if (!fs.existsSync(file)) continue;
       if (readOnly(ctx)) { files.push({ path: file, action: 'would-remove' }); continue; }
+      if (ctx.backup) ctx.backup(file);
       fs.unlinkSync(file);
       delete ctx.state.files[file];
       files.push({ path: file, action: 'removed' });
-      dropped.push({ item: `agent ${name}`, reason: 'no longer in the bundle; the generated file was removed' });
+      dropped.push({ item: `agent ${name}`, reason: 'no longer in the bundle; the generated file was removed (backed up)' });
     }
     if (!readOnly(ctx)) setOwned(ctx, 'agents', written);
 
@@ -679,10 +680,11 @@ function commands(ctx) {
       const file = path.join(dir, name);
       if (!fs.existsSync(file)) continue;
       if (readOnly(ctx)) { files.push({ path: file, action: 'would-remove' }); continue; }
+      if (ctx.backup) ctx.backup(file);
       fs.unlinkSync(file);
       delete ctx.state.files[file];
       files.push({ path: file, action: 'removed' });
-      dropped.push({ item: `command ${name}`, reason: 'no longer in the bundle; the generated file was removed' });
+      dropped.push({ item: `command ${name}`, reason: 'no longer in the bundle; the generated file was removed (backed up)' });
     }
     if (!readOnly(ctx)) setOwned(ctx, 'commands', written);
 
@@ -805,6 +807,7 @@ function permissions(ctx) {
         return { status: 'synced', files: [], dropped, note: 'no Bash(...) permission maps to a Codex prefix rule' };
       }
       if (readOnly(ctx)) return { status: 'stale', files: [{ path: file, action: 'would-remove' }], dropped, note: 'the generated rules file is now empty' };
+      if (ctx.backup) ctx.backup(file);
       fs.unlinkSync(file);
       delete ctx.state.files[file];
       return { status: 'written', files: [{ path: file, action: 'removed' }], dropped, note: 'no rule survived translation; the generated file was removed' };

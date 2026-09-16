@@ -29,8 +29,8 @@ const generic = require('./generic.cjs');
 
 const I = generic._internals;
 
-/** The single top-level key in hooks.json that this harness owns. */
-const HOOK_NAME = 'agnostic-ai';
+/** The single top-level key in hooks.json that this harness owns: the configured brand id. */
+const hookName = () => common.config.brand.id;
 
 const EVENT_MAP = {
   PreToolUse: 'PreToolUse',
@@ -95,19 +95,19 @@ function hooks(ctx) {
   // A previous installer wrote a flat `{"preToolUse": "<command>"}` shape here.
   // It is not ours, so it is left byte for byte and only reported.
   for (const [name, value] of Object.entries(config)) {
-    if (name === HOOK_NAME) continue;
+    if (name === hookName()) continue;
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       dropped.push({ item: `hooks.json key "${name}"`, reason: 'not a named-hook object (legacy installer format); left untouched because the harness does not own it' });
     }
   }
 
   I.owned(ctx, 'hooks'); // initialise this target's ownership record
-  if (Object.keys(block).length) config[HOOK_NAME] = block;
-  else delete config[HOOK_NAME];
+  if (Object.keys(block).length) config[hookName()] = block;
+  else delete config[hookName()];
   const res = I.writeUserJson(ctx, file, config);
-  if (!ctx.check && !ctx.dryRun) ctx.state.owned[ctx.target.id].hooks = Object.keys(block).length ? [HOOK_NAME] : [];
+  if (!ctx.check && !ctx.dryRun) ctx.state.owned[ctx.target.id].hooks = Object.keys(block).length ? [hookName()] : [];
   const entries = Object.values(block).reduce((n, list) => n + list.length, 0);
-  return I.result(ctx, [{ path: file, action: res.action }], dropped, `${entries} chained entr(ies) under the "${HOOK_NAME}" hook`);
+  return I.result(ctx, [{ path: file, action: res.action }], dropped, `${entries} chained entr(ies) under the "${hookName()}" hook`);
 }
 
 module.exports = Object.assign({}, generic, { id: 'agy', hooks });

@@ -40,7 +40,8 @@ function rules(ctx) {
   if (base.status === 'unsupported' || base.status === 'error') return base;
 
   const rulesFile = I.at(ctx, ctx.target.rulesFile);
-  const claudeMd = path.join(ctx.home, '.claude', 'CLAUDE.md');
+  // beside the client's configured home (CLAUDE_CONFIG_DIR moves it), not a hardcoded ~/.claude
+  const claudeMd = path.join(I.at(ctx, ctx.target.home) || path.join(ctx.home, '.claude'), 'CLAUDE.md');
   const importLine = `@${common.tildePath(rulesFile, ctx.home)}`;
   const existing = common.readText(claudeMd);
 

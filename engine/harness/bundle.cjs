@@ -7,7 +7,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ROOT, looksSecret, parseFrontmatter, renderFrontmatter } = require('./common.cjs');
+const crypto = require('crypto');
+const { ROOT, looksSecret, findSecrets, redactSecrets, urlCarriesCredential, parseFrontmatter, renderFrontmatter } = require('./common.cjs');
 
 const BUNDLE_VERSION = '1';
 const DEFAULT_DIR = path.join(ROOT, 'harness');
@@ -42,6 +43,10 @@ function counts(bundle) {
   };
 }
 
+// A long value with no key context is only called a credential when it also
+// has the shape of one (findSecrets covers the known prefixes).
+const highLike = (v) => v.length >= 32 && !/\s/.test(v) && !/[\\/]/.test(v);
+
 /** Structural validation. Returns an array of problems (empty = valid). */
 function validate(bundle) {
   const problems = [];
@@ -57,8 +62,21 @@ function validate(bundle) {
       });
     });
   }
+  // A credential anywhere in the bundle is a credential copied into every
+  // client: every free-text field and every command line is scanned, not only
+  // the two env maps.
+  if (findSecrets(bundle.rules).length) problems.push('rules.md carries a credential-shaped value');
+  if (findSecrets(bundle.identity).length) problems.push('identity.md carries a credential-shaped value');
+  for (const [event, groups] of Object.entries((bundle.hooks && bundle.hooks.events) || {})) {
+    if (!Array.isArray(groups)) continue;
+    groups.forEach((g, i) => (g.hooks || []).forEach((h, j) => {
+      if (h && typeof h.command === 'string' && findSecrets(h.command).length) problems.push(`hooks.events.${event}[${i}].hooks[${j}].command carries a credential-shaped value`);
+    }));
+  }
   for (const [name, s] of Object.entries((bundle.mcp && bundle.mcp.servers) || {})) {
     if (!/^[A-Za-z0-9_.-]+$/.test(name)) problems.push(`mcp server name "${name}" is not a safe identifier`);
+    for (const a of s.args || []) if (typeof a === 'string' && (findSecrets(a).length || looksSecret('arg', a) && highLike(a))) problems.push(`mcp.${name}.args carries a credential-shaped value`);
+    if (typeof s.url === 'string' && (findSecrets(s.url).length || urlCarriesCredential(s.url))) problems.push(`mcp.${name}.url carries a credential (userinfo, a secret query value or a token in the path)`);
     if (!['stdio', 'http', 'sse'].includes(s.transport)) problems.push(`mcp.${name}.transport must be stdio, http or sse`);
     if (s.transport === 'stdio' && !s.command) problems.push(`mcp.${name} (stdio) needs a command`);
     if (s.transport !== 'stdio' && !s.url) problems.push(`mcp.${name} (${s.transport}) needs a url`);
@@ -68,13 +86,98 @@ function validate(bundle) {
   for (const a of bundle.agents || []) {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(a.name)) problems.push(`agent name "${a.name}" must be kebab-case`);
     if (!a.meta || typeof a.meta.description !== 'string') problems.push(`agent ${a.name} needs a description`);
+    if (findSecrets(a.body).length) problems.push(`agent ${a.name} carries a credential-shaped value`);
   }
-  for (const c of bundle.commands || []) if (!/^[A-Za-z0-9_-]+$/.test(c.name)) problems.push(`command name "${c.name}" is not a safe file name`);
+  for (const c of bundle.commands || []) {
+    if (!/^[A-Za-z0-9_-]+$/.test(c.name)) problems.push(`command name "${c.name}" is not a safe file name`);
+    if (findSecrets(c.body).length) problems.push(`command ${c.name} carries a credential-shaped value`);
+  }
   for (const s of (bundle.skills && bundle.skills.skills) || []) {
-    if (!/^[A-Za-z0-9_.-]+$/.test(s.name)) problems.push(`skill name "${s.name}" is not a safe directory name`);
+    if (!/^[A-Za-z0-9_.-]+$/.test(s.name) || s.name === '.' || s.name === '..') problems.push(`skill name "${s.name}" is not a safe directory name`);
     if (!path.isAbsolute(s.path || '')) problems.push(`skill ${s.name} needs an absolute path`);
   }
   return problems;
+}
+
+/**
+ * Make a captured bundle saveable without losing the harness: free text is
+ * redacted in place, and a hook handler, an MCP argument or URL, an agent or a
+ * command that cannot be carried safely is dropped. Returns the warnings, one
+ * per change, so the operator sees exactly what did not travel and why.
+ * capture() calls this before save(); validate() still refuses what remains.
+ */
+function sanitize(bundle) {
+  const warnings = [];
+  const redactText = (label, text) => {
+    const hits = findSecrets(text);
+    if (!hits.length) return text;
+    warnings.push(`${label}: ${hits.length} credential-shaped value(s) redacted; the bundle carries [REDACTED] instead`);
+    return redactSecrets(text);
+  };
+  bundle.rules = redactText('rules', bundle.rules);
+  bundle.identity = redactText('identity', bundle.identity);
+  for (const [event, groups] of Object.entries((bundle.hooks && bundle.hooks.events) || {})) {
+    if (!Array.isArray(groups)) continue;
+    for (const g of groups) {
+      const kept = [];
+      for (const h of g.hooks || []) {
+        if (h && typeof h.command === 'string' && findSecrets(h.command).length) warnings.push(`hooks.${event}: a handler command carries a credential-shaped value; the hook is not carried`);
+        else kept.push(h);
+      }
+      g.hooks = kept;
+    }
+    bundle.hooks.events[event] = groups.filter((g) => (g.hooks || []).length);
+    if (!bundle.hooks.events[event].length) delete bundle.hooks.events[event];
+  }
+  for (const [name, s] of Object.entries((bundle.mcp && bundle.mcp.servers) || {})) {
+    const badArg = (s.args || []).some((a) => typeof a === 'string' && (findSecrets(a).length || (looksSecret('arg', a) && highLike(a))));
+    const badUrl = typeof s.url === 'string' && (findSecrets(s.url).length || urlCarriesCredential(s.url));
+    if (badArg || badUrl) {
+      warnings.push(`mcp.${name}: ${badUrl ? 'the url' : 'an argument'} carries a credential; the server is not carried (move it to an env reference)`);
+      delete bundle.mcp.servers[name];
+    }
+  }
+  bundle.agents = (bundle.agents || []).filter((a) => {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(a.name)) { warnings.push(`agent "${a.name}" is not kebab-case; not carried`); return false; }
+    a.body = redactText(`agent ${a.name}`, a.body);
+    return true;
+  });
+  bundle.commands = (bundle.commands || []).filter((c) => {
+    if (!/^[A-Za-z0-9_-]+$/.test(c.name)) { warnings.push(`command "${c.name}" is not a safe file name; not carried`); return false; }
+    c.body = redactText(`command ${c.name}`, c.body);
+    return true;
+  });
+  bundle.skills.skills = (bundle.skills.skills || []).filter((s) => {
+    if (!/^[A-Za-z0-9_.-]+$/.test(s.name) || s.name === '.' || s.name === '..') { warnings.push(`skill "${s.name}" is not a safe directory name; not carried`); return false; }
+    return true;
+  });
+  return warnings;
+}
+
+function canonical(v) {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v).sort()) o[k] = canonical(v[k]);
+    return o;
+  }
+  return v;
+}
+
+/**
+ * A content hash of everything a target renders from: the same source state
+ * captured twice gives the same fingerprint, whatever the capture time. The
+ * manifest is left out (it carries the timestamp). A host uses it to answer
+ * "did the harness change since the last sync" without diffing files.
+ */
+function fingerprint(bundle) {
+  const body = canonical({
+    rules: bundle.rules, identity: bundle.identity, hooks: bundle.hooks, mcp: bundle.mcp,
+    skills: bundle.skills, permissions: bundle.permissions,
+    agents: (bundle.agents || []).map((a) => ({ name: a.name, meta: a.meta, body: a.body })),
+    commands: (bundle.commands || []).map((c) => ({ name: c.name, meta: c.meta, body: c.body })),
+  });
+  return crypto.createHash('sha256').update(JSON.stringify(body), 'utf8').digest('hex');
 }
 
 function save(bundle, dir = DEFAULT_DIR) {
@@ -82,6 +185,7 @@ function save(bundle, dir = DEFAULT_DIR) {
   if (problems.length) throw new Error(`refusing to save an invalid bundle:\n  - ${problems.join('\n  - ')}`);
   bundle.manifest.capturedAt = bundle.manifest.capturedAt || new Date().toISOString();
   bundle.manifest.components = counts(bundle);
+  bundle.manifest.fingerprint = fingerprint(bundle);
   fs.mkdirSync(dir, { recursive: true });
   const w = (name, text) => fs.writeFileSync(path.join(dir, name), text, 'utf8');
   w('manifest.json', JSON.stringify(bundle.manifest, null, 2) + '\n');
@@ -136,4 +240,4 @@ function modelTier(model) {
   return model;
 }
 
-module.exports = { BUNDLE_VERSION, DEFAULT_DIR, COMPONENTS, MODEL_TIERS, createBundle, counts, validate, save, load, modelTier };
+module.exports = { BUNDLE_VERSION, DEFAULT_DIR, COMPONENTS, MODEL_TIERS, createBundle, counts, validate, sanitize, save, load, modelTier, fingerprint };

@@ -1,5 +1,20 @@
 # Errors and lessons
 
+## 2026-09-16 - Secret scanning covered two map keys and the docs promised the whole bundle
+
+- **Symptom:** an independent security review of the engine embedded in Leg
+  planted a token in the rules text, a hook command line, an MCP argument and
+  an MCP url; `validate()` reported one problem, the env one. The four canary
+  tests only planted tokens where the scan already looked.
+- **Root cause:** `looksSecret` was written for `env` and `headers` values and
+  never applied to free text or command lines; the bare-URL exemption also
+  waved through a password in a connection string.
+- **Fix:** `findSecrets`/`redactSecrets` over every field, `bundle.sanitize()`
+  before every save (redact text, drop an unsafe handler or server with a
+  warning), URL userinfo, query and path-token checks, and fixtures that plant
+  a token in every place the scan must reach. A check never seen failing has
+  been run, not verified: the new fixture is the failing case.
+
 ## 2026-09-06 - Two writers for one target file, and a personal tool that never came home
 
 - **Symptom:** Codex's AGENTS.md flipped between two shapes depending on which

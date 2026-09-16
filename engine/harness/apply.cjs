@@ -110,15 +110,16 @@ function formatTable(report) {
 }
 
 /**
- * apply({ bundle, bundleDir, home, port, to, check, dryRun, force, storageDir, adapters, log, quiet }) -> report
+ * apply({ bundle, bundleDir, home, port, to, check, dryRun, force, storageDir, adapters, registry, log, quiet }) -> report
  *
  * `adapters` maps a target id (or an adapter id) to an already-loaded module and
- * replaces the require — the tests inject stubs through it.
+ * replaces the require — the tests inject stubs through it. `registry` is an
+ * already-expanded target list for a host that ships its own.
  */
 function apply(options = {}) {
   const {
     bundleDir, home = os.homedir(), to, check = false, dryRun = false, force = false,
-    adapters = {}, quiet = false,
+    adapters = {}, quiet = false, registry: givenRegistry = null,
   } = options;
   const log = options.log || ((line) => { if (!quiet) console.log(line); });
   const storageDir = options.storageDir || DEFAULT_STORAGE;
@@ -127,7 +128,7 @@ function apply(options = {}) {
   if (!bundle) throw new Error('no bundle captured yet; run npm run capture');
   const port = options.port || loadPort();
 
-  const registry = loadRegistry(home);
+  const registry = givenRegistry || loadRegistry(home);
   const selected = selectTargets(registry, { to: Array.isArray(to) ? to : to ? String(to).split(',') : null, port });
   const sourceId = bundle.manifest && bundle.manifest.source;
 
@@ -199,6 +200,8 @@ function apply(options = {}) {
       force: Boolean(force),
       state: targetState,
       write: common.makeWriter({ state: targetState, backupsDir, tag: target.id, check: readOnly, force, log }),
+      // a generated file about to be pruned gets the same backup an overwrite gets
+      backup: (file) => (fs.existsSync(file) ? common.backupFile(backupsDir, target.id, file) : null),
       link: (src, dest) => common.link(src, dest, { check: readOnly }),
       log,
     };

@@ -25,18 +25,18 @@ const NO_BUNDLE = 'no bundle captured yet; run npm run capture';
 function status(options = {}) {
   const {
     home = os.homedir(), port, to, bundleDir, json = false, explain = false,
-    html = false, quiet = false, adapters,
+    html = false, quiet = false, adapters, registry,
   } = options;
   const storageDir = options.storageDir || DEFAULT_STORAGE;
   const log = options.log || ((line) => { if (!quiet && !json) console.log(line); });
 
-  const bundle = bundleMod.load(bundleDir || bundleMod.DEFAULT_DIR);
+  const bundle = options.bundle || bundleMod.load(bundleDir || bundleMod.DEFAULT_DIR);
   if (!bundle) {
     log(NO_BUNDLE);
     return { syncState: 'no-bundle', targets: {}, report: null, message: NO_BUNDLE };
   }
 
-  const report = apply({ bundle, home, port, to, check: true, storageDir, adapters, log });
+  const report = apply({ bundle, home, port, to, check: true, storageDir, adapters, registry, log });
   const anyError = Object.values(report.targets).some((t) => t.status === 'error');
   const syncState = anyError ? 'error' : report.stale ? 'stale' : 'synced';
   report.syncState = syncState;

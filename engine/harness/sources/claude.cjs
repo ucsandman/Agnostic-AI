@@ -35,24 +35,24 @@ function inside(child, parent) {
 }
 
 /**
- * Prefer the path the registry gives us, fall back to the conventional one under
- * `home`. A registry entry is expanded against the real home directory; a test
- * (or a --home run) passes a different home, and a path outside it would read the
- * live machine instead of the directory under test.
+ * The registry path when there is one, else the conventional one under `home`.
+ * loadRegistry() expands every entry against the home it is given, and a host
+ * may point a client at a config dir outside that home (CLAUDE_CONFIG_DIR):
+ * that path is the one to read, never a silent fallback to ~/.claude.
  */
-const pick = (registryPath, fallback, home) => (registryPath && inside(registryPath, home) ? registryPath : fallback);
+const pick = (registryPath, fallback) => (registryPath ? registryPath : fallback);
 
 function surfaces(home, target = {}) {
-  const claudeDir = pick(target.home, path.join(home, '.claude'), home);
+  const claudeDir = pick(target.home, path.join(home, '.claude'));
   return {
     claudeDir,
     rulesFile: path.join(claudeDir, 'CLAUDE.md'),
-    identityFile: pick(target.traitsFile, path.join(claudeDir, 'SOUL.md'), home),
-    settingsFile: pick(target.hooksConfigFile, path.join(claudeDir, 'settings.json'), home),
-    agentsDir: pick(target.agentsDir, path.join(claudeDir, 'agents'), home),
-    commandsDir: pick(target.commandsDir, path.join(claudeDir, 'commands'), home),
-    skillsDir: pick(target.skillsDir, path.join(claudeDir, 'skills'), home),
-    mcpFile: pick(target.mcpConfigFile, path.join(home, '.claude.json'), home),
+    identityFile: pick(target.traitsFile, path.join(claudeDir, 'SOUL.md')),
+    settingsFile: pick(target.hooksConfigFile, path.join(claudeDir, 'settings.json')),
+    agentsDir: pick(target.agentsDir, path.join(claudeDir, 'agents')),
+    commandsDir: pick(target.commandsDir, path.join(claudeDir, 'commands')),
+    skillsDir: pick(target.skillsDir, path.join(claudeDir, 'skills')),
+    mcpFile: pick(target.mcpConfigFile, path.join(home, '.claude.json')),
     projectMcpFile: path.join(claudeDir, '.mcp.json'),
   };
 }
@@ -103,8 +103,8 @@ function inlineImports(text, { home, baseDir, level, warnings, where }) {
       warnings.push(`${where}: import ${spec} is nested deeper than ${IMPORT_DEPTH} levels; the line was dropped`);
       continue;
     }
-    if (!inside(resolved, home) && !inside(resolved, common.ROOT)) {
-      warnings.push(`${where}: import ${spec} resolves outside the home directory and outside the repo; the line was dropped`);
+    if (!inside(resolved, home) && !common.importRoots().some((root) => inside(resolved, root))) {
+      warnings.push(`${where}: import ${spec} resolves outside the home directory and outside the allowed import roots; the line was dropped`);
       continue;
     }
     const raw = common.readText(resolved);
