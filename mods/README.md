@@ -22,6 +22,20 @@ mods/
                                     canary-status.json, canary-leg.json
 ```
 
+## What has to be on for any of this to load
+
+Function hooks are behind an experimental switch. Without it Claude Code never calls `register()`, so
+there is no `/mods` command, no heartbeat, and the statusline shows `MOD none` while `claude plugin list`
+still cheerfully lists both plugins as enabled — the failure is silent and looks like a plugin problem.
+
+```
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1     in settings.json → env  (user scope, so every session gets it)
+```
+
+It lived only in the promoting session's terminal until 2026-09-16, which made the whole layer invisible in
+every normally started session. Check with `/mods` (or `ls mods/state/sessions` for a fresh heartbeat), not
+with `claude plugin list`.
+
 ## What each guard does in `mod` mode (and what stood down)
 
 | Guard | Mod behaviour | Classic hook that stands down | Kept classic |

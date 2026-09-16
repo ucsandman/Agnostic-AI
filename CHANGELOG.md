@@ -3,6 +3,15 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-16 (thirty-first sync)
+
+- **The Mods layer only ever armed in one terminal.** Claude Code's function hooks sit behind an
+  experimental switch that was exported by hand in the promoting session and never written to the
+  user config, so every normally started session loaded no hooks at all: no `/mods`, statusline
+  `MOD none`, all five guards silently back to their classic versions, while `claude plugin list`
+  still listed both plugins as enabled. The switch now ships in the config, and `mods/README.md`
+  opens with the section that says so.
+
 ## 2026-09-16 (thirtieth sync)
 
 - **settings.json** — default model back to `opus[1m]` (the source machine's Fable sprint is over).
