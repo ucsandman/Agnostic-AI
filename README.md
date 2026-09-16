@@ -178,3 +178,32 @@ JSON and the save refuses anything that looks like a secret.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Runtime capabilities (`supports` in core/templates/targets.json)
+
+Claude Code now has capabilities other targets do not (the Function Hooks layer in `~/.claude/mods`, 2026-09-16). Every target declares them explicitly; `universal-adapter.cjs` exposes `capabilitiesOf(client)` and `requires(client, feature)` so a porter DROPS a Mods-only artefact with a recorded reason (`dropped: target lacks <feature>`) instead of forcing every runtime to the lowest common denominator or pretending a target exposes a feature it does not. The Claude row describes the harness with `~/.claude/mods` installed. `engine/tests/reg-capabilities.cjs` fails when this table and targets.json disagree.
+
+<!-- capabilities:start -->
+| target | tool intercept | result mutation | runtime events | subagent events | UI injection | dynamic permissions | context signals | usage signals | middleware | runtime memory | checkpointing | semantic judgment |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| claude | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | file-level | stub,model,jev |
+| codex | yes | no | yes | yes | no | yes | no | no | no | no | none | stub |
+| gemini | yes | no | yes | no | no | no | no | no | no | no | none | stub |
+| agy | yes | no | yes | no | no | no | no | no | no | no | none | stub |
+| cursor | no | no | no | no | no | no | no | no | no | no | none | stub |
+| windsurf | no | no | no | no | no | no | no | no | no | no | none | stub |
+| copilot | no | no | no | no | no | no | no | no | no | no | none | stub |
+| cline | no | no | no | no | no | no | no | no | no | no | none | stub |
+| aider | no | no | no | no | no | no | no | no | no | no | none | stub |
+| openhands | no | no | no | no | no | no | no | no | no | no | none | stub |
+| goose | no | no | no | no | no | no | no | no | no | no | none | stub |
+| continue | no | no | no | no | no | no | no | no | no | no | none | stub |
+| zed | no | no | no | no | no | no | no | no | no | no | none | stub |
+| opencode | no | no | no | no | no | no | no | no | no | no | none | stub |
+| trae | no | no | no | no | no | no | no | no | no | no | none | stub |
+| amazonq | no | no | no | no | no | no | no | no | no | no | none | stub |
+| cody | no | no | no | no | no | no | no | no | no | no | none | stub |
+| openclaw | no | no | no | no | no | no | no | no | no | no | none | stub |
+| hermes | no | no | no | no | no | no | no | no | no | no | none | stub |
+| generic | no | no | no | no | no | no | no | no | no | no | none | stub |
+<!-- capabilities:end -->

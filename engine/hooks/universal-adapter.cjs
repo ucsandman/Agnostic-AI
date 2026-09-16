@@ -14,6 +14,50 @@
  * }
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const TARGETS_FILE = path.join(__dirname, '..', '..', 'core', 'templates', 'targets.json');
+
+// Every key capabilitiesOf() ever returns; an unknown client or a target with
+// no `supports` block gets this, never a thrown error or a missing key.
+const CAPABILITY_DEFAULTS = {
+  toolInterception: false,
+  toolResultMutation: false,
+  runtimeEvents: false,
+  subagentEvents: false,
+  uiInjection: false,
+  dynamicPermissions: false,
+  contextSignals: false,
+  usageSignals: false,
+  middleware: false,
+  runtimeMemory: false,
+  checkpointing: 'none',
+  semanticJudgment: ['stub'],
+};
+
+let targetsCache = null;
+function loadTargets() {
+  if (!targetsCache) targetsCache = JSON.parse(fs.readFileSync(TARGETS_FILE, 'utf8')).targets || [];
+  return targetsCache;
+}
+
+/** The `supports` block for a client id from core/templates/targets.json, defaults false/'none'/['stub']. */
+function capabilitiesOf(client) {
+  const target = loadTargets().find((t) => t.id === client);
+  return Object.assign({}, CAPABILITY_DEFAULTS, target && target.supports);
+}
+
+/**
+ * Does `client` support `feature` (one of the capabilitiesOf() keys)? A caller
+ * that would otherwise fail writing a Mods-only artefact (a hook that needs
+ * toolResultMutation, say) drops it instead, recording `reason`.
+ */
+function requires(client, feature) {
+  const ok = Boolean(capabilitiesOf(client)[feature]);
+  return { ok, reason: ok ? null : `dropped: target lacks ${feature}` };
+}
+
 function detectClient(payload) {
   if (!payload || typeof payload !== 'object') return 'generic';
   if (payload.toolCall && payload.toolCall.args) return 'agy';
@@ -212,6 +256,9 @@ function formatHookOutput(client, result) {
 }
 
 module.exports = {
+  capabilitiesOf,
+  requires,
+  CAPABILITY_DEFAULTS,
   detectClient,
   normalizePayload,
   formatDenial,
