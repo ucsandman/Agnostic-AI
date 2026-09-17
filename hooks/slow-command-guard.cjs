@@ -16,8 +16,13 @@ const os = require('os');
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'shell', 'shell_command', 'run_command']);
 const FINITE = /\b(vitest|jest|pytest|playwright\s+test|cargo\s+test|go\s+test|tsc\b|next\s+build|npm\s+run\s+build|npm\s+test\b|npm\s+run\s+test\S*|npx\s+(vitest|jest|playwright))/i;
 const WATCHER = /\b(dev\b|watch|serve\b|start\b|--watch)/i;
-// A recursive search tool...
-const RECURSIVE = /(\b(grep|egrep|fgrep)\b[^|;&\n]*\s(-[A-Za-z]*[rR][A-Za-z]*\b|--recursive|--dereference-recursive)|\brg\b|\bfind\b|Get-ChildItem\b[^|;&\n]*-Recurse|\bgci\b[^|;&\n]*-Recurse)/;
+// A recursive search tool, INVOKED AS A COMMAND. The tool name must sit at a command position
+// (start, or after | ; && || newline, or a `$(`/backtick opener) - otherwise `.find(n => ...)` in a
+// node -e script, and the bare word "find" inside a quoted string, both matched and the guard denied
+// work it has no opinion about (observed 2026-09-17 on a `node -e` one-liner containing `.find(`).
+// Regex literals, not strings: an earlier string-built version lost a level of backslash escaping
+// and matched nothing at all, which hooks/tests/slow-command-guard.test.cjs caught immediately.
+const RECURSIVE = /(?:^|[|;&\n]|\|\||&&|\$\(|`)\s*(?:sudo\s+)?(?:(?:grep|egrep|fgrep)\b[^|;&\n]*\s(?:-[A-Za-z]*[rR][A-Za-z]*\b|--recursive|--dereference-recursive)|(?:rg|find)\b)|Get-ChildItem\b[^|;&\n]*-Recurse|\bgci\b[^|;&\n]*-Recurse/;
 // ...whose path argument IS a root (nothing deeper than Projects, home, or a drive).
 const ROOT = /(^|[\s"'=])(\/c\/Projects|[A-Za-z]:[\\/]Projects|~|\$HOME|\$env:USERPROFILE|\/c\/Users\/[^\s\\/"']+|[A-Za-z]:[\\/]Users[\\/][^\s\\/"']+|[A-Za-z]:|\/c)[\\/]?(?=[\s"']|$)/m;
 

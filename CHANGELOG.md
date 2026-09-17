@@ -3,6 +3,25 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-17 (thirty-second sync)
+
+- **Two guards whose failure mode was silence.** The mods canary pinned an exact Claude Code
+  version, so it failed on every patch release whether or not anything broke, which is how an
+  alarm teaches you to ignore it. A minor or major change still hard-fails, because event shapes
+  can move; a patch change now defers to the in-session capability probe, since 9 of 9 capabilities
+  answering true on the installed build is direct evidence the API is intact where the version
+  string is only a proxy. New `canary.cjs --repin` adopts the installed build but refuses unless
+  both the canary and the probe are clean. Both branches were forced before trusting them:
+  pin 2.2.0 gives FAIL, pin 2.1.200 with a clean probe gives pass-with-warning.
+- **`slow-command-guard` denied commands containing no search.** The pattern was `find`,
+  which matches the word anywhere, including `.find()` inside a quoted JS string. It blocked the
+  same shape twice in one session, and a guard that denies unrelated work trains you to reach for
+  the override marker. The tool name must now sit at a command position. Worth recording: the
+  first fix built the regex from concatenated strings, lost a level of backslash escaping, and
+  made the guard match nothing at all, which looks identical to a guard with nothing to report.
+  New `hooks/tests/slow-command-guard.test.cjs` caught it on the first run by asserting the
+  denials as well as the allows: 14 cases, 7 deny and 7 allow.
+
 ## 2026-09-16 (thirty-first sync)
 
 - **The Mods layer only ever armed in one terminal.** Claude Code's function hooks sit behind an

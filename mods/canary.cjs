@@ -26,11 +26,15 @@ const HOME = process.env.USERPROFILE || os.homedir();
 const CLAUDE = path.join(HOME, '.claude');
 const MODS = path.join(CLAUDE, 'mods');
 const STATE = path.join(MODS, 'state');
-const PIN_VERSION = '2.1.273';
+const PIN_VERSION = '2.1.274';
+// Mirrors harness-mods/hooks/lib/canary.mjs EXPECTED_SUPPORTS; used only to report probe breadth (L2).
+const EXPECTED_SUPPORTS = ['toolInterception', 'toolResultMutation', 'runtimeEvents', 'subagentEvents',
+  'dynamicPermissions', 'usageSignals', 'contextSignals', 'middleware', 'runtimeMemory'];
 const GUARDS = ['routing', 'contextNudge', 'secretRedaction', 'subagentAccounting', 'readCache'];
 const args = process.argv.slice(2);
 const QUICK = args.includes('--quick');
 const AS_JSON = args.includes('--json');
+const REPIN = args.includes('--repin');
 const MAX_HB_AGE_MS = 7 * 24 * 3600 * 1000; // a week without any session is "unknown", not "broken"
 
 const results = {};
@@ -72,9 +76,30 @@ const layer = readJson(path.join(STATE, 'canary-status.json'));
 check('layer-self-check', !!layer && layer.ok === true, layer ? (layer.ok ? 'ok' : 'FAIL ' + (layer.failures || []).join('; ')) : 'no canary-status.json');
 
 if (!QUICK) {
+  // Version drift. An exact-match pin went red on every patch release even when the whole capability
+  // surface was intact, which trained me to ignore a red canary — the one outcome a canary must never
+  // produce. So: a minor/major change is still a hard failure (event shapes can move), a PATCH change
+  // defers to evidence. The layer probes all of EXPECTED_SUPPORTS every session and writes the result
+  // to canary-status.json; if every capability still answers true on the installed build, the API the
+  // Mod depends on is intact and the pin is merely stale. Any capability regression fails either way.
   const v = run('claude', ['--version'], 30000);
   const ver = (v.out.match(/(\d+\.\d+\.\d+)/) || [])[1] || null;
-  check('version', ver === PIN_VERSION, 'installed ' + ver + ' vs pinned ' + PIN_VERSION + (ver && ver !== PIN_VERSION ? ' — re-run lab/probe* and update RUNTIME_PIN before trusting mod mode' : ''));
+  const sameLine = ver && ver.split('.').slice(0, 2).join('.') === PIN_VERSION.split('.').slice(0, 2).join('.');
+  const probe = readJson(path.join(STATE, 'canary-status.json'));
+  const probedOk = !!probe && probe.ok === true;
+  if (ver === PIN_VERSION) {
+    check('version', true, 'installed ' + ver + ' == pinned ' + PIN_VERSION);
+  } else if (sameLine && probedOk) {
+    check('version', true, 'installed ' + ver + ' vs pinned ' + PIN_VERSION
+      + ' — patch drift, capability probe clean on the installed build (' + EXPECTED_SUPPORTS.length
+      + ' of ' + EXPECTED_SUPPORTS.length + ' true, session ' + String(probe.sessionId).slice(0, 8)
+      + '); run `node ~/.claude/mods/canary.cjs --repin` to clear');
+  } else {
+    check('version', false, 'installed ' + ver + ' vs pinned ' + PIN_VERSION + ' — '
+      + (sameLine ? 'patch drift AND the capability probe is not clean'
+                  : 'minor/major change: event shapes may have moved')
+      + '; re-run lab/probe* and update RUNTIME_PIN before trusting mod mode');
+  }
   for (const p of ['claude-runtime', 'harness-mods']) {
     const r = run('claude', ['plugin', 'validate', path.join(MODS, p), '--json'], 90000);
     let ok = false; let msg = 'no json';
@@ -87,6 +112,29 @@ if (!QUICK) {
 }
 
 const ok = !Object.values(results).includes(false);
+
+// --repin: adopt the installed build as the new pin, but only on evidence. Requires a clean run and a
+// clean in-session capability probe, so this can never launder a real regression into a green canary.
+if (REPIN) {
+  const v = run('claude', ['--version'], 30000);
+  const ver = (v.out.match(/(\d+\.\d+\.\d+)/) || [])[1] || null;
+  const probe = readJson(path.join(STATE, 'canary-status.json'));
+  if (!ver) { console.error('repin: could not read `claude --version`'); process.exit(2); }
+  if (!ok) { console.error('repin refused: canary is not clean — ' + notes.join(' | ')); process.exit(1); }
+  if (!probe || probe.ok !== true) { console.error('repin refused: no clean in-session capability probe in canary-status.json'); process.exit(1); }
+  const targets = [
+    { f: path.join(MODS, 'canary.cjs'), re: /(const PIN_VERSION = ')(\d+\.\d+\.\d+)(')/ },
+    { f: path.join(MODS, 'harness-mods', 'hooks', 'lib', 'canary.mjs'), re: /(claudeVersion: ")(\d+\.\d+\.\d+)(")/ },
+  ];
+  for (const t of targets) {
+    const src = fs.readFileSync(t.f, 'utf8');
+    if (!t.re.test(src)) { console.error('repin: pattern not found in ' + t.f); process.exit(2); }
+    fs.writeFileSync(t.f, src.replace(t.re, '$1' + ver + '$3'));
+  }
+  console.log('repinned to ' + ver + ' (capability probe clean, session ' + String(probe.sessionId).slice(0, 8) + ')');
+  process.exit(0);
+}
+
 const out = { ranAt: new Date().toISOString(), ok, quick: QUICK, results, notes, enforcing };
 try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, 'canary-leg.json'), JSON.stringify(out, null, 2)); } catch (_) {}
 if (AS_JSON) console.log(JSON.stringify(out));

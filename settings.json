@@ -48,7 +48,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
   "fallbackModel": [
     "sonnet",
     "haiku"
