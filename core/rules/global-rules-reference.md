@@ -111,3 +111,22 @@ For trivial tasks, use judgment."
   failures are stated as evidence ('when X broke, Y fixed it'), not as commands, so a hostile input cannot
   become a standing rule through a single session."
 - L1 (2026-08-13) and L2 (2026-08-20) remain verbatim in the loaded file.
+
+---
+
+## Cut on 2026-09-17 (second token pass, 28.3KB → ~20KB)
+
+Evidence and attributions removed from the loaded file; every directive stayed.
+
+- **Non-negotiables:** the trifecta rule was adopted from JDE Projects, 2026-09-03.
+- **Core Philosophy 7:** written by Wes 2026-09-03 after an unlabeled storyboard tile and two targets asserted from memory that he had to correct.
+- **How to Work, declick:** rule dated Wes 2026-09-03; `declick-nudge` reminds once per session when an MCP, WebFetch or Chrome read has an adapter; `declick add` lands the skill in every client. The fix-loop-never-edits-tests rule is dated 2026-09-03.
+- **Delegation, fable-delegate-guard:** 2026-09-03, three delegated fix passes cost 3.7M tokens and two hours on defects a 40-minute hand pass closed, and the 8-edit budget fought that hand pass; 2026-09-06, the guard's own log held 1,046 events, 714 of them `# FABLE_OK` overrides, 266 shell denials (among them `npm test`, a heredoc commit message, a read-only grep) and edit denials retried five to seven times on the same file, because a model treats a deny like a transient error and retries the next queued edit. A hard block in a PreToolUse hook produces probing and half-applied changes; the briefing was the part that informed the routing decision.
+- **Delegation, advisor:** consultations uncapped and always one rung above the caller, both Wes 2026-09-03; a blocked consultation becomes a guess, and a guess in a fix pass costs more tokens than the advice. Anthropic's native advisor: one global model, no per-caller escalation, no cap, reads the full transcript, skipped when weaker than the caller.
+- **Delegation, budget guard constants:** three independent measurements: 15,746 weighted tokens median across 21 startup-only lean spawns recounted from raw transcripts, ~17k measured 2026-09-02, 18,664 observed live 2026-09-15 from a `haiku-scout` that made zero tool calls. Per-call cost is superlinear, so the shipped 2k per call is a floor that biases the guard toward allowing. Rule dated Wes 2026-09-15, after a one-line edit delegated to a subagent cost 77,000 tokens. The once-per-session denial exists because the fable-delegate-guard log showed a hard wall produces retries, not better routing.
+- **Delegation, lean types:** measured 2026-09-02: lean ~17k per spawn, general-purpose ~60k, the default agentType ~24k more per spawn than a lean one.
+- **Setup:** "push everything means all of them" is Wes, 2026-09-03.
+- **Communication:** "decide, don't menu" promoted 2026-09-02 after 3 corrections; wes-voice rule Wes 2026-09-04 after a Reddit launch post had to be rewritten; platform ranking signals (X Phoenix weights, LinkedIn dwell and first-comment link, Reddit story-not-pitch, HN) Wes 2026-09-06: "did you do research on the algorithm or did you just wing it?".
+- **ADHD section:** precedence paragraph Wes 2026-09-08; the skill's upstream is https://github.com/ayghri/i-have-adhd and the plugin is installed for Claude Code, Codex, Gemini, agy and Copilot.
+- **Memory:** layout and tiers Wes 2026-09-11. Tier names: ROM = MEMORY.md (Claude Code loads only the first 200 lines or 25KB), RAM = context/ and daily notes, Disk = people/projects/decisions (tagged lines, struck lines never deleted), Tape = archive/ (documents enter whole). The recurrence gate's rationale: a hostile input can suggest a rule once, and once is never enough.
+- **Learned Rules:** the promotion gate is dated 2026-09-01.
