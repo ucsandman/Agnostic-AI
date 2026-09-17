@@ -46,8 +46,25 @@ const rules = [
   }
 ];
 
-const hits = rules.filter(r => r.matcher.test(target));
+// Each tip fires once per session: the reminder is re-read on every later turn anyway.
+const sessionId = String(evt.session_id || 'nosession').replace(/[^\w-]/g, '');
+const markDir = path.join(__dirname, '..', 'state', 'dynamic-recall');
+let seen = new Set();
+const markFile = path.join(markDir, `${sessionId}.json`);
+try { seen = new Set(JSON.parse(fs.readFileSync(markFile, 'utf8'))); } catch {}
+
+const hits = rules.filter(r => r.matcher.test(target) && !seen.has(r.tip));
 if (hits.length === 0) process.exit(0);
+
+try {
+  fs.mkdirSync(markDir, { recursive: true });
+  for (const h of hits) seen.add(h.tip);
+  fs.writeFileSync(markFile, JSON.stringify([...seen]));
+  for (const f of fs.readdirSync(markDir)) {
+    const fp = path.join(markDir, f);
+    if (Date.now() - fs.statSync(fp).mtimeMs > 7 * 24 * 3600 * 1000) fs.unlinkSync(fp);
+  }
+} catch {}
 
 const contextStr = hits.map(h => `[DYNAMIC RECALL] ${h.tip}`).join('\n');
 const output = {

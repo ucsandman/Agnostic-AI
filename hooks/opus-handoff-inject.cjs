@@ -60,7 +60,10 @@ function transcriptModelIsOpus(transcriptPath) {
 function inject(sessionId) {
   const mark = path.join(MARK_DIR, `${sessionId}`);
   if (fs.existsSync(mark)) return;
-  const content = fs.readFileSync(HANDOFF, 'utf8'); // throws -> silent exit, no marker
+  const full = fs.readFileSync(HANDOFF, 'utf8'); // throws -> silent exit, no marker
+  // Inject only the numbered Rules section; the intro and failure history stay in the doc.
+  const rulesMatch = full.match(/## Rules[^\n]*\n([\s\S]*?)(?=\n## |$)/);
+  const content = rulesMatch ? rulesMatch[1].trim() : full;
   fs.mkdirSync(MARK_DIR, { recursive: true });
   fs.writeFileSync(mark, new Date().toISOString());
   try {

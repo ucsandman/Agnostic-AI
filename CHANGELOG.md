@@ -3,6 +3,15 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-17 (thirty-third sync)
+
+- **Token audit.** `skillOverrides` hides the never-invoked skills (27 off, 62 name-only) so the
+  skill listing stops sitting at its 1% context cap; 11 unused plugins are off, including the five
+  claude.ai-synced ones under their `@synced` ids; `dynamic-recall` fires each tip once per session
+  instead of on every Bash call; `opus-handoff-inject` sends only the numbered Rules section.
+  Measured first: 105 loaded-but-never-invoked skills from `/skill-doctor`, 334M cache-read tokens
+  over 30 sessions, 37k to 87k tokens of base context per session.
+
 ## 2026-09-17 (thirty-second sync)
 
 - **Two guards whose failure mode was silence.** The mods canary pinned an exact Claude Code
