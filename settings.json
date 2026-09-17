@@ -536,7 +536,7 @@
     "code-review@claude-plugins-official": false,
     "feature-dev@claude-plugins-official": false,
     "code-simplifier@claude-plugins-official": false,
-    "superpowers@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": false,
@@ -805,5 +805,9 @@
     "anthropic-skills:morning": "off",
     "anthropic-skills:skill-creator": "off",
     "anthropic-skills:web-artifacts-builder": "off"
-  }
+  },
+  "autoCompactWindow": 500000,
+  "disabledMcpServers": [
+    "claude.ai DashClaw"
+  ]
 }

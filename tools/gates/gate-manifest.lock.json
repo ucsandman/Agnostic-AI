@@ -1,6 +1,6 @@
 {
   "_comment": "Content hashes of the frozen guard fileset (tools/gates/gate-manifest.json). The gate-freeze check fails on any drift; re-record deliberately with `node tools/gates/gates.cjs --lock` from a harness session after reviewing the change.",
-  "lockedAt": "2026-09-17T14:47:52.388Z",
+  "lockedAt": "2026-09-17T18:07:48.753Z",
   "files": {
     "C:/Users/sandm/.claude/hooks/agent-model-guard.cjs": "b3bd9894246d9ec4057cc184",
     "C:/Users/sandm/.claude/hooks/batch-guard.cjs": "a5071662747311fe53920047",
@@ -9,13 +9,13 @@
     "C:/Users/sandm/.claude/hooks/creds-resolve.cjs": "545818c534c578f632364903",
     "C:/Users/sandm/.claude/hooks/declick-nudge.cjs": "c1462dfba58ae5a31807fc34",
     "C:/Users/sandm/.claude/hooks/dev-server-guard.cjs": "caf34deaad7e1f335c90db10",
-    "C:/Users/sandm/.claude/hooks/dynamic-recall.cjs": "e0511429f509227f8325888f",
+    "C:/Users/sandm/.claude/hooks/dynamic-recall.cjs": "ae7dddb850df044ae8cfb778",
     "C:/Users/sandm/.claude/hooks/forced-verify-stop-gate.cjs": "eb3c633b0e022b79f7e45ae9",
     "C:/Users/sandm/.claude/hooks/gate-freeze.cjs": "be69b6c10d66c5ed0d028196",
     "C:/Users/sandm/.claude/hooks/git-tree-guard.cjs": "0397c5a26d834962f5f1795d",
     "C:/Users/sandm/.claude/hooks/mods-liveness.cjs": "5b1f263e7eede7a6cb5252e1",
     "C:/Users/sandm/.claude/hooks/no-auto-compact.cjs": "38dc1b4b4b504fe6e323536a",
-    "C:/Users/sandm/.claude/hooks/opus-handoff-inject.cjs": "b32ab868d54f62addf111eb9",
+    "C:/Users/sandm/.claude/hooks/opus-handoff-inject.cjs": "0e730210963f9115cb0688bc",
     "C:/Users/sandm/.claude/hooks/output-secret-watch.cjs": "03ed176293f6c758f6a85501",
     "C:/Users/sandm/.claude/hooks/precompact-extract.cjs": "808bc715bb111c2af0b3c898",
     "C:/Users/sandm/.claude/hooks/process-kill-guard.cjs": "1223aedc172950abc7b928f6",

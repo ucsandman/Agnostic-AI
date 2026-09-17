@@ -5,6 +5,9 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-17 (thirty-third sync)
 
+- **Round two.** superpowers off, `autoCompactWindow` 500000, the duplicate claude.ai DashClaw connector
+  disabled, the ADHD always-on injection dropped (CLAUDE.md keeps the ten rules), and the global rules
+  re-cut from 28.3KB to 22.0KB with the evidence moved to the reference file in agnostic-ai.
 - **Token audit.** `skillOverrides` hides the never-invoked skills (27 off, 62 name-only) so the
   skill listing stops sitting at its 1% context cap; 11 unused plugins are off, including the five
   claude.ai-synced ones under their `@synced` ids; `dynamic-recall` fires each tip once per session
