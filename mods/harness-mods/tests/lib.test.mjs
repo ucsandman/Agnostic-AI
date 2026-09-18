@@ -208,6 +208,32 @@ test("usage: nudge fires once per crossing of 80%, re-arms below, /clear wording
   assert.equal(summary(u(6)), "ctx 6% · 5h 77% · 7d ? · $0.21");
 });
 
+test("usage: the ceiling is the auto-compact window when one is set, the raw window otherwise", () => {
+  const u = (tokens, window = 1_000_000) => ({ context: { tokens, window, percent: Math.round((tokens / window) * 100) } });
+  // 420k of a 1M window is 42% natively, but 84% of a 500k auto-compact window: the nudge fires
+  const s = newNudgeState();
+  const note = onUsage(s, u(420_000), { autoCompactWindow: 500_000 });
+  assert.match(note, /~84% of the auto-compact window/);
+  assert.match(note, /compaction runs at 500,000 of a 1,000,000 window/);
+  assert.match(note, /\/clear is free/);
+  assert.equal(s.ceiling, 500_000);
+  // L1 twin: the same snapshot without the option is 42% and silent
+  const s2 = newNudgeState();
+  assert.equal(onUsage(s2, u(420_000)), null, "no auto-compact window → raw window → 42% → silent");
+  assert.equal(s2.ceiling, 1_000_000);
+  // an auto-compact window larger than the model window never raises the ceiling
+  const s3 = newNudgeState();
+  assert.equal(onUsage(s3, u(420_000), { autoCompactWindow: 5_000_000 }), null);
+  assert.equal(s3.ceiling, 1_000_000);
+  // re-arms below the threshold measured against the same ceiling
+  assert.equal(onUsage(s, u(300_000), { autoCompactWindow: 500_000 }), null);
+  assert.equal(s.armed, false);
+  assert.match(onUsage(s, u(470_000), { autoCompactWindow: 500_000 }), /use \/clear/);
+  // no tokens reported → falls back to the native percent
+  const s4 = newNudgeState();
+  assert.match(onUsage(s4, { context: { percent: 85 } }, { autoCompactWindow: 500_000 }), /~85% of the context window/);
+});
+
 // ---------------------------------------------------------------- canary
 test("canary: a healthy status is ok; each failure class is named; mod mode on an unhealthy layer is flagged", () => {
   const good = () => ({ ...newStatus(), runtimeNoun: true, usageProbe: true, storeProbe: true, busEvents: 12, toolCalls: 3, order: ["harness-mods"], enforcementReached: { toolCall: true, agentSpawn: false },

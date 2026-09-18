@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// repeat-tool-guard.cjs — PostToolUse hook. Counts consecutive identical tool
-// calls and injects an escalating reminder. Advisory: it never blocks a call.
+// repeat-tool-guard.cjs — PostToolUse + PostToolUseFailure hook. Counts consecutive
+// identical tool calls and injects an escalating reminder. Advisory: it never blocks.
 //
 // The failure it watches: a model re-issues the same call with byte-identical
 // arguments — re-running a failing grep, re-reading an unchanged file, polling a
@@ -8,6 +8,14 @@
 // clock without adding information. CLAUDE.md carried this as prose ("guard
 // against no-op retries"), which is exactly the kind of rule a model reads and
 // then does not follow. This makes it mechanical.
+//
+// Two streaks, two messages (2026-09-18, after arXiv:2609.20804 §A.4): a call that
+// keeps FAILING the same way gets "fix the input, do not re-issue"; a call that
+// merely repeats an existing result gets "you already have this, move on". The
+// event name tells them apart: PostToolUseFailure marks a failed call. Every
+// threshold fire is logged so the thresholds, and whether eventual termination
+// would ever be justified, can be judged from data instead of taste:
+//   node hooks/repeat-tool-guard.cjs --report
 //
 // Design source: docs/decisions/feature/2026-08-17-repeat-tool-call-guard.md
 // Ported from the pattern in deepseek-ai/deepseek-harness (packages/guard).
@@ -21,6 +29,7 @@ const os = require('os');
 const path = require('path');
 
 const STATE_DIR = path.join(os.tmpdir(), 'claude-repeat-guard');
+const LOG = process.env.REPEAT_GUARD_LOG || path.join(os.homedir(), '.claude', 'logs', 'repeat-guard.jsonl');
 const THRESHOLDS = (process.env.REPEAT_GUARD_THRESHOLDS || '3,5,8')
   .split(',').map((n) => parseInt(n.trim(), 10)).filter((n) => Number.isInteger(n) && n >= 2);
 const ARGS_PREVIEW_CHARS = 400;
@@ -70,7 +79,40 @@ function writeState(file, state) {
   }
 }
 
-function reminder(tool, count, argsPreview, gentle) {
+function log(row) {
+  try {
+    fs.mkdirSync(path.dirname(LOG), { recursive: true });
+    fs.appendFileSync(LOG, JSON.stringify(row) + '\n');
+  } catch {
+    // A log that cannot be written must never break the tool call.
+  }
+}
+
+function report() {
+  let lines = [];
+  try { lines = fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean); } catch {}
+  const days = {};
+  const tools = {};
+  for (const l of lines) {
+    let r; try { r = JSON.parse(l); } catch { continue; }
+    const d = String(r.ts || '').slice(0, 10);
+    const bucket = (days[d] = days[d] || { fires: 0, failing: 0, max: 0 });
+    bucket.fires++; if (r.failing) bucket.failing++; if (r.count > bucket.max) bucket.max = r.count;
+    tools[r.tool] = (tools[r.tool] || 0) + 1;
+  }
+  console.log(`repeat-guard: ${lines.length} threshold fires logged (thresholds ${THRESHOLDS.join(',')})`);
+  for (const d of Object.keys(days).sort()) console.log(`  ${d}  fires=${days[d].fires}  failing-streaks=${days[d].failing}  longest=${days[d].max}`);
+  const top = Object.entries(tools).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (top.length) console.log('  by tool: ' + top.map(([t, n]) => `${t}=${n}`).join('  '));
+}
+
+function reminder(tool, count, argsPreview, gentle, failing) {
+  if (failing) {
+    return `You have called \`${tool}\` ${count} times in a row with the SAME arguments and it keeps failing the same way:\n`
+      + `${argsPreview}\n`
+      + `Repeating it will NOT work. STOP: read the actual error, then FIX THE INPUT or try a different command, `
+      + `inspect more context, or step back and reconsider the plan. Do NOT issue the same call again.`;
+  }
   if (gentle) {
     return `You have now called \`${tool}\` ${count} times in a row with identical arguments. `
       + `Read the previous result again — it has not changed and it will not change. `
@@ -84,6 +126,8 @@ function reminder(tool, count, argsPreview, gentle) {
 }
 
 function main() {
+  if (process.argv.includes('--report')) { report(); process.exit(0); }
+
   let input = '';
   try {
     input = fs.readFileSync(0, 'utf8');
@@ -111,23 +155,30 @@ function main() {
   if (!tool || EXEMPT.has(tool)) process.exit(0);
   if (TRANSPARENT.has(tool)) process.exit(0); // neither counts nor resets
 
+  const failed = payload.hook_event_name === 'PostToolUseFailure' || process.argv.includes('--failure');
   const file = statePath(payload.session_id);
   const key = `${tool}::${canonical(payload.tool_input ?? {})}`;
   const prev = readState(file);
-  const count = prev && prev.key === key ? prev.count + 1 : 1;
-  writeState(file, { key, count });
+  const same = prev && prev.key === key;
+  const count = same ? prev.count + 1 : 1;
+  // failCount is the length of the failing tail of the streak; a success resets it.
+  const failCount = failed ? (same ? (prev.failCount || 0) + 1 : 1) : 0;
+  writeState(file, { key, count, failCount });
 
   if (!THRESHOLDS.includes(count)) process.exit(0);
 
+  const failing = failCount === count; // every call in the streak failed
   const argsText = canonical(payload.tool_input ?? {});
   const preview = argsText.length > ARGS_PREVIEW_CHARS
     ? `${argsText.slice(0, ARGS_PREVIEW_CHARS)}… (${argsText.length} chars)`
     : argsText;
 
+  log({ ts: new Date().toISOString(), session: String(payload.session_id || '').slice(0, 8), tool, count, failing, event: payload.hook_event_name || null });
+
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
-      hookEventName: 'PostToolUse',
-      additionalContext: reminder(tool, count, preview, count === THRESHOLDS[0]),
+      hookEventName: payload.hook_event_name === 'PostToolUseFailure' ? 'PostToolUseFailure' : 'PostToolUse',
+      additionalContext: reminder(tool, count, preview, count === THRESHOLDS[0], failing),
     },
   }));
   process.exit(0);

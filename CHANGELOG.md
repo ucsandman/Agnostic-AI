@@ -3,6 +3,21 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-18 (thirty-fourth sync)
+
+- **Audit against arXiv:2609.20804 (harness design ablations).** Claude Code already owns the
+  paper's fixed substrate (read-before-write, tool errors as observations, parallel reads,
+  summarising compaction), so what shipped is instrumentation plus two threshold bugs:
+  `hooks/post-edit-diagnostics.cjs` (ruff error-only / `node --check` / `JSON.parse` on the edit
+  turn, findings on the same tool result, every run logged); `repeat-tool-guard` now tells an
+  identical FAILING streak ("fix the input") from an identical repeat ("you already have this")
+  and logs every threshold fire; `hooks/compaction-ledger.cjs` records one row per Pre/PostCompact
+  with the token stats; `precompact-extract.cjs` read a field PreCompact never sends and had never
+  written a line, fixed. The Mods context nudge measures 80% against the auto-compact window
+  (500k), not the 1M model window where it could never fire, and the plugin no longer draws its
+  own band above the prompt or in `$.ui.status`: the statusline badge (`MOD OK M x5`) is the one
+  home. Probes: 15/15 and 12/12; Mods tests 11/11; gate lock refreshed; canary all green.
+
 ## 2026-09-17 (thirty-third sync)
 
 - **Round two.** superpowers off, `autoCompactWindow` 500000, the duplicate claude.ai DashClaw connector

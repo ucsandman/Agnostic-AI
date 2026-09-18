@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 // precompact-extract.cjs — PreCompact hook (auto | manual)
-// Scans the active conversation/transcript right before compaction and extracts:
+// Scans the tail of the session transcript right before compaction and extracts:
 // 1. Explicit decisions ("decided to", "choice:", etc.)
-// 2. Open debt or unverified tasks
+// 2. Stated solutions, fixes and root causes
 // 3. Stashes them into the active project's memory/context or daily memory file.
 // Fail-open: Never blocks compaction.
+//
+// Fixed 2026-09-18: the hook read `evt.transcript`, a field the PreCompact payload
+// never carries (it carries `transcript_path`), so it exited on every compaction
+// and had never written a line. It now reads the transcript file's tail.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+const TAIL_BYTES = 512 * 1024;
 
 let input = '';
 try {
@@ -26,7 +32,7 @@ try {
   process.exit(0);
 }
 
-const transcript = evt.transcript || evt.content || '';
+const transcript = readTranscriptText(evt);
 if (!transcript || transcript.length < 50) process.exit(0);
 
 const cwd = evt.cwd || process.cwd();
@@ -70,3 +76,35 @@ try {
 }
 
 process.exit(0);
+
+/**
+ * Human and assistant TEXT from the transcript tail, tool payloads skipped: the
+ * patterns above look for what was said, and tool output is where they false-match.
+ * Inline `transcript`/`content` fields are still honoured for callers that pass them.
+ */
+function readTranscriptText(e) {
+  if (typeof e.transcript === 'string' && e.transcript) return e.transcript;
+  if (typeof e.content === 'string' && e.content) return e.content;
+  const p = e.transcript_path;
+  if (!p) return '';
+  let raw;
+  try {
+    const fd = fs.openSync(p, 'r');
+    try {
+      const size = fs.fstatSync(fd).size;
+      const len = Math.min(size, TAIL_BYTES);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      raw = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+  } catch { return ''; }
+  const out = [];
+  for (const line of raw.split('\n')) {
+    let j; try { j = JSON.parse(line); } catch { continue; }
+    if (j.type !== 'user' && j.type !== 'assistant') continue;
+    const c = j.message && j.message.content;
+    if (typeof c === 'string') out.push(c);
+    else if (Array.isArray(c)) for (const b of c) if (b && b.type === 'text' && typeof b.text === 'string') out.push(b.text);
+  }
+  return out.join('\n');
+}

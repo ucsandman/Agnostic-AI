@@ -10,6 +10,8 @@ green run proves the guard works, not that it blocks everything.
     node hooks/tests/gate-freeze-probe.cjs  # gate-freeze deny + hash drift        (20 checks)
     node hooks/tests/mods-mode-probe.cjs       # hooks/lib/mods-mode.cjs: classic stands down only under mod + armed heartbeat (18 checks)
     node hooks/tests/slopsquat-guard-probe.cjs  # package names verified on npm/PyPI/crates (33 checks, live registries)
+    node hooks/tests/repeat-guard-probe.cjs     # identical-call streaks, failing vs repeating text, the fire log (15 checks)
+    node hooks/tests/post-edit-diagnostics-probe.cjs  # ruff / node --check / JSON after an edit, both directions per language (12 checks)
 
 Both exit nonzero on failure.
 

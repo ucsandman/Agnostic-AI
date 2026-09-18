@@ -102,6 +102,42 @@ const add = (name, actual, want) => CASES.push([name, actual, want]);
   add('sessions isolated', call(b, 'Bash', { command: 'q' }) === null, true);
 }
 
+// 10. A streak of identical FAILING calls gets the "keeps failing, fix the input" text (paper §A.4).
+{
+  const s = session();
+  const fail = { session_id: s, tool_name: 'Bash', tool_input: { command: 'pytest -x' }, hook_event_name: 'PostToolUseFailure' };
+  let last = null;
+  for (let i = 0; i < 3; i++) {
+    const r = spawnSync('node', [HOOK], { input: JSON.stringify(fail), encoding: 'utf8' });
+    const out = (r.stdout || '').trim();
+    last = out ? JSON.parse(out).hookSpecificOutput : null;
+  }
+  add('failing streak names the failure', !!last && /keeps failing the same way/.test(last.additionalContext), true);
+  add('failing streak answers on the failure event', !!last && last.hookEventName === 'PostToolUseFailure', true);
+}
+
+// 11. A success inside the streak breaks the failing tail: the text is the plain repeat reminder.
+{
+  const s = session();
+  const mk = (ev) => ({ session_id: s, tool_name: 'Bash', tool_input: { command: 'make' }, hook_event_name: ev });
+  spawnSync('node', [HOOK], { input: JSON.stringify(mk('PostToolUseFailure')), encoding: 'utf8' });
+  spawnSync('node', [HOOK], { input: JSON.stringify(mk('PostToolUse')), encoding: 'utf8' });
+  const r = spawnSync('node', [HOOK], { input: JSON.stringify(mk('PostToolUseFailure')), encoding: 'utf8' });
+  const out = JSON.parse((r.stdout || '').trim()).hookSpecificOutput.additionalContext;
+  add('mixed streak is the plain reminder', /3 times in a row with identical/.test(out) && !/keeps failing/.test(out), true);
+}
+
+// 12. Every threshold fire is logged (L2: a verdict carries its volume).
+{
+  const logFile = require('path').join(require('os').tmpdir(), `repeat-guard-probe-${Date.now()}.jsonl`);
+  const s = session();
+  for (let i = 0; i < 3; i++) spawnSync('node', [HOOK], { input: JSON.stringify({ session_id: s, tool_name: 'Grep', tool_input: { pattern: 'k' } }), encoding: 'utf8', env: { ...process.env, REPEAT_GUARD_LOG: logFile } });
+  let rows = [];
+  try { rows = require('fs').readFileSync(logFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l)); } catch {}
+  add('threshold fire is logged', rows.length === 1 && rows[0].tool === 'Grep' && rows[0].count === 3 && rows[0].failing === false, true);
+  try { require('fs').unlinkSync(logFile); } catch {}
+}
+
 let failed = 0;
 for (const [name, actual, want] of CASES) {
   const ok = actual === want;

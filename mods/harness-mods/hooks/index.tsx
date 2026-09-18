@@ -22,6 +22,7 @@ import { newStatus, judge, RUNTIME_PIN } from "./lib/canary.mjs";
 const VERSION = "0.1.0";
 const STATE_DIR = "C:/Users/sandm/.claude/mods/state/";
 const CONFIG_PATH = "C:/Users/sandm/.claude/mods/mods-config.json";
+const SETTINGS_PATH = "C:/Users/sandm/.claude/settings.json";
 const CLASSIC_BUDGET_LOG = "C:/Users/sandm/.claude/hooks/.subagent-budget-log.jsonl";
 const STORE_KEY = "harness-mods.ledger";
 const SERVE_AFTER = 3; // the Nth exact identical observation of an unchanged file is served from cache
@@ -29,6 +30,7 @@ const SERVE_AFTER = 3; // the Nth exact identical observation of an unchanged fi
 const state = {
   sessionId: "", cfg: null, modes: {}, armed: {}, status: newStatus(), ledger: budget.newLedger(),
   nudge: newNudgeState(), pendingNudge: null, usage: null, model: "",
+  autoCompactWindow: 0,  // settings.autoCompactWindow (or the env override): the nudge's ceiling when set
   routes: {},            // tool_use_id -> route (for the Agent tool.call explanation)
   fableUsed: 0, denied: {},
   readCache: {},         // "tool|path|args" -> { result, chars, size, mtimeMs, n, firstAt }
@@ -80,7 +82,17 @@ async function probeAll($, e) {
   try { const u = await $.session.usage(); state.usage = u; state.status.usageProbe = !!(u && u.context && typeof u.context.window === "number"); } catch (err) { state.status.usageProbe = false; }
   try { const stored = await $.store.get(STORE_KEY); if (stored && stored.priors) state.ledger.priors = stored.priors; await $.store.set(STORE_KEY + ".probe", Date.now()); state.status.storeProbe = true; } catch (err) { state.status.storeProbe = false; }
   try { state.model = await $.session.model(); } catch (err) { state.model = ""; }
+  state.autoCompactWindow = await readAutoCompactWindow($);
   state.status.version = RUNTIME_PIN.claudeVersion;
+}
+// The auto-compact window, in the engine's own precedence: env override, then settings.
+// A missing or unparsable value is 0 (the nudge then measures against the raw window, as before).
+async function readAutoCompactWindow($) {
+  const num = (v) => { const n = typeof v === "number" ? v : parseInt(String(v || "").replace(/[^0-9]/g, ""), 10); return Number.isFinite(n) && n > 0 ? n : 0; };
+  try { const env = await $.env.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW"); if (num(env)) return num(env); } catch (err) {}
+  try { const s = await $.settings.read(); const v = s && (s.autoCompactWindow !== undefined ? s.autoCompactWindow : s.settings && s.settings.autoCompactWindow); if (num(v)) return num(v); } catch (err) {}
+  try { const j = JSON.parse(await $.fs.read(SETTINGS_PATH)); if (num(j.autoCompactWindow)) return num(j.autoCompactWindow); } catch (err) {}
+  return 0;
 }
 async function persistPriors($) { try { await $.store.set(STORE_KEY, { priors: state.ledger.priors, updatedAt: Date.now(), sessionId: state.sessionId }); } catch (err) {} }
 async function refreshUsage($) { try { state.usage = await $.session.usage(); return state.usage; } catch (err) { return null; } }
@@ -128,7 +140,9 @@ export const register = (on, options) => {
     await writeHeartbeat($, { surface: e.surface, isInteractive: e.isInteractive });
     const v = judge(state.status, state.modes, "start");
     log($, "armed v" + VERSION + " · runtime=" + state.status.runtimeNoun + " · modes " + Object.keys(state.modes).map((g) => g + "=" + state.modes[g]).join(" ") + " · canary " + (v.ok ? "ok" : "FAIL " + v.failures.join("; ")));
-    $.ui.status(bandText());
+    // No $.ui.status band and no AbovePrompt tree (removed 2026-09-18): the statusline already
+    // shows the same modes, usage and cost from the heartbeat, and three copies of one line is noise.
+    // The band lives on in /mods and in the heartbeat file.
     return next(e);
   }).catch(($, e, next) => { state.status.hookErrors++; state.status.lastError = "session.start"; return next(e); });
 
@@ -151,7 +165,7 @@ export const register = (on, options) => {
       }
     } else if (e.kind === "UsageChanged") {
       state.usage = d;
-      const note = onUsage(state.nudge, d);
+      const note = onUsage(state.nudge, d, { autoCompactWindow: state.autoCompactWindow });
       if (note) {
         shadow({ subsystem: "contextNudge", action: "context " + state.nudge.lastPercent + "%", key: "crossing-" + state.nudge.fired, mode: mode("contextNudge"), decision: "nudge", resolvedValue: state.nudge.lastPercent, enforced: enforcing("contextNudge") });
         if (enforcing("contextNudge")) state.pendingNudge = note;
@@ -289,8 +303,6 @@ export const register = (on, options) => {
       await refreshUsage($);
       await flushShadow($);
       await writeHeartbeat($, {});
-      $.ui.status(bandText());
-      $.ui.invalidate("ui.render");
     }
     return next(e);
   }).catch(($, e, next) => { state.status.hookErrors++; state.status.lastError = "turn.complete"; return next(e); });
@@ -305,6 +317,7 @@ export const register = (on, options) => {
       + "\n  modes: " + Object.keys(state.modes).map((g) => g + "=" + state.modes[g] + (state.modes[g] === "mod" ? (state.armed[g] ? " (armed)" : " (NOT ARMED → classic enforcing)") : "")).join(", ")
       + "\n  runtime noun " + state.status.runtimeNoun + " · bus events " + state.status.busEvents + " · tool calls " + state.status.toolCalls + " · order " + (state.status.order ? state.status.order.join(" > ") : "n/a") + " · hook errors " + state.status.hookErrors
       + "\n  usage: " + usageSummary(state.usage)
+      + "\n  band: " + bandText()
       + "\n  counts: spawns " + state.ledger.totals.spawns + " rewritten " + state.ledger.totals.rewrites + " denied " + state.ledger.totals.denies + " · redactions " + state.redactions + " · served " + state.served + " · shadow rows " + state.shadow.length;
     if (arg === "rollback") {
       return { text: head + "\n\nROLLBACK (any one of these; classic hooks are still installed and take over immediately):"
@@ -326,16 +339,7 @@ export const register = (on, options) => {
     return { text: head + "\n  last: " + state.lastLine + "\n  files: " + STATE_DIR + "{sessions/<id>.json, shadow/, subagents.jsonl, redactions.jsonl, canary-status.json}\n\nGUARDS\n" + notes };
   });
 
-  // ---------------------------------------------------------------- HUD (one line above the prompt)
-  on("ui.render", { component: "AbovePrompt", surface: "terminal" }, async ($, e, next) => {
-    const { Box, Text } = $.ui.resolve(e);
-    const width = Math.max(40, (e.props && e.props.bodyColumns ? e.props.bodyColumns : 100) - 4);
-    const ok = state.status.runtimeNoun && judge(state.status, state.modes, state.status.toolCalls > 0 ? "live" : "start").ok;
-    return (
-      <Box flexDirection="column" paddingX={1}>
-        <Text color={ok ? "cyan" : "red"} dimColor={ok} wrap="truncate-end">{bandText().slice(0, width)}</Text>
-        {state.lastRoute && state.lastRoute.action !== "pass" ? <Text color={state.lastRoute.action === "deny" ? "red" : "yellow"} wrap="truncate-end">{("ROUTE " + state.lastRoute.type + " " + (state.lastRoute.requested === undefined ? "inherit" : state.lastRoute.requested) + " → " + (state.lastRoute.action === "deny" ? "DENIED" : state.lastRoute.model) + (state.lastRoute.enforced ? "" : " (shadow)") + " [" + state.lastRoute.reasons.join(", ") + "]").slice(0, width)}</Text> : null}
-      </Box>
-    );
-  });
+  // No ui.render AbovePrompt band (removed 2026-09-18): the statusline reads the heartbeat this file
+  // writes and draws the modes once, below the prompt. Route decisions still reach the transcript
+  // through log() and the /mods status output.
 };

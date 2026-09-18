@@ -56,7 +56,35 @@ stay inside the scope by hand there.
 
 Counts consecutive identical tool calls and injects an escalating reminder at 3,
 5, and 8. Advisory — it never blocks. `REPEAT_GUARD_OFF=1` disables it.
-Rationale: [decisions/feature/2026-08-17-repeat-tool-call-guard.md](decisions/feature/2026-08-17-repeat-tool-call-guard.md).
+Since 2026-09-18 a streak whose every call FAILED (`PostToolUseFailure`) gets a
+different text ("keeps failing the same way, fix the input"), and every threshold
+fire is logged to `logs/repeat-guard.jsonl` (`--report`), so whether termination
+would ever pay is a question the log answers. Probe: `hooks/tests/repeat-guard-probe.cjs`.
+Rationale: [decisions/feature/2026-08-17-repeat-tool-call-guard.md](decisions/feature/2026-08-17-repeat-tool-call-guard.md);
+the failing/succeeding split and the log follow arXiv:2609.20804 §A.4.
+
+## post-edit-diagnostics.cjs (2026-09-18)
+
+PostToolUse on `Edit|Write|MultiEdit`. Advisory. Runs the cheapest read-only check
+the edited file's language has and returns findings on the same tool result:
+`ruff` error-only rules (`E9,F63,F7,F82`) for `.py`, `node --check` for
+`.js/.cjs/.mjs`, `JSON.parse` for `.json`; `.ts/.tsx` are left to the
+typescript-lsp plugin. Silent on a clean file, on a missing checker, and on a
+timeout. Every run is logged to `logs/post-edit-diagnostics.jsonl` (`--report`).
+`POST_EDIT_DIAG_OFF=1` disables. Probe: `hooks/tests/post-edit-diagnostics-probe.cjs`.
+A syntax error in one of these `.cjs` guards disables the guard silently; this
+surfaces it on the edit turn.
+
+## compaction-ledger.cjs and precompact-extract.cjs (2026-09-18)
+
+`compaction-ledger.cjs` on `PreCompact` and `PostCompact` appends one row per
+event with `context_window_stats` to `logs/compaction.jsonl` (`--report`: count,
+auto share, mean context before, tokens freed). Observation only. It is how a
+change to `autoCompactWindow` gets judged.
+
+`precompact-extract.cjs` read `evt.transcript`, a field the PreCompact payload
+never carries, so it had never written a line. It now reads the tail of
+`transcript_path` (human and assistant text only) and works as documented.
 
 ## declick-nudge.cjs (2026-09-03)
 
