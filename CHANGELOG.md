@@ -3,6 +3,19 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-18 (thirty-fifth sync)
+
+- **Subagent prior split.** `mods/harness-mods/hooks/lib/budget.mjs` learned one median per
+  agent type (the whole run) and `routing.mjs` priced it as spawn overhead, so a type with a
+  2M-token history needed ~53 declared calls to clear break-even and was denied on first attempt.
+  Two priors now: OVERHEAD (tokens before the first tool call, taken from ModelStep rows until
+  `tool.call` lands) prices the break-even rule; TOTAL is what the ledger reserves. A stored
+  total-only prior prices overhead from the classic 17k/60k constant, never from the total.
+  Regression test reproduces the deny; 12/12 Mods tests green.
+- **precompact-extract fallback.** The hook fell back to a memory path that does not exist; it now
+  falls back to the auto-memory store's context dir. Gate lock re-taken (56 files).
+- `settings.json`: `switchModelsOnFlag` written by the app, mirrored as live state.
+
 ## 2026-09-18 (thirty-fourth sync)
 
 - **Audit against arXiv:2609.20804 (harness design ablations).** Claude Code already owns the

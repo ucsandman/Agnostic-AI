@@ -161,7 +161,7 @@ export const register = (on, options) => {
         if (mode("subagentAccounting") !== "classic") await appendLine($, CLASSIC_BUDGET_LOG, crow);
         await persistPriors($);
         shadow({ subsystem: "subagentAccounting", action: "settle " + a.type, key: a.agentId, mode: mode("subagentAccounting"), decision: "measured", requestedValue: a.declared, resolvedValue: a.measured, reasonCodes: [a.reservedFrom], enforced: false, actualOutcome: a.reason, note: "predictionError=" + a.predictionError + " reserveError=" + a.reserveError });
-        log($, "settle " + String(a.agentId).slice(0, 8) + " " + a.type + " " + a.model + " calls=" + a.calls + " declared=" + (a.declared === null ? "n/a" : a.declared) + " reserved=" + a.reserved + " measured=" + a.measured + " · median(" + a.type + ")=" + a.learnedPrior);
+        log($, "settle " + String(a.agentId).slice(0, 8) + " " + a.type + " " + a.model + " calls=" + a.calls + " declared=" + (a.declared === null ? "n/a" : a.declared) + " reserved=" + a.reserved + " measured=" + a.measured + " overhead=" + (a.overhead || 0) + " · median(" + a.type + ")=" + a.learnedPrior + " overhead-median=" + a.learnedOverhead);
       }
     } else if (e.kind === "UsageChanged") {
       state.usage = d;
@@ -207,9 +207,9 @@ export const register = (on, options) => {
     route.agentId = agentId; route.resolvedModel = r ? r.model : null;
     state.lastRoute = route;
     if (e.tool_use_id) state.routes[e.tool_use_id] = route;
-    if (agentId) budget.open(state.ledger, { agentId, type, model: r.model, resolvedModel: r.model, requested: e.model, rewritten: enforce && wouldRewrite, reasons: d.reasons, est: route.est, declared: d.budget && d.budget.est ? prior.tokens + d.budget.est.calls * 2000 + d.budget.est.files * 2000 : null, reserved: prior.tokens, reservedFrom: prior.source, parentModel: e.parentModel, description: String(e.description || "").slice(0, 60) }, Date.now());
+    if (agentId) budget.open(state.ledger, { agentId, type, model: r.model, resolvedModel: r.model, requested: e.model, rewritten: enforce && wouldRewrite, reasons: d.reasons, est: route.est, declared: d.budget && d.budget.est ? prior.tokens + d.budget.est.calls * 2000 + d.budget.est.files * 2000 : null, reserved: prior.total, reservedFrom: prior.totalSource, parentModel: e.parentModel, description: String(e.description || "").slice(0, 60) }, Date.now());
     shadow({ subsystem: "routing", action: "Agent " + type, key: sig, mode: m, decision: d.action === "deny" ? "deny" : wouldRewrite ? "rewrite" : "allow", requestedValue: e.model || null, resolvedValue: r ? r.model : null, reasonCodes: d.reasons, wouldRewrite, enforced: enforce, latencyMs: Date.now() - t0, actualOutcome: r && r.deny ? "denied-beneath: " + String(r.deny).slice(0, 80) : agentId ? "spawned" : "no-agent" });
-    log($, (enforce ? (wouldRewrite ? "REWRITE " : d.action === "deny" ? "WOULD-DENY(anti-thrash) " : "PASS ") : "SHADOW(" + d.action + ") ") + type + " " + (e.model === undefined ? "inherit" : e.model) + " → " + (r ? r.model : "?") + " (parent " + e.parentModel + ") [" + d.reasons.join(", ") + "]" + (agentId ? " agent=" + String(agentId).slice(0, 8) + " reserve=" + prior.tokens : ""));
+    log($, (enforce ? (wouldRewrite ? "REWRITE " : d.action === "deny" ? "WOULD-DENY(anti-thrash) " : "PASS ") : "SHADOW(" + d.action + ") ") + type + " " + (e.model === undefined ? "inherit" : e.model) + " → " + (r ? r.model : "?") + " (parent " + e.parentModel + ") [" + d.reasons.join(", ") + "]" + (agentId ? " agent=" + String(agentId).slice(0, 8) + " reserve=" + prior.total + " overhead=" + prior.tokens : ""));
     await flushShadow($);
     return r;
   }).catch(($, e, next) => { state.status.hookErrors++; state.status.lastError = "agent.spawn"; return next(e); });

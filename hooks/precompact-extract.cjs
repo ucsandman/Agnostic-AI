@@ -61,8 +61,8 @@ if (findings.length === 0) process.exit(0);
 // Determine target memory location
 let memDir = path.join(cwd, '.agents', 'memory', 'context');
 if (!fs.existsSync(path.dirname(memDir))) {
-  // Fall back to home claude memory
-  memDir = path.join(os.homedir(), '.claude', 'memory', 'context');
+  // Fall back to the auto-memory store's context dir (the same one MEMORY.md routes to)
+  memDir = path.join(os.homedir(), '.claude', 'projects', 'C--Users-sandm--claude', 'memory', 'context');
 }
 
 try {

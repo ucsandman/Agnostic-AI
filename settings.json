@@ -836,5 +836,6 @@
   "agentPushNotifEnabled": true,
   "disabledMcpServers": [
     "claude.ai DashClaw"
-  ]
+  ],
+  "switchModelsOnFlag": true
 }

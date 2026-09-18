@@ -5,6 +5,12 @@
 // (reserved, from the learned prior) and settled after (measured), and the prior for that agent type
 // refits itself as a running median kept in $.store across sessions. Constants are inherited from
 // subagent-budget-guard (LEAN 17k / FULL 60k / cache reads weighted 0.1).
+//
+// Two priors per type, never one (2026-09-18): OVERHEAD is what the spawn costs before its first
+// tool call (the system prompt, the brief, the first model step) and is what the break-even rule in
+// routing.mjs prices; TOTAL is the whole run and is what the ledger reserves. Until this split the
+// learned median of the TOTAL was fed to the break-even rule as if it were overhead, so an opus-owner
+// with a 2M-token history priced at ~53 tool calls to break even and was denied on first attempt.
 
 export const LEAN_PRIOR = 17000;
 export const FULL_PRIOR = 60000;
@@ -31,10 +37,23 @@ export function newLedger() {
   return { agents: {}, order: [], priors: {}, lastActivityMs: 0, totals: { spawns: 0, rewrites: 0, denies: 0, passes: 0, fable: 0 } };
 }
 
+/**
+ * `tokens`/`source`: the spawn OVERHEAD prior (tokens before the first tool call) for the break-even
+ * rule; `total`/`totalSource`: the whole-run prior the ledger reserves. A stored prior that only has
+ * total samples (pre-split sessions) prices overhead from the classic constant, never from the total.
+ */
 export function priorFor(ledger, type) {
   const p = ledger.priors[type];
-  if (p && p.median > 0) return { tokens: p.median, source: "learned n=" + p.samples.length };
-  return { tokens: isLean(type) ? LEAN_PRIOR : FULL_PRIOR, source: isLean(type) ? "prior lean" : "prior full" };
+  const classic = isLean(type) ? LEAN_PRIOR : FULL_PRIOR;
+  const classicSource = isLean(type) ? "prior lean" : "prior full";
+  const hasOverhead = !!(p && p.overhead > 0 && Array.isArray(p.overheads));
+  const hasTotal = !!(p && p.median > 0 && Array.isArray(p.samples));
+  return {
+    tokens: hasOverhead ? p.overhead : classic,
+    source: hasOverhead ? "learned overhead n=" + p.overheads.length : classicSource,
+    total: hasTotal ? p.median : classic,
+    totalSource: hasTotal ? "learned total n=" + p.samples.length : classicSource,
+  };
 }
 
 export function isWarm(ledger, nowMs) {
@@ -56,6 +75,7 @@ export function step(ledger, agentId, usage, nowMs) {
   if (!a) return null;
   a.steps++;
   a.tokens += weigh(usage);
+  if (!a.calls) a.overhead = a.tokens; // everything spent before the first tool call is overhead
   ledger.lastActivityMs = nowMs;
   return a;
 }
@@ -71,14 +91,23 @@ export function settle(ledger, agentId, ev, nowMs) {
   a.reason = ev.reason || "";
   a.endedMs = nowMs;
   const p = ledger.priors[a.type] || { samples: [], median: 0 };
+  if (!Array.isArray(p.overheads)) { p.overheads = []; p.overhead = 0; } // pre-split stored prior
   p.samples.push(a.measured);
   if (p.samples.length > MAX_SAMPLES) p.samples.shift();
   p.median = medianOf(p.samples);
+  // A run that never called a tool is all overhead; one without a step row (no ModelStep seen) has no overhead sample.
+  const overhead = a.overhead > 0 ? a.overhead : a.calls === 0 && a.steps === 0 ? 0 : a.measured;
+  if (overhead > 0) {
+    p.overheads.push(overhead);
+    if (p.overheads.length > MAX_SAMPLES) p.overheads.shift();
+    p.overhead = medianOf(p.overheads);
+  }
   ledger.priors[a.type] = p;
   ledger.lastActivityMs = nowMs;
   a.predictionError = a.declared === null || a.declared === undefined ? null : a.measured - a.declared;
   a.reserveError = a.measured - a.reserved;
   a.learnedPrior = p.median;
+  a.learnedOverhead = p.overhead;
   return a;
 }
 
@@ -100,5 +129,6 @@ export function calibrationRow(sessionId, a, nowIso) {
     est: a.est || null, declared: a.declared, reserved: a.reserved, reservedFrom: a.reservedFrom,
     measured: a.measured, predictionError: a.predictionError, reserveError: a.reserveError,
     calls: a.calls, steps: a.steps, durationMs: a.durationMs, reason: a.reason, learnedPrior: a.learnedPrior,
+    overhead: a.overhead || 0, learnedOverhead: a.learnedOverhead || 0,
   };
 }

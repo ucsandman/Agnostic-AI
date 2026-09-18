@@ -159,8 +159,8 @@ test("routing budget: EST parse, break-even with the learned prior, SPAWN_OK, ex
 // ---------------------------------------------------------------- budget ledger
 test("budget ledger: reserve from prior, measure per step, settle refits the median, prediction error, calibration row", () => {
   const L = budget.newLedger();
-  assert.deepEqual(budget.priorFor(L, "haiku-scout"), { tokens: 17000, source: "prior lean" });
-  assert.deepEqual(budget.priorFor(L, "general-purpose"), { tokens: 60000, source: "prior full" });
+  assert.deepEqual(budget.priorFor(L, "haiku-scout"), { tokens: 17000, source: "prior lean", total: 17000, totalSource: "prior lean" });
+  assert.deepEqual(budget.priorFor(L, "general-purpose"), { tokens: 60000, source: "prior full", total: 60000, totalSource: "prior full" });
   const t = 1000;
   budget.open(L, { agentId: "a1", type: "haiku-scout", model: "haiku", declared: 21000, reserved: 17000, reservedFrom: "prior lean" }, t);
   budget.step(L, "a1", { input_tokens: 100, output_tokens: 200, cache_read_input_tokens: 10000, cache_creation_input_tokens: 5000 }, t + 1);
@@ -169,10 +169,35 @@ test("budget ledger: reserve from prior, measure per step, settle refits the med
   const a = budget.settle(L, "a1", { usage: { input_tokens: 28, output_tokens: 591, cache_read_input_tokens: 41561, cache_creation_input_tokens: 12297 }, durationMs: 9333, reason: "answer" }, t + 2);
   assert.equal(a.measured, 28 + 591 + 12297 + 4156);
   assert.equal(a.predictionError, a.measured - 21000);
-  assert.deepEqual(budget.priorFor(L, "haiku-scout"), { tokens: a.measured, source: "learned n=1" });
+  assert.deepEqual(budget.priorFor(L, "haiku-scout"), { tokens: 6300, source: "learned overhead n=1", total: a.measured, totalSource: "learned total n=1" }, "overhead = tokens before the first tool call; total = the whole run");
+  assert.equal(a.overhead, 6300); assert.equal(a.learnedOverhead, 6300);
   const crow = budget.calibrationRow("s", a, "now");
   assert.equal(crow.decision, "measured"); assert.equal(crow.session, "s"); assert.equal(crow.measured, a.measured);
   assert.equal(budget.settle(L, "nope", {}, t), null);
+  // A ledger row that recorded no ModelStep (steps 0, calls 0) contributes no overhead sample, only a total.
+  budget.open(L, { agentId: "a2", type: "haiku-scout", model: "haiku", declared: null, reserved: 17000, reservedFrom: "prior lean" }, t);
+  budget.settle(L, "a2", { usage: { input_tokens: 10, output_tokens: 10 }, durationMs: 1, reason: "answer" }, t + 3);
+  assert.equal(L.priors["haiku-scout"].overheads.length, 1); assert.equal(L.priors["haiku-scout"].samples.length, 2);
+});
+
+test("budget prior split: a learned TOTAL never prices the break-even rule (the opus-owner 2M-prior deny of 2026-09-18)", () => {
+  // The stored prior a pre-split session left behind: only total samples, median 2.0M.
+  const L = budget.newLedger();
+  L.priors["opus-owner"] = { samples: [2000000, 2350000, 1800000], median: 2000000 };
+  const prior = budget.priorFor(L, "opus-owner");
+  assert.equal(prior.tokens, 17000, "overhead falls back to the classic constant, not the 2M total");
+  assert.equal(prior.total, 2000000); assert.equal(prior.totalSource, "learned total n=3");
+  const b = decideBudget({ subagentType: "opus-owner", prompt: "sweep # EST: 12 calls, 6 files" }, { prior: prior.tokens, priorSource: prior.source, isWarm: false, deniedOnce: false });
+  assert.equal(b.action, "pass", "12 declared calls clear a 17k overhead");
+  const before = decideBudget({ subagentType: "opus-owner", prompt: "sweep # EST: 12 calls, 6 files" }, { prior: 2000000, priorSource: "learned n=3", isWarm: false, deniedOnce: false });
+  assert.equal(before.action, "deny", "the pre-split number denied the same dispatch"); assert.ok(before.breakEvenCalls > 50);
+  // Once a run settles with a measured overhead, that is what the rule prices.
+  budget.open(L, { agentId: "o1", type: "opus-owner", model: "opus", declared: null, reserved: prior.total, reservedFrom: prior.totalSource }, 1);
+  budget.step(L, "o1", { input_tokens: 30000, output_tokens: 500 }, 2);
+  L.agents.o1.calls = 1; // first tool call lands
+  budget.step(L, "o1", { input_tokens: 40000, output_tokens: 500 }, 3);
+  budget.settle(L, "o1", { usage: { input_tokens: 900000, output_tokens: 20000 }, durationMs: 1, reason: "answer" }, 4);
+  assert.deepEqual(budget.priorFor(L, "opus-owner"), { tokens: 30500, source: "learned overhead n=1", total: 1900000, totalSource: "learned total n=4" }, "median of 2.0M, 2.35M, 1.8M, 0.92M");
   assert.equal(budget.medianOf([3, 1, 2]), 2); assert.equal(budget.medianOf([1, 2, 3, 4]), 3); assert.equal(budget.medianOf([]), 0);
 });
 
