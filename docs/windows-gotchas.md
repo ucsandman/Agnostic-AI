@@ -1,3 +1,12 @@
+---
+name: windows-gotchas
+description: "The measured list of Windows failures that are platform, not code: MSYS paths, PowerShell quoting, EBUSY, git -C, node path handoff"
+context:
+  triggers:
+    keywords: ["windows", "powershell", "msys", "cygpath", "ebusy", "path handoff", "git bash", "quoting", "backslash"]
+    tools: ["PowerShell"]
+  priority: 60
+---
 # Windows Gotchas — the measured list
 
 Every entry below was hit and solved from scratch at least once in recorded sessions

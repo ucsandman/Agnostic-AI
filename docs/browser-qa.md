@@ -1,3 +1,12 @@
+---
+name: browser-qa
+description: "The scripted-Playwright default for browser and desktop QA, how to drive a logged-in session through the debugging port, and the token-cheap read order"
+context:
+  triggers:
+    keywords: ["playwright", "browser qa", "screenshot", "headless", "logged-in session", "debugging port", "chrome", "frontend verify", "click through"]
+  suggests: ["declick-first"]
+  priority: 50
+---
 # Browser & Desktop QA Playbook (token-efficient)
 
 Read this when doing browser/desktop testing. The one-line summary lives in `~/.claude/CLAUDE.md`; the detail is here so the always-loaded prefix stays lean.

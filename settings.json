@@ -352,6 +352,16 @@
             "statusMessage": "Recalling contextual patterns..."
           }
         ]
+      },
+      {
+        "matcher": "Agent|Task|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/context-graph.cjs\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -537,6 +547,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "compact|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/context-graph.cjs\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -587,6 +607,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/context-graph.cjs\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "MessageDisplay": [
@@ -607,6 +636,15 @@
             "type": "command",
             "command": "node \"C:/Projects/agnostic-ai/engine/hooks/capability-graph-guard.cjs\"",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sandm/.claude/hooks/context-graph.cjs\"",
+            "timeout": 5
           }
         ]
       }
@@ -819,7 +857,7 @@
       "effortLevel": "high"
     },
     "claude-fable-5-1": {
-      "effortLevel": "medium"
+      "effortLevel": "xhigh"
     },
     "claude-opus-5": {
       "effortLevel": "high"

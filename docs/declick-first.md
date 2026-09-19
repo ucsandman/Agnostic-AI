@@ -1,3 +1,11 @@
+---
+name: declick-first
+description: "The declick adapter rule and its nudge hook: adapters before MCP, WebFetch or a screenshot, and the inventory of adapters"
+context:
+  triggers:
+    keywords: ["declick", "adapter", "mcp payload", "webfetch", "trimmed json"]
+  priority: 50
+---
 # declick first — the token rule and its hook
 
 Standing rule in `CLAUDE.md` (ALWAYS block) and the compiled working agreement

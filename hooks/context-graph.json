@@ -1,0 +1,17 @@
+{
+  "_comment": "context-graph: the roots, budgets and thresholds for hooks/context-graph.cjs. Roots are the trust allowlist: a module loads only from a listed root, and a symlink that resolves outside its root is excluded. Engine: C:/Projects/agnostic-ai/engine/context (docs/context-graph.md). Edit here, never in the engine.",
+  "version": 1,
+  "client": "claude",
+  "engine": "C:/Projects/agnostic-ai/engine/context/index.cjs",
+  "roots": [
+    { "id": "rules", "path": "C:/Projects/agnostic-ai/core/rules/modules", "scope": "harness", "trust": "harness" },
+    { "id": "harness-docs", "path": "~/.claude/docs", "scope": "harness", "trust": "harness" },
+    { "id": "memory", "path": "~/.claude/projects/C--Users-sandm--claude/memory", "scope": "user", "trust": "user", "index": "MEMORY.md", "include": ["people/**", "projects/**", "decisions/**"] },
+    { "id": "repo-memory", "path": "~/.claude/projects/{slug}/memory", "perRepo": true, "trust": "user", "index": "MEMORY.md" },
+    { "id": "repo-tree", "path": "{cwd}/.agents/memory", "perRepo": true, "trust": "repo", "enabled": false, "_comment": "in-tree memory arrives with the repository: repo trust (no edges out of its root, private modules never join its bundle, content bannered as data). Off until a repo opts in." }
+  ],
+  "budget": { "turnTokens": 2500, "sessionTokens": 12000, "subagentTokens": 1200, "maxModulesPerTurn": 6, "maxClosure": 24, "maxDepth": 8, "maxModuleTokens": 1500, "maxFanout": 8 },
+  "selection": { "threshold": 2, "maxTargets": 4, "maxCandidates": 5, "minPromptChars": 12 },
+  "stale": { "afterDays": 120 },
+  "eagerBaseline": ["~/.agents/AGENTS.md", "~/.claude/agnostic-rules.md", "~/.claude/projects/C--Users-sandm--claude/memory/MEMORY.md", "~/CLAUDE.md"]
+}

@@ -1,3 +1,11 @@
+---
+name: new-project-setup
+description: "The steps a new repository goes through before work starts: registration, memory, remotes, gates"
+context:
+  triggers:
+    keywords: ["new project", "new repo", "scaffold", "init the repo", "register the project", "bootstrap a project"]
+  priority: 50
+---
 # New Project Setup
 
 Moved out of the always-loaded `~/.claude/CLAUDE.md` on 2026-08-11. It fires rarely and taxed every session. Pointer stays in CLAUDE.md → Definition of Done.

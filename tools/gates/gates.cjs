@@ -244,7 +244,8 @@ function checkDocBudgets(ctx) {
       ok = false;
       continue;
     }
-    const words = countWords(read(abs));
+    // frontmatter is metadata for the context graph, not prose a session reads
+    const words = countWords(read(abs).replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''));
     const pct = Math.round((words / ceiling) * 100);
     if (words > ceiling) {
       const hit = `OVER ${relPath}: ${words} words exceeds the ${ceiling}-word ceiling — relocate to a linked doc first, condense second, raise the ceiling last`;

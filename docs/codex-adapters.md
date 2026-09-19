@@ -1,3 +1,12 @@
+---
+name: codex-adapters
+description: "How the Codex side of the harness is wired: adapters in hooks/adapters, what the port carries, what Codex lacks"
+context:
+  triggers:
+    keywords: ["codex", "config.toml", "spawn_agent", "astra", "gpt-5", "codex harness"]
+  clients: ["claude", "codex"]
+  priority: 50
+---
 # Codex adapters
 
 The Codex-only hook adapters that sit beside the shared guards. Guard behavior and overrides for the shared set: [harness-guards.md](harness-guards.md). How Codex loads them: [harness-parity.md](harness-parity.md).

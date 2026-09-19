@@ -3,6 +3,28 @@
 Syncs from the private harness to this mirror. Dates are sync dates; the
 underlying changes usually landed over the preceding days.
 
+## 2026-09-19 (thirty-sixth sync)
+
+- **Context graph.** `hooks/context-graph.cjs` (UserPromptSubmit, PreToolUse Edit/Write and
+  Agent, SubagentStart, SessionStart compact/clear) loads situational context as modules with
+  declared dependencies: selected from the prompt, the cwd and the file being edited; resolved
+  into a dependency closure in prerequisite order; injected under a hard per-turn and
+  per-session budget with session dedup by content hash; re-injected after compaction; every
+  module names why it loaded. The engine is client-neutral and lives in
+  [Agnostic-AI `engine/context`](https://github.com/ucsandman/Agnostic-AI/tree/main/engine/context)
+  (39 checks, `--break` is the negative control); this hook is the Claude Code wiring, ported to
+  Codex, Gemini and Cursor like every other guard. Four sections of the global rules (delegation,
+  parallel agents, push destinations, memory write rules) became on-demand modules with two-line
+  pointers, and the compiled rules file dropped from 22.2 KB to 17.2 KB. Fourteen docs here carry
+  a `context:` frontmatter block. Roots are a trust allowlist: symlink escapes excluded, repo-trust
+  modules cannot reach outside their root, private modules never join a repo bundle, secret
+  shapes dropped. Ledger + `--report`; `tools/tokflow/context-graph-bench.cjs` replays real
+  prompts (300 prompts, 111 sessions: 127 loaded something, mean 1,549 tok per session against
+  2,094 tok of rules text moved out, 36k tok of repeats deduped). Contract, roots, budgets:
+  [docs/context-graph.md](docs/context-graph.md). Probe: `hooks/tests/context-graph-probe.cjs`.
+- **Gates.** `doc-budgets` no longer counts frontmatter as prose; `memory-lint` no longer reads
+  frontmatter list items as untagged fact lines.
+
 ## 2026-09-18 (thirty-fifth sync)
 
 - **Heartbeat follows `/clear`.** `/clear` rotates the session id without a second

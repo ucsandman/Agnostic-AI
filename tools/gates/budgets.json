@@ -12,10 +12,11 @@
   "docs/token-cache-discipline.md": 500,
   "docs/declick-first.md": 700,
   "docs/windows-gotchas.md": 600,
-  "docs/harness-guards.md": 950,
+  "docs/harness-guards.md": 1050,
   "docs/plugin-hygiene.md": 600,
   "docs/new-project-setup.md": 200,
   "docs/manifest-gate.md": 850,
   "docs/browser-qa.md": 1650,
-  "docs/hook-latency.md": 400
+  "docs/hook-latency.md": 400,
+  "docs/context-graph.md": 900
 }

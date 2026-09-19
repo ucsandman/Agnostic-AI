@@ -1,3 +1,12 @@
+---
+name: hook-latency
+description: "Measured per-event hook timing: hooks per event cost their slowest member, and what to keep synchronous"
+context:
+  triggers:
+    keywords: ["hook latency", "slow hook", "hook timing", "pretooluse slow", "async hook"]
+  requires: ["harness-guards"]
+  priority: 40
+---
 # Hook latency
 
 What each registered hook costs per event, measured, and what was done about it.

@@ -1,3 +1,13 @@
+---
+name: opus-handoff
+description: "The standing rules an Opus session runs under when Fable hands off day-to-day work"
+context:
+  section: "## Rules"
+  triggers:
+    keywords: ["opus handoff", "hand off to opus", "opus session", "lower cost session"]
+  clients: ["claude"]
+  priority: 40
+---
 # Opus Handoff Pack — day-to-day runs at lower cost
 
 Purpose: run routine work on Opus (`/model opus`) and reserve Fable for what actually needs it. This file distills ~40 hand-typed corrections from the 2026-07-05 usage audit (`claude-usage-audit-2026-07-05.md`) into the behavioral rules that kept lapsing. The global CLAUDE.md still applies in full; this is the enforcement-priority subset. Reference it at session start with `@~/.claude/docs/opus-handoff.md` or paste the Rules section into a goal prompt.

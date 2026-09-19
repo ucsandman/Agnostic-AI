@@ -1,3 +1,12 @@
+---
+name: harness-guards
+description: "Every guard hook and gate in this harness: what it stops, its override marker, and how to check wiring"
+context:
+  triggers:
+    keywords: ["guard", "hook denied", "override marker", "rm_ok", "slow_ok", "batch-guard", "gate-freeze", "pre-commit blocked", "why was that blocked"]
+    paths: ["~/.claude/hooks/**", "~/.claude/settings.json"]
+  priority: 70
+---
 # Harness guards
 
 Guard behavior and overrides. Standing rules live in `CLAUDE.md`.
@@ -85,6 +94,16 @@ change to `autoCompactWindow` gets judged.
 `precompact-extract.cjs` read `evt.transcript`, a field the PreCompact payload
 never carries, so it had never written a line. It now reads the tail of
 `transcript_path` (human and assistant text only) and works as documented.
+
+## context-graph.cjs (2026-09-19)
+
+`UserPromptSubmit`, `PreToolUse` (Edit/Write and Agent), `SubagentStart`,
+`SessionStart` (compact, clear). Advisory: injects context, never blocks.
+Selects context modules from the prompt, the cwd and the file being edited,
+resolves their dependency closure and injects it under a hard budget, each
+module naming why it loaded. Ledger `logs/context-graph.jsonl` (`--report`).
+Probe: `hooks/tests/context-graph-probe.cjs`. Contract, roots, budgets:
+[context-graph.md](context-graph.md).
 
 ## declick-nudge.cjs (2026-09-03)
 

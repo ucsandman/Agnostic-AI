@@ -1,3 +1,11 @@
+---
+name: token-cache-discipline
+description: "Why the prompt cache ratio matters, what invalidates the prefix, rtk output compression, and the levers only the operator can pull"
+context:
+  triggers:
+    keywords: ["token cost", "cache", "prompt caching", "rtk", "context window", "compaction", "/compact", "/clear", "tokens per turn"]
+  priority: 50
+---
 # Token and Cache Discipline — background and my own levers
 
 Moved out of the always-loaded `~/.claude/CLAUDE.md` on 2026-08-11. The agent-actionable rules stayed in CLAUDE.md → Token and Context Discipline. What follows is the reasoning behind them plus the levers only I can pull at the keyboard.
