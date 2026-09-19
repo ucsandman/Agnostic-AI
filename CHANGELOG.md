@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Semantic context graph** (`engine/context/`, 2026-09-19). Durable context
+  as modules with declared dependencies: `context:` frontmatter (`requires`,
+  `suggests`, `triggers`, `scope`, `clients`, `priority`, `stale_after`,
+  `sensitivity`, `section`) plus `[[wikilinks]]` as soft edges. Deterministic
+  resolution (closure, cycle detection, topological order, bounded depth and
+  size), budget packing with session dedup, a renderer that names why each
+  module loaded, and a CLI (`resolve`, `explain`, `impact`, `graph`, `select`,
+  `bundle`, `show`, `list`, `report`). Trust boundary: roots are the allowlist,
+  symlink escapes are excluded, repo-trust modules cannot reach outside their
+  root, private modules never join a repo-trust bundle, secret shapes are
+  dropped. `engine/tests/reg-context.cjs` (39 checks; `--break` is the
+  negative control) joins `npm test`. Four sections of `core/rules/global-rules.md`
+  (Delegation and Model Routing, Parallel Agents and the Inbox, the push
+  destinations, the memory write rules) became modules in `core/rules/modules/`
+  with two-line pointers left in place; the compiled Claude rules file dropped
+  from 22.2 KB to 17.2 KB.
+
 - **The port engine is embeddable.** `engine/harness/index.cjs` is the library
   entry; `common.configure({ brand, secretPatterns, shimPath, importRoots })`
   lets a host own the ownership claim, the secret patterns, the hook shim path

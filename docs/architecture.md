@@ -59,6 +59,20 @@ The next `npm run port` then carries it everywhere. Sync uses the same
 guarded writer semantics: backup before overwrite, hand edits are skipped
 unless `--force`, `--check` exits 1 when stale.
 
+## Context graph (`engine/context/`)
+
+Situational context as modules with declared dependencies: markdown files
+whose frontmatter carries `context: { requires, suggests, triggers, ... }`,
+plus `[[wikilinks]]` as soft edges. `select` picks targets from deterministic
+signals (prompt keywords, cwd and touched-file globs, repo, tool, subagent
+type); `resolve` returns the dependency closure in prerequisite order (cycles
+detected, closure bounded); `pack` fits it into a hard budget with session
+dedup by content hash; `render` makes every module say why it is there. Roots
+are the trust allowlist (harness, user, repo), and a repo-trust module can
+never pull harness or user context along. A client wires it with one hook
+(Claude Code: `~/.claude/hooks/context-graph.cjs`, ported to the other clients
+like every other hook). Contract and CLI: `engine/context/README.md`.
+
 ## Hooks (`engine/hooks/`)
 
 | File | Role |
