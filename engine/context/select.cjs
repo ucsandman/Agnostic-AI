@@ -87,13 +87,19 @@ function select(graph, signals = {}, opts = {}) {
     const th = m.triggers.tools.filter((t) => tools.has(t));
     if (th.length) { score += 2; reasons.push({ signal: 'tool', hits: th, points: 2 }); }
     if (signals.agent && m.triggers.agents.some((a) => a === signals.agent || a === '*')) { score += 3; reasons.push({ signal: 'agent', hits: [signals.agent], points: 3 }); }
+    // a shell command (PreToolUse Bash/PowerShell): substring match, case-insensitive, so ".env", "sitemap", "settings.json" fire
+    if (signals.command) {
+      const cmd = String(signals.command).toLowerCase();
+      const ch = m.triggers.commands.filter((c) => c && cmd.includes(String(c).toLowerCase()));
+      if (ch.length) { score += 3; reasons.push({ signal: 'command', hits: ch, points: 3 }); }
+    }
     if (score > 0) scored.push({ name: m.name, score, priority: m.priority, reasons });
   }
   scored.sort((a, b) => b.score - a.score || b.priority - a.priority || a.name.localeCompare(b.name));
   const targets = scored.filter((s) => s.score >= threshold).slice(0, maxTargets);
   const overflow = scored.filter((s) => s.score >= threshold).slice(maxTargets);
   const candidates = [...overflow, ...scored.filter((s) => s.score < threshold)].slice(0, maxCandidates);
-  return { targets, candidates, filtered, signals: { client, repo, cwd: signals.cwd || null, prompt: promptLower.length, files: paths.length, agent: signals.agent || null } };
+  return { targets, candidates, filtered, signals: { client, repo, cwd: signals.cwd || null, prompt: promptLower.length, files: paths.length, agent: signals.agent || null, command: signals.command ? String(signals.command).length : 0 } };
 }
 
 module.exports = { select, keywordHits, pathHits };

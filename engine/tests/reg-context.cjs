@@ -410,6 +410,29 @@ console.log('reg-context' + (BREAK ? ' (--break: the chain check must fail)' : '
     assert.deepStrictEqual(ctx.select(ctx.loadGraph([r]), { cwd: 'C:/Users/x/.claude/hooks', files: ['C:/tmp/a.cjs'] }).targets.map((t) => t.name), ['h'], 'cwd is a path signal on a prompt');
     assert.deepStrictEqual(ctx.select(ctx.loadGraph([r]), { cwd: 'C:/Users/x/.claude/hooks', files: ['C:/tmp/a.cjs'], pathsFromCwd: false }).targets, [], 'but not on a tool call');
   });
+  check('commands: a shell command selects by substring trigger, case-insensitive, and names the signal', () => {
+    const r = root('cmds', { 'env.md': mod('env', 'never cat .env', { triggers: { commands: ['.env', 'secrets'] } }), 'seo.md': mod('seo', 'seo floor', { triggers: { commands: ['sitemap', 'robots.txt'] } }) });
+    const g = ctx.loadGraph([r]);
+    const sel = ctx.select(g, { command: 'cat C:/x/.ENV | head', pathsFromCwd: false });
+    assert.deepStrictEqual(sel.targets.map((t) => t.name), ['env']);
+    assert.strictEqual(sel.targets[0].reasons[0].signal, 'command');
+    assert.deepStrictEqual(ctx.select(g, { command: 'git status' }).targets, []);
+  });
+  check('suggest: co-loaded targets past the recurrence gate become a suggests line; existing edges and single sessions do not', () => {
+    const r = root('sugg', { 'a.md': mod('a', 'a'), 'b.md': mod('b', 'b'), 'c.md': mod('c', 'c', { suggests: ['a'] }) });
+    const ledger = path.join(TMP, 'sugg.jsonl');
+    const row = (s, t, daysAgo = 0) => JSON.stringify({ ts: new Date(Date.now() - daysAgo * 86400000).toISOString(), session: s, targets: t });
+    fs.writeFileSync(ledger, [row('s1', ['a', 'b']), row('s1', ['a', 'b']), row('s2', ['a', 'b']), row('s1', ['a', 'c']), row('s2', ['a', 'c']), row('s3', ['a', 'c']), row('s1', ['b', 'c']), row('s1', ['b', 'c']), row('s1', ['b', 'c'])].join('\n') + '\n');
+    const cli = require(path.join(ROOT, 'engine', 'context', 'cli.cjs'));
+    const cfgFile = path.join(TMP, 'sugg-cfg.json');
+    fs.writeFileSync(cfgFile, JSON.stringify({ version: 1, roots: [{ id: 'sugg', path: r.path }] }));
+    const logs = [];
+    const orig = console.log; console.log = (s) => logs.push(String(s));
+    try { cli.main(['suggest', '--config', cfgFile, '--ledger', ledger, '--json']); } finally { console.log = orig; }
+    const out = JSON.parse(logs.join('\n'));
+    assert.deepStrictEqual(out.suggestions.map((s) => [s.a, s.b]), [['a', 'b']], 'a<->c has an edge already; b<->c is one session');
+    assert.strictEqual(out.suggestions[0].line, 'suggests: [b]');
+  });
   check('shape: context.section matches a heading by prefix ("## Rules" finds "## Rules (why)")', () => {
     const r = root('sec3', { 'd.md': `---\nname: d\ndescription: d\ncontext:\n  section: "## Rules"\n---\n# D\n\n## Rules (each one exists because it was violated)\n\n1. one\n\n## Later\n\nx\n` });
     assert.strictEqual(ctx.loadGraph([r]).modules.get('d').content, '## Rules (each one exists because it was violated)\n\n1. one');

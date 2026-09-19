@@ -183,6 +183,7 @@ function loadGraph(roots, opts = {}) {
           repos: list(triggers.repos),
           tools: list(triggers.tools),
           agents: list(triggers.agents),
+          commands: list(triggers.commands),
           index: idx ? idx.triggers : [],
         },
         explicit: Boolean(ctx),

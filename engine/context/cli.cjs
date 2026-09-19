@@ -12,6 +12,7 @@
  *   node cli.cjs show <name>              print one module's content (what `bundle` would inject for it)
  *   node cli.cjs list                     every module: name, root, tokens, triggers
  *   node cli.cjs report [--days N]        the ledger: what was loaded, deduped, rejected; eager baseline
+ *   node cli.cjs suggest [--days N]       edges the ledger argues for (co-loaded targets past the recurrence gate)
  *
  * Flags: --config <file> (default: $CONTEXT_GRAPH_CONFIG or ~/.claude/hooks/context-graph.json)
  *        --cwd <dir> --client <id> --files a,b --agent <type> --budget <tokens> --json --no-optional
@@ -130,9 +131,9 @@ function main(argv) {
     console.log(r.text || `(nothing to inject: ${r.targets.length ? ctx.summary(r.packed) : 'no module matched'})`);
     return 0;
   }
-  if (cmd === 'report') {
+  if (cmd === 'report' || cmd === 'suggest') {
     const file = args.ledger || process.env.CONTEXT_GRAPH_LEDGER || path.join(ctx.config.home(), '.claude', 'logs', 'context-graph.jsonl');
-    return report(file, args, cfg, graph);
+    return cmd === 'report' ? report(file, args, cfg, graph) : suggest(file, args, graph);
   }
   console.error(`unknown command ${cmd}`);
   return 2;
@@ -167,6 +168,44 @@ function report(file, args, cfg, graph) {
   if (top.length) { console.log('  most loaded:'); for (const [n, v] of top) console.log(`    ${n.padEnd(44)} ${v.loads} loads, ${v.tokens.toLocaleString()} tok`); }
   console.log(`  never loaded in window: ${never.length} of ${graph.modules.size} modules${never.length ? ' (' + never.slice(0, 8).join(', ') + (never.length > 8 ? ', ...' : '') + ')' : ''}`);
   if (eager.length) console.log(`  eager baseline (loaded every session regardless): ${eagerTokens.toLocaleString()} tok from ${eager.length} files: ${eager.map((e) => path.basename(e.file) + ' ' + e.tokens.toLocaleString()).join(', ')}`);
+  return 0;
+}
+
+/**
+ * suggest: edges the ledger argues for. Two targets selected together in one event,
+ * 3+ times across 2+ sessions (the memory store's recurrence gate), with no edge
+ * between them yet, are printed as the exact `suggests:` line to add. Signals older
+ * than 30 days count half. Nothing is written.
+ */
+function suggest(file, args, graph) {
+  const days = args.days || 30;
+  const since = Date.now() - days * 86400000;
+  const half = Date.now() - 30 * 86400000;
+  let rows = [];
+  try { rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((r) => r && r.targets && r.targets.length > 1 && Date.parse(r.ts) >= since); } catch { rows = []; }
+  const pairs = new Map(); // "a|b" -> { weight, sessions:Set }
+  for (const r of rows) {
+    const w = Date.parse(r.ts) >= half ? 1 : 0.5;
+    const t = [...new Set(r.targets)].sort();
+    for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length; j++) {
+      const k = t[i] + '|' + t[j];
+      const p = pairs.get(k) || { weight: 0, sessions: new Set() };
+      p.weight += w; p.sessions.add(r.session); pairs.set(k, p);
+    }
+  }
+  const hasEdge = (a, b) => { const m = graph.modules.get(a); return !!(m && (m.edges || []).some((e) => e.to === b && !e.missing)); };
+  const out = [];
+  for (const [k, p] of pairs) {
+    const [a, b] = k.split('|');
+    if (p.weight < 3 || p.sessions.size < 2) continue;
+    if (!graph.modules.has(a) || !graph.modules.has(b)) continue;
+    if (!hasEdge(a, b) && !hasEdge(b, a)) out.push({ a, b, weight: p.weight, sessions: p.sessions.size, line: `suggests: [${b}]`, file: graph.modules.get(a).file });
+  }
+  out.sort((x, y) => y.weight - x.weight || x.a.localeCompare(y.a));
+  if (args.json) { console.log(JSON.stringify({ days, rowsWithPairs: rows.length, suggestions: out }, null, 2)); return 0; }
+  console.log(`context-graph suggest: ${rows.length} events with 2+ targets in the last ${days} days, ${pairs.size} pairs seen, ${out.length} past the gate (3+ co-loads, 2+ sessions, no edge yet)`);
+  for (const s of out) console.log(`  ${s.a}  <->  ${s.b}   co-loaded ${s.weight} (${s.sessions} sessions)\n    add to ${s.file}:  context:\n      ${s.line}`);
+  if (!out.length) console.log('  nothing to suggest yet');
   return 0;
 }
 
