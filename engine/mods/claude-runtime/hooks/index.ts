@@ -94,8 +94,22 @@ async function jevJudge($, req) {
 }
 
 // ---- helpers that take `$` (top-level functions, per the validator) ----
+async function resolveLogDir($) {
+  if (state.logDir) return;
+  let home = "";
+  try { home = (await $.env.get("CLAUDE_CONFIG_DIR")) || ""; } catch (err) { home = ""; }
+  if (!home) {
+    let base = "";
+    try { base = (await $.env.get("USERPROFILE")) || ""; } catch (err) { base = ""; }
+    if (!base) { try { base = (await $.env.get("HOME")) || ""; } catch (err) { base = ""; } }
+    home = base ? base + "/.claude" : "";
+  }
+  if (home) state.logDir = String(home).replace(/\\/g, "/").replace(/\/$/, "") + "/mods/state/events/";
+}
 async function flushLog($) {
   if (!state.pending.length || !state.sessionId) return;
+  await resolveLogDir($);
+  if (!state.logDir) return;
   const rows = state.pending.splice(0); const path = state.logDir + state.sessionId + ".jsonl";
   let prev = ""; try { if (await $.fs.exists(path)) prev = await $.fs.read(path); } catch (err) { prev = ""; }
   try { await $.fs.write(path, prev + rows.map(r => JSON.stringify(r)).join("\n") + "\n"); } catch (err) { state.pending.unshift(...rows); }
@@ -119,7 +133,9 @@ function fileTargets(e) {
 export const register = (on, options) => {
   state.backend = typeof options.judgeBackend === "string" ? options.judgeBackend : "stub";
   state.apiKey = typeof options.typesafeApiKey === "string" ? options.typesafeApiKey : "";
-  state.logDir = typeof options.eventLogDir === "string" && options.eventLogDir ? options.eventLogDir : (process.env.CLAUDE_CONFIG_DIR || (process.env.USERPROFILE || process.env.HOME || "") + "/.claude") + "/mods/state/events/";
+  // eventLogDir from userConfig, else <Claude home>/mods/state/events/ resolved through $.env on the first flush
+  // (the hooks worker has no Node globals, so nothing here may read the environment at load time).
+  state.logDir = typeof options.eventLogDir === "string" && options.eventLogDir ? options.eventLogDir : "";
 
   // The noun: added to `$` for every plugin loaded after this one.
   on("engine.create", async ($, e, next) => {

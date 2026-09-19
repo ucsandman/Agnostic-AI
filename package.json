@@ -40,9 +40,9 @@
     "parity": "node tools/sync/parity.cjs --open",
     "link": "node engine/setup/link.cjs",
     "link:check": "node engine/setup/link.cjs --check",
-    "sync:rules": "node engine/sync/sync.cjs",
+    "sync:rules": "node engine/sync/sync.cjs --target claude",
     "doctor": "node engine/doctor/doctor.cjs",
-    "setup": "node engine/setup/first-run.cjs && node engine/sync/all.cjs && node engine/doctor/doctor.cjs"
+    "setup": "node engine/setup/first-run.cjs && node engine/sync/all.cjs && node engine/harness/cli.cjs port && node engine/doctor/doctor.cjs"
   },
   "keywords": [
     "ai",

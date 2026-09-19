@@ -103,8 +103,10 @@ function wireAgentHooks(home = HOME) {
   };
 
   // Claude Code — PreToolUse takes {matcher, hooks[]} groups, so it can host both guards.
-  const claudeSettings = path.join(home, '.claude', 'settings.json');
-  const claudeCfg = fs.existsSync(claudeSettings) ? readJsonSafe(claudeSettings) : undefined;
+  const claudeHome = process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'); // the Claude home moves with CLAUDE_CONFIG_DIR
+  const claudeSettings = path.join(claudeHome, 'settings.json');
+  // No settings.json yet (a fresh machine) starts from {} so the core guards are wired on the first run.
+  const claudeCfg = fs.existsSync(claudeSettings) ? readJsonSafe(claudeSettings) : {};
   if (claudeCfg === null) {
     report.claude.present = true;
     report.claude.malformed = true;
@@ -183,7 +185,7 @@ function wireAgentHooks(home = HOME) {
 
       // The advisor agent is the only upward edge in the graph. An existing one
       // is the operator's, never ours to overwrite.
-      const advisorDest = path.join(home, '.claude', 'agents', 'advisor.md');
+      const advisorDest = path.join(claudeHome, 'agents', 'advisor.md');
       if (fs.existsSync(advisorDest)) {
         report.claude.advisorAgent = 'kept';
       } else {
@@ -192,7 +194,7 @@ function wireAgentHooks(home = HOME) {
         report.claude.advisorAgent = 'installed';
       }
 
-      backup(claudeSettings);
+      if (fs.existsSync(claudeSettings)) backup(claudeSettings); else fs.mkdirSync(path.dirname(claudeSettings), { recursive: true });
       fs.writeFileSync(claudeSettings, JSON.stringify(cfg, null, 2), 'utf8');
       console.log(`  ✓ Claude Code hooks in ~/.claude/settings.json (dashclaw-guard + secret-guard + fable-delegate-guard + capability-graph-guard${installed.length ? `; added ${installed.join(', ')}` : '; already present'}; advisor agent ${report.claude.advisorAgent})`);
     } catch (err) {

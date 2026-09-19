@@ -1,4 +1,0 @@
-{"at":12,"kind":"session","sessionId":"8cdb1f2a-e6c7-456c-a700-65a35bd1b8ff","maxCalls":2,"maxCallsSource":"userConfig","priorTypes":["haiku-scout","advisor"]}
-{"at":8924,"kind":"route","route":{"ms":8908,"type":"haiku-scout","parent":"claude-sonnet-5","parentRung":"sonnet","requested":"haiku","model":"haiku","action":"pass","reasons":["edge-in-graph"],"est":{"calls":4,"files":0},"agentId":"ac5a57984baf998b2","reserved":26704,"declared":34704,"resolvedModel":"claude-haiku-4-5-20251001"},"reserved":26704,"reservedFrom":"learned n=3","declared":34704}
-{"at":28867,"kind":"budget-deny","agentId":"ac5a57984baf998b2","type":"haiku-scout","tool":"Bash","call":3,"max":2}
-{"at":39253,"kind":"settle","agentId":"ac5a57984baf998b2","type":"haiku-scout","model":"claude-haiku-4-5-20251001","calls":4,"declared":34704,"reserved":26704,"measured":14104,"delta":-20600,"durationMs":30333,"reason":"answer","newMedian":22902}

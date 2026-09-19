@@ -1,8 +1,0 @@
-{"at":12,"kind":"session","sessionId":"a84aa6e6-8622-44bf-b062-663d078f0d17","maxCalls":2,"maxCallsSource":"userConfig","priorTypes":["haiku-scout","advisor"]}
-{"at":10105,"kind":"route","route":{"ms":10099,"type":"haiku-scout","parent":"claude-sonnet-5","parentRung":"sonnet","requested":"haiku","model":"haiku","action":"pass","reasons":["edge-in-graph"],"est":{"calls":4,"files":0},"agentId":"a6a4c669349780ffd","reserved":22902,"declared":30902,"resolvedModel":"claude-haiku-4-5-20251001"},"reserved":22902,"reservedFrom":"learned n=2","declared":30902}
-{"at":24860,"kind":"budget-deny","agentId":"a6a4c669349780ffd","type":"haiku-scout","tool":"Bash","call":3,"max":2}
-{"at":27655,"kind":"budget-deny","agentId":"a6a4c669349780ffd","type":"haiku-scout","tool":"SubagentHandback","call":4,"max":2}
-{"at":31403,"kind":"budget-deny","agentId":"a6a4c669349780ffd","type":"haiku-scout","tool":"SubagentHandback","call":5,"max":2}
-{"at":36065,"kind":"budget-deny","agentId":"a6a4c669349780ffd","type":"haiku-scout","tool":"SubagentHandback","call":6,"max":2}
-{"at":40098,"kind":"budget-deny","agentId":"a6a4c669349780ffd","type":"haiku-scout","tool":"SubagentHandback","call":7,"max":2}
-{"at":42215,"kind":"settle","agentId":"a6a4c669349780ffd","type":"haiku-scout","model":"claude-haiku-4-5-20251001","calls":7,"declared":30902,"reserved":22902,"measured":36329,"delta":5427,"durationMs":32111,"reason":"answer","newMedian":26704}

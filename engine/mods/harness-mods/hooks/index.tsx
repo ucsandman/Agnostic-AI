@@ -21,12 +21,28 @@ import { newStatus, judge, RUNTIME_PIN } from "./lib/canary.mjs";
 
 const VERSION = "0.1.0";
 // The installed Claude home (CLAUDE_CONFIG_DIR, else ~/.claude): runtime state, the mode config and the
-// classic hooks' ledger all live there, whatever directory this plugin is loaded from.
-const CLAUDE_HOME = (process.env.CLAUDE_CONFIG_DIR || (process.env.USERPROFILE || process.env.HOME || "") + "/.claude").replace(/\\/g, "/").replace(/\/$/, "");
-const STATE_DIR = CLAUDE_HOME + "/mods/state/";
-const CONFIG_PATH = CLAUDE_HOME + "/mods/mods-config.json";
-const SETTINGS_PATH = CLAUDE_HOME + "/settings.json";
-const CLASSIC_BUDGET_LOG = CLAUDE_HOME + "/hooks/.subagent-budget-log.jsonl";
+// classic hooks' ledger all live there, whatever directory this plugin is loaded from. The hooks worker
+// has no Node globals; the home is read through `$.env` on the first event and cached (2026-09-19, after
+// a top-level environment read kept the whole module from loading).
+let CLAUDE_HOME = "";
+let STATE_DIR = "", CONFIG_PATH = "", SETTINGS_PATH = "", CLASSIC_BUDGET_LOG = "";
+async function resolveHome($) {
+  if (CLAUDE_HOME) return;
+  let home = "";
+  try { home = (await $.env.get("CLAUDE_CONFIG_DIR")) || ""; } catch (err) { home = ""; }
+  if (!home) {
+    let base = "";
+    try { base = (await $.env.get("USERPROFILE")) || ""; } catch (err) { base = ""; }
+    if (!base) { try { base = (await $.env.get("HOME")) || ""; } catch (err) { base = ""; } }
+    home = base ? base + "/.claude" : "";
+  }
+  if (!home) return; // no home known: every path stays empty and the file writes below fail quietly
+  CLAUDE_HOME = String(home).replace(/\\/g, "/").replace(/\/$/, "");
+  STATE_DIR = CLAUDE_HOME + "/mods/state/";
+  CONFIG_PATH = CLAUDE_HOME + "/mods/mods-config.json";
+  SETTINGS_PATH = CLAUDE_HOME + "/settings.json";
+  CLASSIC_BUDGET_LOG = CLAUDE_HOME + "/hooks/.subagent-budget-log.jsonl";
+}
 const STORE_KEY = "harness-mods.ledger";
 const SERVE_AFTER = 3; // the Nth exact identical observation of an unchanged file is served from cache
 
@@ -145,6 +161,7 @@ function bandText() {
 export const register = (on, options) => {
   // ---------------------------------------------------------------- session
   on("session.start", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     state.sessionId = await $.session.id();
     state.cfg = await readConfig($);
     state.modes = allModes(state.cfg, await readEnv($));
@@ -162,6 +179,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- the bus (observation only)
   on("runtime.emit", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     const r = await next(e);
     state.status.busEvents++;
     const d = e.data || {};
@@ -192,6 +210,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- routing (the one raw agent.spawn hook)
   on("agent.spawn", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     const t0 = Date.now();
     const type = e.subagentType || "general-purpose";
     const sig = signatureOf(state.sessionId, type, e.prompt, e.model);
@@ -230,6 +249,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- tool.call (the one raw hook: exit exemption, read cache, redaction, explanations)
   on("tool.call", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     const t0 = Date.now();
     state.calls++; state.status.toolCalls++; state.status.enforcementReached.toolCall = true;
     const { tool, tool_use_id, agentId, ...input } = e;
@@ -303,6 +323,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- prompt.submit: the native context nudge
   on("prompt.submit", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     if (await syncSessionId($)) await writeHeartbeat($, {});
     if (state.pendingNudge && enforcing("contextNudge")) {
       const note = state.pendingNudge; state.pendingNudge = null;
@@ -314,6 +335,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- turn.complete: heartbeat, usage, flush
   on("turn.complete", async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     if (!e.agentId) {
       await refreshUsage($);
       await flushShadow($);
@@ -324,6 +346,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- /mods
   on("command.run", { command: "mods" }, async ($, e, next) => {
+    await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     await flushShadow($);
     const arg = (e.args || "").trim().toLowerCase() || "status";
     const v = judge(state.status, state.modes, state.status.toolCalls > 0 ? "live" : "start");

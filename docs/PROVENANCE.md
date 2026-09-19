@@ -66,7 +66,7 @@ Files that entered this repository during the 2026-09-19 consolidation, with the
 | `tools/harness-health/harness-health.ps1` | `claude-config:scripts/harness-health.ps1` | 968080e |
 | `tools/agent-browser/unwedge.ps1` | `claude-config:scripts/agent-browser-unwedge.ps1` | 968080e |
 | `labs/tokflow` | `claude-config:tools/tokflow` | 968080e |
-| `labs/ears` | `claude-config:tools/ears` | 968080e |
+| `tools/ears` | `claude-config:tools/ears` | 968080e |
 | `labs/procledger` | `claude-config:tools/procledger` | 968080e |
 | `labs/detached-builder/detached-builder.mjs` | `claude-config:scripts/detached-builder.mjs` | 968080e |
 | `labs/claude-mods/CHECKPOINT.md` | `claude-mods-rnd:CHECKPOINT.md` | 210d972 |

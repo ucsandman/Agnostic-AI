@@ -74,7 +74,7 @@ harness makes no network requests for governance.
 
 ## Scheduled jobs (Windows)
 
-`jobs/sync-targets.ps1` runs `npm run port`; `jobs/daily-distill.ps1` runs
+`jobs/port-daily.ps1` runs `npm run port` and the guard probe (the `HarnessParitySync` task; `node jobs/install.cjs --apply` registers it); `jobs/daily-distill.ps1` runs
 harvest + distill and logs to `storage/daily-distill.log`. Register them with
 Task Scheduler (for example nightly, after whatever job edits your primary
 client's rules) or run them by hand. On other platforms call the same `node`

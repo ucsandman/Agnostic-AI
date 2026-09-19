@@ -84,3 +84,12 @@ tools/gates/gate-manifest.lock.json
 # Local project config for this checkout (the operator's own CLAUDE.md and .claude/ settings), never the public harness
 /CLAUDE.md
 /.claude/
+
+# Transcript-derived data never ships: session logs, audit trails, recordings, mined prompts (they stay in the private research repo)
+labs/**/*.jsonl
+labs/claude-mods/experiments/jev/*.json
+labs/**/out/
+labs/**/audit/
+labs/**/logs/
+labs/**/recordings/
+labs/claude-mods/prototypes/prodguard/demo-state.json

@@ -1,3 +1,0 @@
-{"at":16,"kind":"session","sessionId":"c4353ad4-3fc4-4952-9a61-23f0d4668f1c","maxCalls":40,"maxCallsSource":"userConfig","priorTypes":[]}
-{"at":9289,"kind":"route","route":{"ms":9280,"type":"haiku-scout","parent":"claude-sonnet-5","parentRung":"sonnet","requested":"opus","model":"haiku","action":"rewrite","reasons":["upward-edge-not-in-graph","downgraded-to-highest-child-rung"],"est":{"calls":1,"files":0},"agentId":"a9cb17de48e3b21f9","resolvedModel":"claude-haiku-4-5-20251001"},"reserved":17000,"reservedFrom":"prior lean"}
-{"at":29736,"kind":"settle","agentId":"a9cb17de48e3b21f9","type":"haiku-scout","model":"claude-haiku-4-5-20251001","calls":2,"declared":28704,"reserved":17000,"measured":26704,"delta":-2000,"durationMs":20451,"reason":"answer","newMedian":26704}

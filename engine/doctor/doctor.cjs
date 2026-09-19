@@ -180,6 +180,13 @@ check('context-graph', 'the context module graph lints clean', () => {
   return { ok, warn: ok && warns.length > 0, count: Number(modules) || 0, lines: errors.length ? errors.slice(0, 5) : warns.length ? [`${warns.length} lint warning(s): ` + warns.map((w) => w.trim().slice(0, 90)).join(' | ').slice(0, 300)] : [out.slice(-1).join('').slice(0, 200) || `graph exit ${r.status}`] };
 });
 
+check('data-files', 'no transcript-derived data is tracked (session logs, audit trails, recordings, mined prompts)', () => {
+  const re = /\.jsonl$|(^|\/)(recordings|audit|logs|out)\/[^/]+\.(json|md|txt|log)$|experiments\/[^/]+\/(turns|roster|states|results-[^/]*|suggest-[^/]*)\.json$/;
+  const files = trackedFiles().filter((f) => !/^(engine\/tests\/fixtures\/|tools\/[^/]+\/tests\/)/.test(f));
+  const hits = files.filter((f) => re.test(f));
+  return { ok: hits.length === 0, count: files.length, lines: hits.length ? hits.slice(0, 20).map((f) => `DATA ${f}`) : [`${files.length} tracked files, 0 data files`] };
+});
+
 check('deps', 'node >= 18, git, and the interpreters hooks need', () => {
   const lines = []; let ok = true;
   const major = Number(process.versions.node.split('.')[0]);
