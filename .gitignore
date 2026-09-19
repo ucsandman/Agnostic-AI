@@ -93,3 +93,5 @@ labs/**/audit/
 labs/**/logs/
 labs/**/recordings/
 labs/claude-mods/prototypes/prodguard/demo-state.json
+tools/bash-noprofile/bash.exe
+tools/bash-noprofile/debug.on

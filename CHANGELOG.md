@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-09-19: slow sessions were process spawns, not the model
+
+- `tools/hook-latency/`: hookpar, hooktime, usage, cachetrace, memmap. Wall
+  clock per event, per hook, fixed context and cache losses per transcript,
+  RAM and spawn latency per machine. `docs/hook-latency.md` has the pass.
+- `tools/bash-noprofile/`: a Git Bash shim for Claude Code's Bash tool on
+  Windows (`--noprofile --norc`, explicit std handles, kill-on-close job).
+  A Bash tool call in a fresh session went from 31.6 s to 4.2 s on the box
+  that motivated it. Built, not tracked; wired via `CLAUDE_CODE_GIT_BASH_PATH`.
+
 ### 2026-09-19: one repository for the harness
 
 - The harness that lived across `claude-config`, the `claude-harness` mirror, `claude-mods-rnd`, `markdown-agent-memory` and `claude-commands` now has one public home here and one private overlay: `engine/hooks` (the guard hooks, their probes and Codex adapters), `engine/mods` (the function-hook plugins), `agents/`, `workflows/`, `tools/` (19 operator tools), `jobs/` (with `install.cjs` for Task Scheduler), `packages/markdown-agent-memory`, `labs/` (claude-mods research, tokflow, procledger, detached-builder), `examples/installed-harness`, 16 docs. Every moved file: `docs/PROVENANCE.md`; the record: `docs/migration-2026-09.md`; the matrix: `docs/ownership.md`.
