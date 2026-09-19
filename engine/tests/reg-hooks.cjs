@@ -477,7 +477,7 @@ async function run() {
     assert(fableGuard.injectionText().includes('Token economics'));
   });
 
-  await test('FirstRun: wires fable-delegate-guard into PreToolUse, UserPromptSubmit and SessionStart', () => {
+  await test('FirstRun: wires fable-delegate-guard into PreToolUse and SessionStart, and the dispatcher into UserPromptSubmit', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agnostic-reg-claude-fable-'));
     fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
     const settings = path.join(home, '.claude', 'settings.json');
@@ -487,12 +487,16 @@ async function run() {
     const report = firstRun.wireAgentHooks(home); // idempotent
 
     const after = JSON.parse(fs.readFileSync(settings, 'utf8'));
-    const count = (event) => (after.hooks[event] || [])
+    const count = (event, pattern = /fable-delegate-guard/) => (after.hooks[event] || [])
       .flatMap(g => (g.hooks || []).map(h => h.command || ''))
-      .filter(c => /fable-delegate-guard/.test(c)).length;
-    for (const event of ['PreToolUse', 'UserPromptSubmit', 'SessionStart']) {
+      .filter(c => pattern.test(c)).length;
+    for (const event of ['PreToolUse', 'SessionStart']) {
       assert.strictEqual(count(event), 1, `${event} must hold exactly one delegate-guard entry`);
     }
+    // Since 2026-09-19 UserPromptSubmit runs ONE process, prompt-dispatch.cjs, whose CHAIN
+    // carries the delegate guard; a second spawn there timed out on every prompt.
+    assert.strictEqual(count('UserPromptSubmit', /prompt-dispatch/), 1, 'UserPromptSubmit must hold exactly one dispatcher entry');
+    assert.strictEqual(count('UserPromptSubmit'), 0, 'UserPromptSubmit must not spawn the delegate guard a second time');
     const pre = after.hooks.PreToolUse.find(g => (g.hooks || []).some(h => /fable-delegate-guard/.test(h.command || '')));
     assert.strictEqual(pre.matcher, 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell');
     assert.strictEqual(report.claude.delegateGuard, true, 'report must state the delegate guard was installed');
