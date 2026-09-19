@@ -5,6 +5,16 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-19 (thirty-sixth sync)
 
+- **Context graph, same day, second pass.** `context-graph.cjs` also fires on PreToolUse
+  Bash/PowerShell: a module whose `triggers.commands` substring-matches the command loads
+  before the call, required closure only (associations wait for a prompt). That absorbed
+  `dynamic-recall.cjs`, whose three tips are now rules modules in Agnostic-AI (`seo-floor`,
+  `secrets-non-negotiable`, `harness-integrity`); the hook is removed here and its settings
+  entry with it. Probe: 18 cases. `gates.cjs hook-wiring` now counts a `require()` from
+  another hook as wiring, so `hooks/lib/*.cjs` stop reading as ORPHAN, and skips `hooks/archive/`.
+  Two triggers narrowed after a day of ledger (`human-experience` no longer fires on a bare
+  "ship"). Upstream, `cli.cjs suggest` proposes `suggests:` edges from co-loads past the
+  recurrence gate.
 - **Context graph.** `hooks/context-graph.cjs` (UserPromptSubmit, PreToolUse Edit/Write and
   Agent, SubagentStart, SessionStart compact/clear) loads situational context as modules with
   declared dependencies: selected from the prompt, the cwd and the file being edited; resolved
