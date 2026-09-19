@@ -1,0 +1,14 @@
+{
+  "name": "supervisor",
+  "version": "0.1.0",
+  "description": "SUBAGENT SUPERVISOR: routing-and-budget Mod. Rewrites a spawn's model onto the capability graph instead of denying it, keeps a measured per-agent-type token ledger in $.store, caps tool calls per subagent, and shows live subagents + the last routing decision above the prompt. /supervisor prints the routing log and the ledger.",
+  "author": { "name": "Wes Sander" },
+  "userConfig": {
+    "maxSubagentCalls": {
+      "type": "number",
+      "title": "Max tool calls per subagent",
+      "description": "A subagent that exceeds this many tool calls has its further calls denied by the supervisor.",
+      "default": 40
+    }
+  }
+}

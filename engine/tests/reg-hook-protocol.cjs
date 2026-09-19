@@ -5,7 +5,7 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 let checked = 0;
-for (const hook of ['dashclaw-guard.cjs', 'secret-guard.cjs']) {
+for (const hook of ['dashclaw-guard.cjs', 'secret-path-guard.cjs']) {
   for (const tool of ['Bash', 'mcp__fs__read']) {
     for (const denied of [false, true]) {
       const input = {

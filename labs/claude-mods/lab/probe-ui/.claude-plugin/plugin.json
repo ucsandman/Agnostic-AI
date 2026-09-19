@@ -1,0 +1,1 @@
+{ "name": "probe-ui", "version": "0.1.0", "description": "Interactive UI probe: ui.render components, toast, status, log, pane, command register" }

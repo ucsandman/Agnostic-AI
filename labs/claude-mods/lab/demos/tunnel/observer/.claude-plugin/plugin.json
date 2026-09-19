@@ -1,0 +1,5 @@
+{
+  "name": "tunnel-observer",
+  "version": "0.1.0",
+  "description": "MIDDLEWARE TUNNEL stage 1: Observer: sees the call first, stamps t0, prints what enters"
+}

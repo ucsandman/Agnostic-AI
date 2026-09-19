@@ -1,0 +1,5 @@
+{
+  "name": "tunnel-policy",
+  "version": "0.1.0",
+  "description": "MIDDLEWARE TUNNEL stage 3: Policy: allows everything harmless; denies a matching rule"
+}

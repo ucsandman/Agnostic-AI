@@ -23,7 +23,7 @@ const HARD_BLOCK = GUARDS.dashclaw.hardBlockRiskThreshold;
 const DC_CONFIG_STORAGE = path.join(ROOT, 'storage', 'dashclaw-config.json');
 
 const guard = require('../hooks/dashclaw-guard.cjs');
-const secretGuard = require('../hooks/secret-guard.cjs');
+const secretGuard = require('../hooks/secret-path-guard.cjs');
 const dashclawSetup = require('../hooks/dashclaw-setup.cjs');
 const fableGuard = require('../hooks/fable-delegate-guard.cjs');
 const graphGuard = require('../hooks/capability-graph-guard.cjs');
@@ -237,7 +237,7 @@ async function run() {
     assert.strictEqual(after.model, 'opus', 'existing settings must survive');
     const commands = (after.hooks.PreToolUse || []).flatMap(g => (g.hooks || []).map(h => h.command || ''));
     assert(commands.some(c => /dashclaw-guard/.test(c)), `dashclaw-guard not wired: ${JSON.stringify(commands)}`);
-    assert(commands.some(c => /secret-guard/.test(c)), `secret-guard not wired: ${JSON.stringify(commands)}`);
+    assert(commands.some(c => /secret-(path-)?guard/.test(c)), `secret-guard not wired: ${JSON.stringify(commands)}`);
     assert(report.claude.secretGuard === true, 'report must state secret-guard was installed for claude');
   });
 
@@ -910,7 +910,7 @@ async function run() {
     assert.strictEqual(pre.matcher, 'Agent|Task|Workflow');
     assert.strictEqual(report.claude.graphGuard, true, 'report must state the graph guard was installed');
 
-    const source = path.join(ROOT, 'engine', 'setup', 'agents', 'advisor.md');
+    const source = path.join(ROOT, 'agents', 'advisor.md');
     const dest = path.join(home, '.claude', 'agents', 'advisor.md');
     assert.strictEqual(fs.readFileSync(dest, 'utf8'), fs.readFileSync(source, 'utf8'), 'advisor.md must be installed verbatim');
     assert.strictEqual(report.claude.advisorAgent, 'kept', 'the second run must keep the file it already installed');

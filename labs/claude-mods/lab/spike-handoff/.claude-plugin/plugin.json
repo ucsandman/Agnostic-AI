@@ -1,0 +1,3 @@
+{ "name": "spike-handoff", "version": "0.1.0", "description": "Spike: safe-boundary handoff (bundle written at turn.complete from the runtime bus) and $.turn.abort semantics", "author": { "name": "Wes Sander" },
+  "userConfig": { "abortAfterCalls": { "type": "number", "title": "Abort after N tool calls", "description": "0 = never; N = call $.turn.abort after the Nth tool call of a turn (spike only)", "default": 0 },
+                  "handoffAtPercent": { "type": "number", "title": "Handoff at five-hour %", "description": "Write a handoff bundle at turn.complete when five_hour percentUsed >= this", "default": 0 } } }

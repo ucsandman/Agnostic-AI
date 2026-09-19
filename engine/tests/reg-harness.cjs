@@ -631,7 +631,7 @@ section(
 
 section(8, 'shim wire tests', ['engine/hooks/shim.cjs'], () => {
   const shimPath = path.join(ROOT, 'engine', 'hooks', 'shim.cjs');
-  const secretGuardPath = path.join(ROOT, 'engine', 'hooks', 'secret-guard.cjs');
+  const secretGuardPath = path.join(ROOT, 'engine', 'hooks', 'secret-path-guard.cjs');
 
   function runShim(client, event, cmdTokens, payload, input) {
     const args = ['--client', client, '--event', event, '--', ...cmdTokens];

@@ -1,0 +1,4 @@
+MAGENTA-ANVIL-7731
+line two of the probe target
+line three of the probe target
+APPENDED-LINE-9999

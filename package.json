@@ -2,7 +2,7 @@
   "name": "agnostic-ai",
   "version": "2.0.0",
   "private": true,
-  "description": "Harness porter: captures the AI coding client you actually use (Claude Code or Codex) and applies its rules, hooks, skills, subagents, commands and MCP servers to every other client installed on the machine",
+  "description": "One harness for every AI coding client: guard hooks, skills, subagents, commands, MCP servers, a context engine and a working agreement, authored once here, installed into Claude Code and ported to Codex, Gemini CLI, Cursor and 16 more.",
   "repository": {
     "type": "git",
     "url": "https://github.com/ucsandman/Agnostic-AI.git"
@@ -19,8 +19,8 @@
     "status:open": "node engine/harness/cli.cjs status --html --open",
     "explain": "node engine/harness/cli.cjs explain",
     "launch": "node engine/setup/launch.cjs",
-    "sync": "node engine/sync/sync.cjs",
-    "sync:check": "node engine/sync/sync.cjs --check",
+    "sync": "node engine/sync/all.cjs",
+    "sync:check": "node engine/sync/all.cjs --check",
     "distill": "node engine/distill/distill.cjs",
     "test": "node engine/tests/run-all.cjs && node engine/tests/reg-sync.cjs && node engine/tests/reg-hooks.cjs && node engine/tests/reg-hook-protocol.cjs && node engine/tests/reg-hook-install.cjs && node engine/tests/reg-harness.cjs && node engine/tests/reg-capabilities.cjs && node engine/tests/reg-context.cjs",
     "docs:targets": "node engine/docs/targets-doc.cjs",
@@ -37,9 +37,24 @@
     "dashclaw:setup": "node engine/hooks/dashclaw-setup.cjs",
     "dashclaw:status": "node engine/hooks/dashclaw-setup.cjs --status",
     "recall": "node tools/recall/recall.cjs",
-    "parity": "node tools/sync/parity.cjs --open"
+    "parity": "node tools/sync/parity.cjs --open",
+    "link": "node engine/setup/link.cjs",
+    "link:check": "node engine/setup/link.cjs --check",
+    "sync:rules": "node engine/sync/sync.cjs",
+    "doctor": "node engine/doctor/doctor.cjs",
+    "setup": "node engine/setup/first-run.cjs && node engine/sync/all.cjs && node engine/doctor/doctor.cjs"
   },
-  "keywords": ["ai", "harness", "agent", "agnostic", "claude", "gemini", "codex", "hermes", "openclaw"],
+  "keywords": [
+    "ai",
+    "harness",
+    "agent",
+    "agnostic",
+    "claude",
+    "gemini",
+    "codex",
+    "hermes",
+    "openclaw"
+  ],
   "author": "Wes Sander",
   "license": "MIT"
 }

@@ -41,7 +41,10 @@ function load(file) {
     budget: { ...DEFAULTS.budget, ...(raw.budget || {}) },
     selection: { ...DEFAULTS.selection, ...(raw.selection || {}) },
     stale: { ...DEFAULTS.stale, ...(raw.stale || {}) },
-    roots: Array.isArray(raw.roots) ? raw.roots : [],
+    // A relative root path is relative to the config file, so a default config shipped inside a
+    // repository works from any checkout location; `~`, `{slug}`, `{cwd}` and `{homeSlug}` stay
+    // placeholders until concreteRoots().
+    roots: (Array.isArray(raw.roots) ? raw.roots : []).map((r) => (r && typeof r.path === 'string' && file && !/^(~|\{|[\/]|[A-Za-z]:)/.test(r.path)) ? { ...r, path: path.resolve(path.dirname(file), r.path) } : r),
     file: file || null,
   };
   return cfg;
@@ -55,7 +58,8 @@ function load(file) {
  */
 function concreteRoots(cfg, ctx = {}) {
   const cwd = ctx.cwd ? path.resolve(ctx.cwd) : null;
-  const vars = { slug: cwd ? slugOf(cwd) : '', cwd: cwd || '' };
+  const claudeHome = process.env.CLAUDE_CONFIG_DIR || path.join(home(), '.claude');
+  const vars = { slug: cwd ? slugOf(cwd) : '', cwd: cwd || '', homeSlug: slugOf(path.resolve(claudeHome)) };
   const out = [];
   const seen = new Set();
   for (const r of cfg.roots) {

@@ -1,0 +1,35 @@
+{
+  "name": "claude-runtime",
+  "version": "0.2.0",
+  "description": "Shared Claude runtime adapter: normalises function-hook events into ClaudeRuntimeEvent, exposes $.runtime (emit bus, supports, judge, snapshot) to other plugins, and writes a JSONL event log",
+  "author": {
+    "name": "Wes Sander"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "judgeBackend": {
+      "type": "string",
+      "description": "Semantic judgment backend for $.runtime.judge: stub (deterministic rules), model (the session's small model via $.model.complete), jev (TypeSafe System One via $.http.fetch; needs typesafeApiKey)",
+      "default": "stub",
+      "options": [
+        "stub",
+        "model",
+        "jev"
+      ],
+      "title": "Judge backend"
+    },
+    "typesafeApiKey": {
+      "type": "string",
+      "description": "TypeSafe API key for the jev judge backend",
+      "sensitive": true,
+      "required": false,
+      "title": "TypeSafe API key"
+    },
+    "eventLogDir": {
+      "type": "string",
+      "description": "Directory for the normalised JSONL event log (absolute path; empty = <claude home>/mods/state/events/)",
+      "default": "",
+      "title": "Event log directory"
+    }
+  }
+}

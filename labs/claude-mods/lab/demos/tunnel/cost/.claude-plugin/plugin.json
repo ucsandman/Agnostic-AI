@@ -1,0 +1,5 @@
+{
+  "name": "tunnel-cost",
+  "version": "0.1.0",
+  "description": "MIDDLEWARE TUNNEL stage 2: Cost analyzer: estimates the call's token cost from the args size"
+}

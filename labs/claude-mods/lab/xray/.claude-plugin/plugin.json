@@ -1,0 +1,6 @@
+{
+  "name": "xray",
+  "version": "0.1.0",
+  "description": "CLAUDE RUNTIME X-RAY: wildcard inspector with filters (/xray all|tools|subagents|session|usage|ui|errors|unknown|off), a HUD above the prompt, and a black-box timeline file",
+  "author": { "name": "Wes Sander" }
+}

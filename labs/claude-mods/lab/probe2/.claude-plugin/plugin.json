@@ -1,0 +1,1 @@
+{ "name": "probe2", "version": "0.1.0", "description": "Interception probe: deny, rewrite, replace result, delay, throw, register tool, classify" }

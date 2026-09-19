@@ -1,0 +1,5 @@
+{
+  "name": "tunnel-telemetry",
+  "version": "0.1.0",
+  "description": "MIDDLEWARE TUNNEL stage 4: Telemetry: records the call and its result for the ledger"
+}

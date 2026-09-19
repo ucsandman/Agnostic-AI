@@ -1,0 +1,1 @@
+{ "name": "bench", "version": "0.1.0", "description": "Benchmark: classic settings hooks vs function hooks per tool call" }

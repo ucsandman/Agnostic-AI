@@ -19,7 +19,7 @@ const os = require('os');
 const { normalizePayload, formatDenial, formatApproval, formatHookOutput } = require('./universal-adapter.cjs');
 
 const { getStoredDashClawConfig, discoverDashClawSources } = require('./dashclaw-setup.cjs');
-const { checkSecrets } = require('./secret-guard.cjs');
+const { checkSecrets } = require('./secret-path-guard.cjs');
 
 const GUARDS_CONFIG = path.resolve(__dirname, '..', '..', 'core', 'safety', 'guards.json');
 const HOME = os.homedir();

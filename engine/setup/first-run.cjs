@@ -125,7 +125,7 @@ function wireAgentHooks(home = HOME) {
       const installed = [];
       for (const [script, pattern, status] of [
         ['dashclaw-guard.cjs', /dashclaw-guard/i, 'DashClaw guard check...'],
-        ['secret-guard.cjs', /secret-guard/i, 'Secret scan...']
+        ['secret-path-guard.cjs', /secret-path-guard/i, 'Secret scan...']
       ]) {
         // Skip if this guard already gates tool calls (ours or a native one).
         const guarded = cfg.hooks.PreToolUse.some(g =>
@@ -188,7 +188,7 @@ function wireAgentHooks(home = HOME) {
         report.claude.advisorAgent = 'kept';
       } else {
         fs.mkdirSync(path.dirname(advisorDest), { recursive: true });
-        fs.copyFileSync(path.join(__dirname, 'agents', 'advisor.md'), advisorDest);
+        fs.copyFileSync(path.join(ROOT, 'agents', 'advisor.md'), advisorDest); // agents/ is the canonical roster (linked into ~/.claude/agents by engine/setup/link.cjs)
         report.claude.advisorAgent = 'installed';
       }
 

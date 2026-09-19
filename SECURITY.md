@@ -16,7 +16,7 @@ written plan within 30 days for confirmed reports.
 
 ## What is in scope
 
-- The safety guard: `core/safety/guards.json`, `engine/hooks/secret-guard.cjs`,
+- The safety guard: `core/safety/guards.json`, `engine/hooks/secret-path-guard.cjs`,
   `engine/hooks/dashclaw-guard.cjs`. A way to read a secret path, run a
   hard-stop command without approval, or turn a fail-closed path into an allow
   is a vulnerability.

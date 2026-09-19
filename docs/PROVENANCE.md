@@ -1,0 +1,131 @@
+# Provenance
+
+Files that entered this repository during the 2026-09-19 consolidation, with the repository and commit they came from. The original history stays in the source repositories (claude-config is private; claude-harness, claude-mods-rnd and markdown-agent-memory are archived with a pointer here).
+
+| destination | source | commit |
+|---|---|---|
+| `engine/hooks/agent-model-guard.cjs` | `claude-config:hooks/agent-model-guard.cjs` | 968080e |
+| `engine/hooks/batch-guard.cjs` | `claude-config:hooks/batch-guard.cjs` | 968080e |
+| `engine/hooks/codex-memory-inject.cjs` | `claude-config:hooks/codex-memory-inject.cjs` | 968080e |
+| `engine/hooks/compaction-ledger.cjs` | `claude-config:hooks/compaction-ledger.cjs` | 968080e |
+| `engine/hooks/context-graph.cjs` | `claude-config:hooks/context-graph.cjs` | 968080e |
+| `engine/hooks/correction-tracker.cjs` | `claude-config:hooks/correction-tracker.cjs` | 968080e |
+| `engine/hooks/creds-resolve.cjs` | `claude-config:hooks/creds-resolve.cjs` | 968080e |
+| `engine/hooks/declick-nudge.cjs` | `claude-config:hooks/declick-nudge.cjs` | 968080e |
+| `engine/hooks/dev-server-guard.cjs` | `claude-config:hooks/dev-server-guard.cjs` | 968080e |
+| `engine/hooks/forced-verify-stop-gate.cjs` | `claude-config:hooks/forced-verify-stop-gate.cjs` | 968080e |
+| `engine/hooks/gate-freeze.cjs` | `claude-config:hooks/gate-freeze.cjs` | 968080e |
+| `engine/hooks/git-tree-guard.cjs` | `claude-config:hooks/git-tree-guard.cjs` | 968080e |
+| `engine/hooks/mods-liveness.cjs` | `claude-config:hooks/mods-liveness.cjs` | 968080e |
+| `engine/hooks/opus-handoff-inject.cjs` | `claude-config:hooks/opus-handoff-inject.cjs` | 968080e |
+| `engine/hooks/output-secret-watch.cjs` | `claude-config:hooks/output-secret-watch.cjs` | 968080e |
+| `engine/hooks/post-edit-diagnostics.cjs` | `claude-config:hooks/post-edit-diagnostics.cjs` | 968080e |
+| `engine/hooks/precompact-extract.cjs` | `claude-config:hooks/precompact-extract.cjs` | 968080e |
+| `engine/hooks/process-kill-guard.cjs` | `claude-config:hooks/process-kill-guard.cjs` | 968080e |
+| `engine/hooks/repeat-tool-guard.cjs` | `claude-config:hooks/repeat-tool-guard.cjs` | 968080e |
+| `engine/hooks/rm-guard.cjs` | `claude-config:hooks/rm-guard.cjs` | 968080e |
+| `engine/hooks/scope-lock.cjs` | `claude-config:hooks/scope-lock.cjs` | 968080e |
+| `engine/hooks/secret-guard.cjs` | `claude-config:hooks/secret-guard.cjs` | 968080e |
+| `engine/hooks/security-tier-check.cjs` | `claude-config:hooks/security-tier-check.cjs` | 968080e |
+| `engine/hooks/session-count.cjs` | `claude-config:hooks/session-count.cjs` | 968080e |
+| `engine/hooks/slopsquat-guard.cjs` | `claude-config:hooks/slopsquat-guard.cjs` | 968080e |
+| `engine/hooks/slow-command-guard.cjs` | `claude-config:hooks/slow-command-guard.cjs` | 968080e |
+| `engine/hooks/subagent-budget-guard.cjs` | `claude-config:hooks/subagent-budget-guard.cjs` | 968080e |
+| `engine/hooks/tool-output-secret-watch.cjs` | `claude-config:hooks/tool-output-secret-watch.cjs` | 968080e |
+| `engine/hooks/context-nudge.py` | `claude-config:hooks/context-nudge.py` | 968080e |
+| `engine/hooks/skill-telemetry.py` | `claude-config:hooks/skill-telemetry.py` | 968080e |
+| `engine/hooks/sync-main-checkout.py` | `claude-config:hooks/sync-main-checkout.py` | 968080e |
+| `engine/hooks/context-graph.json` | `claude-config:hooks/context-graph.json` | 968080e |
+| `engine/hooks/security-tiers.json` | `claude-config:hooks/security-tiers.json` | 968080e |
+| `engine/hooks/guard-canary.ps1` | `claude-config:hooks/guard-canary.ps1` | 968080e |
+| `engine/hooks/lib` | `claude-config:hooks/lib` | 968080e |
+| `engine/hooks/tests` | `claude-config:hooks/tests` | 968080e |
+| `engine/hooks/adapters/codex-delegate-guard.cjs` | `claude-config:hooks/adapters` | 968080e |
+| `engine/hooks/adapters/codex-rewrite.cjs` | `claude-config:hooks/adapters` | 968080e |
+| `engine/mods` | `claude-config:mods` | 968080e |
+| `agents` | `claude-config:agents` | 968080e |
+| `workflows` | `claude-config:workflows` | 968080e |
+| `tools/cronwatch` | `claude-config:tools/cronwatch` | 968080e |
+| `tools/deskclaw` | `claude-config:tools/deskclaw` | 968080e |
+| `tools/envdoctor` | `claude-config:tools/envdoctor` | 968080e |
+| `tools/errorlog` | `claude-config:tools/errorlog` | 968080e |
+| `tools/fleet` | `claude-config:tools/fleet` | 968080e |
+| `tools/gates` | `claude-config:tools/gates` | 968080e |
+| `tools/gitradar` | `claude-config:tools/gitradar` | 968080e |
+| `tools/memory-lint` | `claude-config:tools/memory-lint` | 968080e |
+| `tools/memstale` | `claude-config:tools/memstale` | 968080e |
+| `tools/mouth` | `claude-config:tools/mouth` | 968080e |
+| `tools/prove` | `claude-config:tools/prove` | 968080e |
+| `tools/skillfind` | `claude-config:tools/skillfind` | 968080e |
+| `tools/spend` | `claude-config:tools/spend` | 968080e |
+| `tools/subagent-budget` | `claude-config:tools/subagent-budget` | 968080e |
+| `tools/task-contract` | `claude-config:tools/task-contract` | 968080e |
+| `tools/wiredark` | `claude-config:tools/wiredark` | 968080e |
+| `tools/recall` | `claude-config:tools/recall (replaces the agnostic-ai copy that read untracked storage/memory)` | 968080e |
+| `tools/skill-telemetry/report.py` | `claude-config:scripts/skill-telemetry` | 968080e |
+| `tools/harness-health/harness-health.ps1` | `claude-config:scripts/harness-health.ps1` | 968080e |
+| `tools/agent-browser/unwedge.ps1` | `claude-config:scripts/agent-browser-unwedge.ps1` | 968080e |
+| `labs/tokflow` | `claude-config:tools/tokflow` | 968080e |
+| `labs/ears` | `claude-config:tools/ears` | 968080e |
+| `labs/procledger` | `claude-config:tools/procledger` | 968080e |
+| `labs/detached-builder/detached-builder.mjs` | `claude-config:scripts/detached-builder.mjs` | 968080e |
+| `labs/claude-mods/CHECKPOINT.md` | `claude-mods-rnd:CHECKPOINT.md` | 210d972 |
+| `labs/claude-mods/DOGFOOD.md` | `claude-mods-rnd:DOGFOOD.md` | 210d972 |
+| `labs/claude-mods/INTEGRATION_MATRIX.md` | `claude-mods-rnd:INTEGRATION_MATRIX.md` | 210d972 |
+| `labs/claude-mods/MOD_CAPABILITY_MAP.md` | `claude-mods-rnd:MOD_CAPABILITY_MAP.md` | 210d972 |
+| `labs/claude-mods/MOD_INVENTIONS.md` | `claude-mods-rnd:MOD_INVENTIONS.md` | 210d972 |
+| `labs/claude-mods/MOD_MIGRATION_PLAN.md` | `claude-mods-rnd:MOD_MIGRATION_PLAN.md` | 210d972 |
+| `labs/claude-mods/MOD_PORTFOLIO_ANALYSIS.md` | `claude-mods-rnd:MOD_PORTFOLIO_ANALYSIS.md` | 210d972 |
+| `labs/claude-mods/MOD_REPO_ARCHAEOLOGY.md` | `claude-mods-rnd:MOD_REPO_ARCHAEOLOGY.md` | 210d972 |
+| `labs/claude-mods/MOD_RISK_REGISTER.md` | `claude-mods-rnd:MOD_RISK_REGISTER.md` | 210d972 |
+| `labs/claude-mods/MOD_ROADMAP.md` | `claude-mods-rnd:MOD_ROADMAP.md` | 210d972 |
+| `labs/claude-mods/PHASE2_CHECKPOINT.md` | `claude-mods-rnd:PHASE2_CHECKPOINT.md` | 210d972 |
+| `labs/claude-mods/PHASE2_DOGFOOD.md` | `claude-mods-rnd:PHASE2_DOGFOOD.md` | 210d972 |
+| `labs/claude-mods/PORTFOLIO_RUNTIME_MAP.md` | `claude-mods-rnd:PORTFOLIO_RUNTIME_MAP.md` | 210d972 |
+| `labs/claude-mods/PROMOTION_STATUS.md` | `claude-mods-rnd:PROMOTION_STATUS.md` | 210d972 |
+| `labs/claude-mods/PROTOTYPE_SHORTLIST.md` | `claude-mods-rnd:PROTOTYPE_SHORTLIST.md` | 210d972 |
+| `labs/claude-mods/README.md` | `claude-mods-rnd:README.md` | 210d972 |
+| `labs/claude-mods/SHADOW_MODE_ARCHITECTURE.md` | `claude-mods-rnd:SHADOW_MODE_ARCHITECTURE.md` | 210d972 |
+| `labs/claude-mods/SPECIAL_INVESTIGATIONS.md` | `claude-mods-rnd:SPECIAL_INVESTIGATIONS.md` | 210d972 |
+| `labs/claude-mods/tsconfig.json` | `claude-mods-rnd:tsconfig.json` | 210d972 |
+| `labs/claude-mods/prototypes` | `claude-mods-rnd:prototypes` | 210d972 |
+| `labs/claude-mods/lab` | `claude-mods-rnd:lab` | 210d972 |
+| `labs/claude-mods/tools` | `claude-mods-rnd:tools` | 210d972 |
+| `labs/claude-mods/adapter-README.md` | `claude-mods-rnd:adapter/README.md (the adapter itself is engine/mods/claude-runtime)` | 210d972 |
+| `labs/claude-mods/experiments` | `claude-mods-rnd:experiments` | 210d972 |
+| `labs/claude-mods/snapshot` | `claude-mods-rnd:snapshot (declarations and notes only; raw captures dropped)` | 210d972 |
+| `labs/claude-mods/docs` | `claude-mods-rnd:docs` | 210d972 |
+| `packages/markdown-agent-memory/README.md` | `markdown-agent-memory:README.md` | 607b314 |
+| `packages/markdown-agent-memory/INSTALL-PROMPT.md` | `markdown-agent-memory:INSTALL-PROMPT.md` | 607b314 |
+| `packages/markdown-agent-memory/LICENSE` | `markdown-agent-memory:LICENSE` | 607b314 |
+| `packages/markdown-agent-memory/package.json` | `markdown-agent-memory:package.json` | 607b314 |
+| `packages/markdown-agent-memory/policy` | `markdown-agent-memory:policy` | 607b314 |
+| `packages/markdown-agent-memory/templates` | `markdown-agent-memory:templates` | 607b314 |
+| `jobs/errorlog/harvest.sh` | `claude-config:scripts/errorlog/harvest.sh` | 968080e |
+| `jobs/errorlog/daily-launcher.vbs` | `claude-config:scripts/errorlog/daily-launcher.vbs` | 968080e |
+| `jobs/meditation/run-nightly.sh` | `claude-config:scripts/meditation/run-nightly.sh` | 968080e |
+| `jobs/reapers/agent-reaper.ps1` | `claude-config:hooks/agent-reaper.ps1 (a scheduled job, not a hook)` | 968080e |
+| `jobs/reapers/agent-reaper-launcher.vbs` | `claude-config:hooks/agent-reaper-launcher.vbs (a scheduled job, not a hook)` | 968080e |
+| `jobs/reapers/lsp-reaper.ps1` | `claude-config:hooks/lsp-reaper.ps1 (a scheduled job, not a hook)` | 968080e |
+| `jobs/reapers/lsp-reaper-launcher.vbs` | `claude-config:hooks/lsp-reaper-launcher.vbs (a scheduled job, not a hook)` | 968080e |
+| `jobs/port-daily.ps1` | `claude-config:tools/harness-sync/run-daily.ps1` | 968080e |
+| `examples/installed-harness/settings.json` | `claude-harness:settings.json` | c22c04a |
+| `examples/installed-harness/CLAUDE.md` | `claude-harness:CLAUDE.md` | c22c04a |
+| `examples/installed-harness/RTK.md` | `claude-harness:RTK.md` | c22c04a |
+| `docs/guards.md` | `claude-config:docs/harness-guards.md` | 968080e |
+| `docs/parity.md` | `claude-config:docs/harness-parity.md` | 968080e |
+| `docs/context-graph.md` | `claude-config:docs/context-graph.md` | 968080e |
+| `docs/hook-latency.md` | `claude-config:docs/hook-latency.md` | 968080e |
+| `docs/token-cache-discipline.md` | `claude-config:docs/token-cache-discipline.md` | 968080e |
+| `docs/declick-first.md` | `claude-config:docs/declick-first.md` | 968080e |
+| `docs/windows-gotchas.md` | `claude-config:docs/windows-gotchas.md` | 968080e |
+| `docs/codex-adapters.md` | `claude-config:docs/codex-adapters.md` | 968080e |
+| `docs/opus-handoff.md` | `claude-config:docs/opus-handoff.md` | 968080e |
+| `docs/plugin-hygiene.md` | `claude-config:docs/plugin-hygiene.md` | 968080e |
+| `docs/manifest-gate.md` | `claude-config:docs/manifest-gate.md` | 968080e |
+| `docs/browser-qa.md` | `claude-config:docs/browser-qa.md` | 968080e |
+| `docs/doc-standard.md` | `claude-config:docs/doc-standard.md` | 968080e |
+| `docs/decision-notes.md` | `claude-config:docs/decision-notes.md` | 968080e |
+| `docs/human-experience.md` | `claude-config:docs/human-experience.md` | 968080e |
+| `docs/new-project-setup.md` | `claude-config:docs/new-project-setup.md` | 968080e |
+| `docs/decisions` | `claude-config:docs/decisions` | 968080e |

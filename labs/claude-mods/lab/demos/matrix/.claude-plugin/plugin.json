@@ -1,0 +1,1 @@
+{ "name": "matrix", "version": "0.1.0", "description": "MATRIX: freezes a harmless tool call before it runs, shows what Claude intended, asks you, then continues or denies. /matrix on|off" }

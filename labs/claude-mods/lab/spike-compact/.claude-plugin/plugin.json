@@ -1,0 +1,1 @@
+{ "name": "spike-compact", "version": "0.1.0", "description": "Spike: does $.session.compact() work from a plugin, and what does the session.compact event carry?", "author": { "name": "Wes Sander" } }

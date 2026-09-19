@@ -1,0 +1,6 @@
+{
+  "name": "prodguard",
+  "version": "0.1.0",
+  "description": "PRODUCTION GUARD: ambient project/environment context + a transport-independent policy core (DashClaw evidence classifier + offlocal policy engine) enforced natively on tool.call and tool.check. Blocks, asks, or contains before the command runs. /prodguard",
+  "author": { "name": "claude-mods-rnd" }
+}

@@ -1,0 +1,19 @@
+{
+  "_comment": "The frozen guard fileset. Content-hashed into gate-manifest.lock.json; gates.cjs gate-freeze fails on drift, engine/hooks/gate-freeze.cjs denies a write to any of these from a session whose cwd is outside harnessRoots. Relative paths resolve from this repository's root; a trailing `#key` hashes one top-level JSON key. Extra machine-specific roots and frozen files go in <claude home>/overlay/gates.json ({harnessRoots, frozen}), never here. Relock deliberately: node tools/gates/gates.cjs --lock",
+  "harnessRoots": [
+    "~/.claude",
+    "."
+  ],
+  "frozen": [
+    "engine/hooks/*.cjs",
+    "engine/hooks/*.ps1",
+    "engine/hooks/*.py",
+    "engine/hooks/adapters/*.cjs",
+    "tools/gates/gates.cjs",
+    "tools/gates/freeze.cjs",
+    "tools/gates/gate-manifest.json",
+    "tools/wiredark/wiredark.cjs",
+    "~/.claude/git-hooks/pre-commit",
+    "~/.claude/settings.json#hooks"
+  ]
+}

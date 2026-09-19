@@ -1,0 +1,6 @@
+{
+  "name": "harness-mods",
+  "version": "0.1.0",
+  "description": "Harness Mod layer: heartbeat/canary, native usage, rewrite explanations, measured subagent accounting, supervisor routing, secret redaction. Modes per guard in ~/.claude/mods/mods-config.json (classic | shadow_mod | mod).",
+  "author": { "name": "Wes Sander" }
+}

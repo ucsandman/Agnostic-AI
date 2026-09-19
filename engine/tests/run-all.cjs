@@ -218,7 +218,7 @@ async function run() {
   });
 
   // 3. Test Secret Guard (pure: mockConfig passed explicitly, no real config file touched)
-  const { checkSecrets } = require('../hooks/secret-guard.cjs');
+  const { checkSecrets } = require('../hooks/secret-path-guard.cjs');
   await test('Security: blocks access to .secrets.env', () => {
     const mockConfig = {
       guards: {
@@ -296,17 +296,10 @@ async function run() {
     }
   });
 
-  // 5. Test Recall Engine (read-only against repo-committed core/rules/global-rules.md)
-  const { searchMemory } = require('../../tools/recall/recall.cjs');
-  await test('Recall: searches rules and facts', () => {
-    const results = searchMemory('Simplicity');
-    assert(Array.isArray(results), 'Results should be an array');
-    assert(results.length > 0, 'Should find Simplicity rule in the repo SSOT');
-    assert.strictEqual(results[0].type, 'rule');
-  });
-
-  // 5b. Tool modules must be importable: requiring one may not bind a port or
-  // print, or no test can ever exercise the functions inside it.
+  // 5. Tool modules must be importable: requiring one may not bind a port, print, or
+  // run a search, or no test can ever exercise the functions inside it. recall.cjs is the
+  // institutional-memory search (memory stores, repo DECISIONS/ERRORS, archives); its
+  // sources are machine-local, so only the contract is tested here.
   await test('Tools: recall requires cleanly, with no side effects', () => {
     const mod = '../../tools/recall/recall.cjs';
     delete require.cache[require.resolve(mod)];
@@ -315,7 +308,9 @@ async function run() {
       recall = require(mod);
     });
     assert.deepStrictEqual(printed, [], `requiring a tool module must print nothing, got ${JSON.stringify(printed)}`);
-    assert.strictEqual(typeof recall.searchMemory, 'function', 'recall must export searchMemory');
+    for (const fn of ['scanMemory', 'scanDocs', 'scanArchive', 'parseArgs']) assert.strictEqual(typeof recall[fn], 'function', `recall must export ${fn}`);
+    const opts = recall.parseArgs(['budget', 'guard', '--any']);
+    assert(opts && typeof opts === 'object', 'parseArgs returns an options object');
   });
 
   // 6. Test Multi-Rule Merger Across Polyglot Formats (pure, given mock files)

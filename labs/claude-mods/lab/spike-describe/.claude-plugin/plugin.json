@@ -1,0 +1,1 @@
+{ "name": "spike-describe", "version": "0.1.0", "description": "Spike: does a tool.describe rewrite reach the model, does agent.offer hide a type, does prompt.suggest fire?", "author": { "name": "Wes Sander" } }

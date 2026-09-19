@@ -1,0 +1,224 @@
+#!/usr/bin/env node
+/**
+ * engine/doctor/doctor.cjs — is the installed harness the one this repository describes?
+ *
+ *   npm run doctor            # every check, human table, exit 1 on any FAIL
+ *   npm run doctor -- --json  # machine-readable
+ *
+ * Every verdict carries the volume it processed (a check that touched nothing
+ * prints `0 of 0`, never a bare OK). Checks:
+ *
+ *   links            ~/.claude/{hooks,mods,agents,workflows,tools} are links into this repo
+ *   hook-wiring      every hook command in settings.json resolves, and resolves INTO this repo
+ *   rules-drift      the compiled rules file matches core/rules (sync --check)
+ *   claude-md        CLAUDE.md has one owner: the sync assembly, plus allowed foreign marker blocks
+ *   old-refs         no tracked code/config names a retired repository or path
+ *   private-boundary no tracked file outside labs/ carries a machine-absolute home path
+ *   linked-leftovers untracked, unignored files inside linked directories (carried over by link)
+ *   orphan-hooks     a hook file nothing registers or requires
+ *   unexpected-links links at the top of the Claude home that are not ours
+ *   context-graph    the module graph lints clean (no cycles, no broken required edges)
+ *   deps             node >= 18, git, and the interpreters settings.json hooks need
+ *   jobs             (win32) scheduled tasks pointing at retired paths
+ */
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const link = require('../setup/link.cjs');
+const HOME = os.homedir();
+const CHOME = link.claudeHome(HOME);
+const norm = (p) => String(p).replace(/\\/g, '/');
+const expandHome = (p) => norm(p).replace(/^~(?=\/|$)/, norm(HOME));
+const readJSON = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; } };
+const inside = (child, parent) => { const c = norm(path.resolve(child)).toLowerCase(); const p = norm(path.resolve(parent)).toLowerCase(); return c === p || c.startsWith(p + '/'); };
+const realOr = (p) => { try { return fs.realpathSync(p); } catch (_) { return p; } };
+const trackedFiles = () => {
+  const r = spawnSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20 });
+  return r.status === 0 ? r.stdout.split('\0').filter(Boolean) : [];
+};
+const isText = (f) => /\.(cjs|mjs|js|ts|tsx|json|md|ps1|sh|py|vbs|yml|yaml|toml|txt|html)$/i.test(f);
+
+const RETIRED = ['claude-harness', 'claude-mods-rnd', 'mirror-sync', 'mirror-sweep', 'harness-sync', 'markdown-agent-memory/scripts', 'claude-commands'];
+const RETIRED_EXEMPT = /^(docs\/PROVENANCE\.md|docs\/migration|CHANGELOG\.md|labs\/|examples\/|storage\/|engine\/doctor\/)/;
+
+function settingsHooks() {
+  const s = readJSON(path.join(CHOME, 'settings.json')) || {};
+  const out = [];
+  for (const [event, groups] of Object.entries(s.hooks || {})) for (const g of groups || []) for (const h of g.hooks || []) out.push({ event, matcher: g.matcher || '*', command: String(h.command || '') });
+  return out;
+}
+// The script a hook command runs: the first quoted path or the first token after the interpreter.
+function scriptOf(command) {
+  const m = /"([^"]+)"/.exec(command) || /^(?:node|python|py\s+-\S+|pwsh|powershell)\s+(?:-\S+\s+)*(\S+)/.exec(command);
+  return m ? expandHome(m[1]) : null;
+}
+
+const checks = [];
+const check = (id, label, fn) => checks.push({ id, label, fn });
+
+check('links', 'installed surfaces are links into this repository', () => {
+  const r = link.run({ check: true, home: HOME });
+  const bad = r.links.filter((l) => l.state !== 'ok');
+  return { ok: bad.length === 0, count: r.links.length, lines: bad.length ? bad.map((l) => `${l.name}: ${l.state}${l.real ? ' -> ' + norm(l.real) : ''} (npm run link)`) : [`${r.links.length} of ${r.links.length} bound`] };
+});
+
+check('hook-wiring', 'settings.json hook commands resolve into this repository', () => {
+  const hooks = settingsHooks();
+  const lines = []; let missing = 0, outside = 0, retired = 0;
+  for (const h of hooks) {
+    const s = scriptOf(h.command);
+    if (RETIRED.some((r) => h.command.includes(r))) { retired++; lines.push(`RETIRED ${h.event} ${h.command.slice(0, 90)}`); }
+    if (!s || !/[\\/]/.test(s)) continue; // `rtk hook claude`, `py -m module`: not a file path
+    if (!fs.existsSync(s)) { missing++; lines.push(`MISSING ${h.event} ${norm(s)}`); continue; }
+    const real = norm(realOr(s));
+    if (inside(s, CHOME) && !inside(real, ROOT) && !/\.claude\/(hooks|tools)\//.test(norm(s))) { /* a private hook in the overlay is fine */ }
+    else if (/\.claude\/(hooks|tools|mods)\//.test(norm(s)) && !inside(real, ROOT)) { outside++; lines.push(`NOT-CANONICAL ${h.event} ${norm(s)} resolves to ${real}`); }
+  }
+  if (!lines.length) lines.push(`${hooks.length} hook registrations checked, all resolve into this repository`);
+  return { ok: missing === 0 && outside === 0 && retired === 0, count: hooks.length, lines };
+});
+
+check('rules-drift', 'generated client files match their sources (sync --check for the primary client, port --check for the rest)', () => {
+  // sync owns the primary client's rules file; port owns the composite files of every other client
+  // (see docs/architecture.md). Each is checked by its own writer, never by the other's.
+  const sync = spawnSync(process.execPath, [path.join(ROOT, 'engine', 'sync', 'sync.cjs'), '--check', '--target', 'claude'], { cwd: ROOT, encoding: 'utf8' });
+  const port = spawnSync(process.execPath, [path.join(ROOT, 'engine', 'harness', 'cli.cjs'), 'port', '--check'], { cwd: ROOT, encoding: 'utf8' });
+  const last = (s) => (s.trim().split('\n').filter(Boolean).pop() || '').trim().slice(0, 160);
+  const targets = Number((/(\d+) evaluated/.exec(sync.stdout) || [0, 0])[1]) + Number((/(\d+) target/.exec(port.stdout) || [0, 0])[1]);
+  return { ok: sync.status === 0 && port.status === 0, count: targets, lines: [`sync (claude): ${last(sync.stdout) || 'exit ' + sync.status}`, `port (others): ${last(port.stdout + port.stderr) || 'exit ' + port.status}`, ...(sync.status || port.status ? ['npm run sync && npm run port'] : [])] };
+});
+
+check('claude-md', 'CLAUDE.md has one writer (sync) plus allowed marker blocks', () => {
+  const f = path.join(CHOME, 'CLAUDE.md');
+  const text = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
+  if (!text) return { ok: false, count: 0, lines: ['CLAUDE.md missing: npm run sync'] };
+  const lines = [];
+  const markers = [...new Set((text.match(/<!--\s*([\w-]+)(?::start)?\s*-->/g) || []).map((m) => m.replace(/<!--\s*|\s*-->/g, '').replace(/:start$/, '')))];
+  const allowed = new Set(['declick', 'agnostic:profile', 'agnostic:generated']);
+  const foreign = markers.filter((m) => !allowed.has(m));
+  if (!/^@.*agnostic-rules\.md\s*$/m.test(text)) lines.push('no @import of agnostic-rules.md');
+  if (foreign.length) lines.push(`second writer marker(s): ${foreign.join(', ')} (the profile lives in overlay/profile.md)`);
+  if (/agents-memory|agents_memory/.test(text)) lines.push('references the retired agents-memory system');
+  const asm = require('../sync/claude-md.cjs').run({ check: true });
+  if (asm.status === 'stale') lines.push('not what sync would assemble (npm run sync)');
+  if (!lines.length) lines.push(`1 file, ${markers.length} marker block(s), one writer, assembled`);
+  return { ok: !lines.some((l) => /second writer|no @import|retired|not what sync/.test(l)), count: 1, lines };
+});
+
+check('old-refs', 'no tracked code or config names a retired repository', () => {
+  const files = trackedFiles().filter((f) => isText(f) && !RETIRED_EXEMPT.test(f));
+  const hits = [];
+  for (const f of files) {
+    let t; try { t = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (_) { continue; }
+    for (const r of RETIRED) if (t.includes(r)) hits.push(`${f}: ${r}`);
+  }
+  return { ok: hits.length === 0, count: files.length, lines: hits.length ? hits.slice(0, 25) : [`${files.length} tracked files scanned, 0 retired references`] };
+});
+
+check('private-boundary', 'no tracked file outside labs/ carries a machine-absolute home path', () => {
+  const files = trackedFiles().filter((f) => isText(f) && !/^(labs\/|docs\/PROVENANCE\.md|CHANGELOG\.md|examples\/|storage\/)/.test(f));
+  const re = /(?:[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"']+|\/(?:home|Users)\/[^\\/\s"']+)[\\/]/g;
+  const hits = [];
+  for (const f of files) {
+    let t; try { t = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (_) { continue; }
+    const m = t.match(re);
+    if (m) hits.push(`${f}: ${[...new Set(m)].slice(0, 3).join(', ')}`);
+  }
+  return { ok: hits.length === 0, count: files.length, lines: hits.length ? hits.slice(0, 25) : [`${files.length} tracked files scanned, 0 home paths`] };
+});
+
+check('linked-leftovers', 'untracked, unignored files inside linked directories', () => {
+  const dirs = link.LINKS.map((l) => l.source);
+  const r = spawnSync('git', ['status', '--porcelain', '--untracked-files=all', '--', ...dirs], { cwd: ROOT, encoding: 'utf8' });
+  const un = r.stdout.split('\n').filter((l) => l.startsWith('??')).map((l) => l.slice(3).trim());
+  return { ok: true, warn: un.length > 0, count: dirs.length, lines: un.length ? [`${un.length} untracked file(s) carried into linked dirs (commit, ignore or delete):`, ...un.slice(0, 20)] : [`${dirs.length} linked dirs, nothing untracked`] };
+});
+
+check('orphan-hooks', 'every hook file is registered or required somewhere', () => {
+  const dir = path.join(ROOT, 'engine', 'hooks');
+  const files = fs.readdirSync(dir).filter((f) => /\.(cjs|py|ps1)$/.test(f) && !/^(shim|universal-adapter|dashclaw-setup)\.cjs$/.test(f));
+  const corpus = [
+    ...settingsHooks().map((h) => h.command),
+    fs.readFileSync(path.join(ROOT, 'core', 'port.json'), 'utf8'),
+    fs.readFileSync(path.join(ROOT, 'engine', 'setup', 'first-run.cjs'), 'utf8'),
+    ...fs.readdirSync(dir).filter((f) => f.endsWith('.cjs')).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')),
+    ...(fs.existsSync(path.join(dir, 'adapters')) ? fs.readdirSync(path.join(dir, 'adapters')).map((f) => fs.readFileSync(path.join(dir, 'adapters', f), 'utf8')) : []),
+    ...['jobs', 'git-hooks'].flatMap((d) => { const p = path.join(ROOT, d); return fs.existsSync(p) ? fs.readdirSync(p, { recursive: true }).map((f) => { try { return fs.readFileSync(path.join(p, String(f)), 'utf8'); } catch (_) { return ''; } }) : []; }),
+    fs.existsSync(path.join(CHOME, 'git-hooks', 'pre-commit')) ? fs.readFileSync(path.join(CHOME, 'git-hooks', 'pre-commit'), 'utf8') : '',
+  ].join('\n');
+  const orphans = files.filter((f) => !corpus.includes(f) && !corpus.includes(f.replace(/\.\w+$/, '')));
+  return { ok: true, warn: orphans.length > 0, count: files.length, lines: orphans.length ? orphans.map((o) => `ORPHAN engine/hooks/${o}`) : [`${files.length} hook files, all referenced`] };
+});
+
+check('unexpected-links', 'links at the top of the Claude home are ours', () => {
+  const ours = new Set([...link.LINKS.map((l) => l.name), 'skills', 'commands', 'AGENTS.md', 'CLAUDE.md']);
+  const odd = [];
+  let n = 0;
+  for (const e of fs.readdirSync(CHOME, { withFileTypes: true })) {
+    if (!e.isSymbolicLink()) continue; n++;
+    if (!ours.has(e.name)) odd.push(`${e.name} -> ${norm(realOr(path.join(CHOME, e.name)))}`);
+  }
+  return { ok: true, warn: odd.length > 0, count: n, lines: odd.length ? odd : [`${n} link(s) at the top of ${norm(CHOME)}, all expected`] };
+});
+
+check('context-graph', 'the context module graph lints clean', () => {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'engine', 'context', 'cli.cjs'), 'graph'], { cwd: ROOT, encoding: 'utf8' });
+  const out = (r.stdout + r.stderr).trim().split('\n');
+  const modules = (/(\d+) module/.exec(out.join('\n')) || [0, '?'])[1];
+  return { ok: r.status === 0, count: Number(modules) || 0, lines: [out.slice(-3).join(' | ').slice(0, 200) || `graph exit ${r.status}`] };
+});
+
+check('deps', 'node >= 18, git, and the interpreters hooks need', () => {
+  const lines = []; let ok = true;
+  const major = Number(process.versions.node.split('.')[0]);
+  if (major < 18) { ok = false; lines.push(`node ${process.versions.node} < 18`); }
+  const has = (cmd, args = ['--version']) => spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform === 'win32' }).status === 0;
+  if (!has('git')) { ok = false; lines.push('git not on PATH'); }
+  const cmds = settingsHooks().map((h) => h.command);
+  const need = new Set();
+  for (const c of cmds) { const m = /^(node|python|py|pwsh|powershell|rtk)\b/.exec(c); if (m) need.add(m[1]); }
+  for (const c of need) if (c !== 'node' && !has(c, c === 'py' ? ['-3', '--version'] : c === 'rtk' ? ['--version'] : ['--version'])) { lines.push(`${c} is registered in settings.json hooks but not on PATH`); ok = false; }
+  if (cmds.some((c) => c.includes('context_handoff_bundle')) && spawnSync('py', ['-3.12', '-c', 'import context_handoff_bundle'], { encoding: 'utf8', shell: true }).status !== 0) { lines.push('context_handoff_bundle hooks registered but the package does not import (pip install context-handoff-bundle)'); ok = false; }
+  if (!lines.length) lines.push(`node ${process.versions.node}, git, ${[...need].join(', ') || 'no other interpreters'}`);
+  return { ok, count: need.size + 2, lines };
+});
+
+check('jobs', 'scheduled tasks do not point at retired paths (win32)', () => {
+  if (process.platform !== 'win32') return { ok: true, count: 0, lines: ['not windows, 0 tasks checked'] };
+  const r = spawnSync('powershell', ['-NoProfile', '-Command', "Get-ScheduledTask | Where-Object { $_.TaskPath -eq '\\' } | ForEach-Object { $a = $_.Actions[0]; ($_.TaskName + \"`t\" + $a.Execute + ' ' + $a.Arguments) }"], { encoding: 'utf8' });
+  const rows = r.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  const bad = rows.filter((l) => RETIRED.some((x) => l.includes(x)) || /scripts[\\/]mirror|claude-harness/.test(l));
+  const dead = rows.filter((l) => { const m = /"([^"]+\.(?:cjs|ps1|sh|vbs|py))"/.exec(l) || /(\S+\.(?:cjs|ps1|sh|vbs|py))/.exec(l); return m && /[\\/]/.test(m[1]) && !fs.existsSync(m[1]); });
+  const lines = [...bad.map((l) => `RETIRED ${l.slice(0, 110)}`), ...dead.map((l) => `MISSING ${l.slice(0, 110)}`)];
+  return { ok: true, warn: lines.length > 0, count: rows.length, lines: lines.length ? lines : [`${rows.length} root tasks, none retired or missing`] };
+});
+
+function run() {
+  const results = [];
+  for (const c of checks) {
+    let r;
+    try { r = c.fn(); } catch (e) { r = { ok: false, count: 0, lines: [`check crashed: ${e.message}`] }; }
+    results.push({ id: c.id, label: c.label, ...r });
+  }
+  return results;
+}
+
+if (require.main === module) {
+  const results = run();
+  if (process.argv.includes('--json')) { console.log(JSON.stringify({ root: ROOT, home: CHOME, results }, null, 2)); process.exit(results.some((r) => !r.ok) ? 1 : 0); }
+  console.log(`agnostic-ai doctor  repo=${norm(ROOT)}  home=${norm(CHOME)}\n`);
+  for (const r of results) {
+    const mark = !r.ok ? 'FAIL' : r.warn ? 'warn' : 'ok  ';
+    console.log(`${mark}  ${r.id.padEnd(17)} ${r.label}  (${r.count})`);
+    for (const l of r.lines) console.log(`      ${l}`);
+  }
+  const fails = results.filter((r) => !r.ok).length, warns = results.filter((r) => r.ok && r.warn).length;
+  console.log(`\n${results.length} checks: ${fails} failed, ${warns} warned`);
+  process.exit(fails ? 1 : 0);
+}
+
+module.exports = { run };

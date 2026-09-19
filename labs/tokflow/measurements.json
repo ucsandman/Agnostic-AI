@@ -1,0 +1,55 @@
+{
+  "fixed_files": {
+    "CLAUDE.md_resolved_AGENTS.md": 4670,
+    "agnostic-rules.md": 15452,
+    "C:/Users/sandm/CLAUDE.md": 875,
+    "MEMORY.md": 6255
+  },
+  "agents_descriptions_total_bytes": 1749,
+  "agents_body_bytes": {"advisor":1232,"haiku-scout":980,"opus-owner":1010,"security-reviewer":5705,"sonnet-implementer":1584},
+  "user_skills_desc_total_bytes": 6963,
+  "user_skills_desc_count": 36,
+  "user_skills_desc_outliers": {"claude-api":750,"frontend-verify":766,"project-graveyard":609,"dashclaw-governance":555,"polish":239},
+  "enabled_plugins_desc_bytes": {
+    "context7": 0, "frontend-design": 204, "code-review": 0, "superpowers": 1863,
+    "typescript-lsp": 0, "commit-commands": 0, "pyright-lsp": 0, "claude-md-management": 338,
+    "skill-creator": 319, "impeccable": 895, "supergoal": 869, "codex": 293, "rust-analyzer-lsp": 0
+  },
+  "enabled_plugins_desc_total_bytes": 5092,
+  "sessionstart_hook_stdout_bytes": {
+    "enforcement_liveness_probe.py": 0,
+    "session-count.py": 411,
+    "opus-handoff-inject.cjs": 0,
+    "guard-canary.ps1": 0,
+    "creds-resolve.cjs": 239,
+    "context_handoff_bundle_checkpoint_async": 172,
+    "fable-delegate-guard.cjs": 0
+  },
+  "sessionstart_hook_stdout_total_bytes": 822,
+  "telemetry_source": "C:/Users/sandm/.claude/telemetry/skill-usage.jsonl, 4610 records",
+  "skill_usage_counts_relevant": {
+    "project-graveyard": 1, "dashclaw-governance": 9, "claude-api": 7, "frontend-verify": 49,
+    "superpowers:brainstorming": 132, "superpowers:writing-plans": 94, "superpowers:systematic-debugging": 89,
+    "superpowers:subagent-driven-development": 60, "superpowers:test-driven-development": 27,
+    "superpowers:executing-plans": 21, "superpowers:finishing-a-development-branch": 10,
+    "superpowers:writing-skills": 9, "superpowers:dispatching-parallel-agents": 2, "superpowers:using-git-worktrees": 2
+  },
+  "duplication_findings": {
+    "creds_bullet_CLAUDE.md_bytes": 721,
+    "creds_bullet_agnostic-rules.md_bytes": 673,
+    "model_routing_bullet_CLAUDE.md_bytes": 1053,
+    "delegation_section_agnostic-rules.md_bytes": 3820
+  },
+  "empty_placeholder_bytes": {"who_section": 24, "stack_defaults_section": 86, "empty_projects_table": 59},
+  "projects_md_has_real_data": true,
+  "projects_md_bytes": 675,
+  "source_file_drift": {
+    "AGENTS.md_mtime": "2026-09-02T11:09:09",
+    "USER.md_mtime": "2026-09-01T21:07:57",
+    "user-rules.mdc_mtime": "2026-08-20T14:40:47",
+    "finding": "AGENTS.md has 3 bullets not present in USER.md (SEO floor, long-lived-process restart, workflow backticks) and AGENTS.md is newer than USER.md -> USER.md is not a reliable single source of truth right now"
+  },
+  "memory_index_check": {"links_checked": 42, "missing": 0, "topic_duplicates_found": 0},
+  "total_measured_fixed_context_bytes": 41878,
+  "total_measured_fixed_context_tokens_est": 10470
+}

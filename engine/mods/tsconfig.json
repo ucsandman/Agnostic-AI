@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "es2023", "lib": ["es2023"], "types": [],
+    "module": "esnext", "moduleResolution": "bundler",
+    "strict": false, "noImplicitAny": false, "noUncheckedIndexedAccess": false,
+    "noEmit": true, "skipLibCheck": true, "allowJs": true, "checkJs": false,
+    "jsx": "react", "jsxFactory": "h", "jsxFragmentFactory": "Fragment"
+  },
+  "include": ["claude-runtime/**/*.ts", "claude-runtime/**/*.d.ts", "harness-mods/**/*.ts", "harness-mods/**/*.tsx", "harness-mods/**/*.mjs"]
+}

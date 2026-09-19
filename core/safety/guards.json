@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0.0",
-  "_note": "SINGLE SOURCE OF TRUTH for all safety policy. Consumed read-only by agent/governance/guard.py (Python), engine/hooks/secret-guard.cjs, engine/hooks/dashclaw-guard.cjs (Node), and the dashboard. Do not hardcode policy anywhere else.",
+  "_note": "SINGLE SOURCE OF TRUTH for all safety policy. Consumed read-only by agent/governance/guard.py (Python), engine/hooks/secret-path-guard.cjs, engine/hooks/dashclaw-guard.cjs (Node), and the dashboard. Do not hardcode policy anywhere else.",
   "guards": {
     "secretScan": {
       "enabled": true,

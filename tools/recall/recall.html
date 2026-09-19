@@ -1,135 +1,517 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agnostic AI — Fact & Rule Recall</title>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --rule-tag: #e3b341;
-      --fact-tag: #388bfd;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      padding: 24px;
-    }
-    .container { max-width: 1000px; margin: 0 auto; }
-    header {
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    h1 { font-size: 24px; font-weight: 600; }
-    .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
-    .search-box {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 15px;
-      margin-bottom: 20px;
-      outline: none;
-    }
-    .search-box:focus { border-color: var(--accent); }
-    .results-list { display: flex; flex-direction: column; gap: 12px; }
-    .result-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-    }
-    .result-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .result-title { font-size: 16px; font-weight: 600; }
-    .badge {
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 12px;
-      text-transform: uppercase;
-    }
-    .badge-rule { background: rgba(227, 179, 65, 0.2); color: var(--rule-tag); }
-    .badge-fact { background: rgba(56, 139, 253, 0.2); color: var(--fact-tag); }
-    .result-content {
-      font-size: 14px;
-      color: #c9d1d9;
-      white-space: pre-wrap;
-      font-family: inherit;
-    }
-    .result-source { font-size: 12px; color: var(--text-muted); margin-top: 8px; font-family: monospace; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>recall</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink-primary: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --border: rgba(255,255,255,0.10);
+    --mark-bg: #4a3b00;
+    --mark-ink: #ffd866;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px 0; }
+  .query { color: var(--ink-secondary); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .subhead { color: var(--ink-secondary); font-size: 14px; }
+  section { margin-bottom: 24px; }
+  h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    margin: 0 0 8px 0;
+  }
+  .count {
+    color: var(--ink-muted);
+    font-weight: 400;
+    font-size: 12px;
+  }
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 12px;
+    background: var(--surface);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .row:last-child { border-bottom: none; }
+  .cell-date {
+    color: var(--ink-secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .title { font-weight: 600; margin-bottom: 2px; }
+  .file {
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .snippet { color: var(--ink-secondary); line-height: 1.4; }
+  mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 2px; }
+  .empty-state { color: var(--ink-muted); font-style: italic; padding: 20px 0; }
+  footer { margin-top: 20px; color: var(--ink-muted); font-size: 12px; }
+  @media (max-width: 700px) {
+    .row { grid-template-columns: 1fr; grid-template-areas: "date" "main"; }
+    .cell-date { grid-area: date; }
+    .cell-main { grid-area: main; }
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Agnostic Fact & Rule Recall</h1>
-      <div class="subtitle">Search live memory facts, learned rules, and past decisions across all agents</div>
-    </header>
+<header>
+  <h1>recall: <span class="query">--help</span></h1>
+  <div class="subhead">45 results · 1351ms · generated 8/16/2026, 9:35:56 PM</div>
+</header>
 
-    <input type="text" id="query-input" class="search-box" placeholder="Type to search rules, constraints, repo facts..." autofocus>
-
-    <div id="results-list" class="results-list"></div>
-  </div>
-
-  <script>
-    const input = document.getElementById('query-input');
-    const listEl = document.getElementById('results-list');
-
-    let debounceTimer = null;
-    input.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => doSearch(input.value), 150);
-    });
-
-    async function doSearch(query) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        render(data.results);
-      } catch (err) {
-        listEl.innerHTML = '<div style="color: var(--text-muted)">Error fetching results.</div>';
-      }
-    }
-
-    function render(results) {
-      if (!results || results.length === 0) {
-        listEl.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 32px;">No matching facts or rules found.</div>';
-        return;
-      }
-      listEl.innerHTML = results.map(r => `
-        <div class="result-card">
-          <div class="result-header">
-            <span class="result-title">${escapeHtml(r.title)}</span>
-            <span class="badge ${r.type === 'rule' ? 'badge-rule' : 'badge-fact'}">${r.type}</span>
-          </div>
-          <div class="result-content">${escapeHtml(r.content)}</div>
-          <div class="result-source">Source: ${escapeHtml(r.source)}</div>
+    <section>
+      <h2>Memory <span class="count">3</span></h2>
+      <div class="rows">
+      <div class="row">
+        <div class="cell cell-date">2026-08-11</div>
+        <div class="cell cell-main">
+          <div class="title">feedback-inventory-interface-before-building</div>
+          <div class="file">C:\Users\sandm\.claude\projects\C--Projects\memory\feedback_inventory_interface_before_building.md</div>
+          <div class="snippet">…le.&quot; **How to apply:** - Enumerate first, ask later. `ls` the routes dir, run `<mark>--help</mark>`, list exports. One tool call beats a wrong architecture. - Treat &quot;there is no X&quot; as needing *stronger* proof tha…</div>
         </div>
-      `).join('');
-    }
+      </div>
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+      <div class="row">
+        <div class="cell cell-date">2026-08-07</div>
+        <div class="cell cell-main">
+          <div class="title">openclaw-message-governance-fix</div>
+          <div class="file">C:\Users\sandm\.claude\projects\C--Projects-DashClaw\memory\project_openclaw_message_governance_fix.md</div>
+          <div class="snippet">…k&#39;s command/timeout changes its trust hash → re-trust needed. - CLI subcommand `<mark>--help</mark>` used to RUN the subcommand (`install codex <mark>--help</mark>` mutated repo AGENTS.md; restored from its .dashclaw-bak). FI…</div>
+        </div>
+      </div>
 
-    doSearch('');
-  </script>
+      <div class="row">
+        <div class="cell cell-date">2026-06-09</div>
+        <div class="cell cell-main">
+          <div class="title">zentty-win-packaging</div>
+          <div class="file">C:\Users\sandm\.claude\projects\C--Projects-zentty\memory\zentty-win-packaging.md</div>
+          <div class="snippet">…is `#![cfg_attr(windows, windows_subsystem = &quot;windows&quot;)]` — no console window; `<mark>--help</mark>`/stderr invisible from a shell (documented in README Windows section). - **No WiX/NSIS/InnoSetup on this machine…</div>
+        </div>
+      </div></div>
+    </section>
+    <section>
+      <h2>Archive <span class="count">42</span></h2>
+      <div class="rows">
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">fetch-binaries Idempotency Verified — Second Run Skips All; Binaries Spawn Successfully</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…esent, archive sha256 verified\&quot; — no downloads, FETCH_EXIT=0&quot;,&quot;whisper-cli.exe <mark>--help</mark> exits 0 — binary spawns and runs correctly on this Windows system&quot;,&quot;ffprobe -version first line: \&quot;ffprobe versi…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">E2E Smoke Test Covers All Phase 1 Acceptance Criteria in One Test</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…. The 30-second timeout on the binary diag assertion accounts for whisper.cpp&#39;s <mark>--help</mark> output being slower than ffprobe on first run. The security probe using typeof checks is the idiomatic Playwrigh…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Main Process IPC Registry with Zod-Validated handleValidated Pattern</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…s console windows on Windows&quot;,&quot;diagBinaries() runs ffprobe -version and whisper <mark>--help</mark> in parallel via Promise.all&quot;,&quot;registerIpc() is the single export — called from main/index.ts on app.whenReady()&quot;…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 1 Spec — Electron App Scaffold with Native Binaries</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…SAPI TTS&quot;,&quot;Diag IPC channel `diag:binaries` spawns ffprobe -version and whisper <mark>--help</mark>; E2E asserts both exit 0&quot;,&quot;contextIsolation on, nodeIntegration off — asserted in E2E via window.require undefin…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 1 Spec — Scaffold Shell &amp; Binaries Detailed Work Plan Written</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…txt`.&quot;,&quot;Diag IPC channel `diag:binaries` spawns `ffprobe -version` and whisper `<mark>--help</mark>` from main process; E2E asserts both return exit 0.&quot;,&quot;E2E smoke test (`e2e/smoke.spec.ts`) probes contextIsolati…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 7 all mandatory gates pass: typecheck, build, lint, and both CLI --help exits clean</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…iscovery Phase 7 all mandatory gates pass: typecheck, build, lint, and both CLI <mark>--help</mark> exits clean All Phase 7 quality gates pass after type assertion fixes — typecheck/build/lint all exit 0, both CL…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">view-receipt CLI created for fetching and pretty-printing task receipts</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…ed flag: --id (task_id); optional flags: --url (default http://localhost:8080), <mark>--help</mark>&quot;,&quot;<mark>--help</mark> prints USAGE and exits 0 without any network calls&quot;,&quot;When receipt is present, pretty-prints with JSON.s…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">submit-task CLI created for submitting research_brief tasks to the adapter</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…scripts/submit-task.ts created — POSTs to a running adapter and prints task_id; <mark>--help</mark> works fully offline. [&quot;scripts/submit-task.ts created as a TypeScript CLI for submitting research_brief tasks&quot;,&quot;…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 7 spec defines 8 MVP criteria requiring E2E integration test and two CLIs</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…-url; GETs /tasks/:id and pretty-prints receipt and artifact summary&quot;,&quot;Both CLI <mark>--help</mark> flags must work offline (no server needed) and exit 0&quot;,&quot;npm run build must exit 0 in addition to typecheck/test/…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 7 Spec — E2E Integration Test Maps All 8 MVP Criteria and CLI Tooling</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…--scope/--audience/--max-cost/--timeout/--url (default http://localhost:8080); <mark>--help</mark> exits 0 without a running server.&quot;,&quot;scripts/view-receipt.ts args: --id (required), optional --url; GETs /tasks/:i…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">@dashclaw/mcp-server npm Package: Published 2026-05-14 as v1.0.2, NOT in any MCP Registry Yet — Read…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…ead-only resources\&quot; — correct, consistent with tools.js count&quot;,&quot;MCP server bin <mark>--help</mark>: executes clean, prints correct usage including all 3 flags (--url, --key, --agent-id)&quot;] The @dashclaw/mcp-serve…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">CLI Audit: 3 Additional Findings — process.exit(1) in unhandledRejection, README Says Gzip But Code …</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…The 9 undocumented commands are a usability gap — users discover them only via <mark>--help</mark> output. The --version gap is a NIT. All 89 CLI unit tests pass (25 suites) from the main session&#39;s test run. [&quot;go…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-11</div>
+        <div class="cell cell-main">
+          <div class="title">docs/architecture/livingcode-subsystem.md CLI Surface Is Stale: Missing 5 Commands Added After 2026-…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…view, cycle, heartbeat, status (6 commands)&quot;,&quot;Current CLI (python -m livingcode <mark>--help</mark>): also has query, snapshot, diff, emit, start&quot;,&quot;python -m livingcode query: \&quot;Topics: routes, archived-routes, e…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-10</div>
+        <div class="cell cell-main">
+          <div class="title">Final local verification passed - clean tree, all tests passing, lint clean, CLI functional</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…ll checks passed!\&quot; - zero linting violations&quot;,&quot;CLI execution: successfully ran <mark>--help</mark> - package entry point working&quot;,&quot;All verifications passed in quick succession - repository stable&quot;] The final pre…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-10</div>
+        <div class="cell cell-main">
+          <div class="title">DashClaw baseline performance measurements collected</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…0ms total (60ms overhead beyond Python startup)&quot;,&quot;DashClaw CLI node process for <mark>--help</mark> averages 75ms&quot;,&quot;TypeScript incremental typecheck processes 2903 files in 3.5-3.7 seconds using 616MB memory with…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-09</div>
+        <div class="cell cell-main">
+          <div class="title">Fixed README launch flags documentation incorrectly describing CLI arguments as environment variable…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…op.rs&quot;,&quot;Fixed text now lists all five CLI flags explicitly with usage note that <mark>--help</mark> invisible in windows_subsystem GUI app&quot;,&quot;Screenshot-tooling toggles now clearly separated as env-var based ZENTT…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-09</div>
+        <div class="cell cell-main">
+          <div class="title">README Windows section added with complete build and install documentation</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…cedure and optional WiX MSI build path&quot;,&quot;Notes GUI subsystem behavior affecting <mark>--help</mark> visibility&quot;] A comprehensive Windows section was added to the project README, fulfilling Phase 10&#39;s documentatio…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-09</div>
+        <div class="cell cell-main">
+          <div class="title">Zentty Windows GUI subsystem configuration</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…em=\&quot;windows\&quot; attribute to suppress console window&quot;,&quot;Console suppression makes <mark>--help</mark> and error output invisible when launched from shell&quot;,&quot;Documentation added noting flags should be documented in R…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-06</div>
+        <div class="cell cell-main">
+          <div class="title">Successfully pushed desktop-first launcher to GitHub origin main</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…[&quot;launch.py verified to parse correctly with Python AST before push&quot;,&quot;launch.py <mark>--help</mark> command executed successfully confirming CLI interface works&quot;,&quot;Git push completed successfully from local main t…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-06</div>
+        <div class="cell cell-main">
+          <div class="title">run_loop.py has missing module dependency</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…skills\\skill-creator\\scripts\\run_loop.py&quot;] Attempted to run run_loop.py with <mark>--help</mark> flag to understand its CLI interface, but the script failed during import phase. The script tries to import gene…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-05</div>
+        <div class="cell cell-main">
+          <div class="title">Found Solution: Next.js 16.2.6 Supports --webpack Flag</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…flags including --webpack to force webpack instead of Turbopack. The next build <mark>--help</mark> output shows three bundler-related flags: --turbo/--turbopack (explicit Turbopack, apparently default in this ve…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-05</div>
+        <div class="cell cell-main">
+          <div class="title">&lt;task-notification&gt;
+&lt;task-id&gt;wvwv7g2o8&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_01EvPNFpuLzq5VH119LkjE7P&lt;/tool-u…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\user-prompts.jsonl</div>
+          <div class="snippet">…out .sh files with LF. (2) Bash execution works: &#39;bash .supergoal/repo-state.sh <mark>--help</mark>&#39; succeeds. (3) git operations (add, commit, reset) preserve LF once .gitattributes is active. (4) &#39;cp&#39; copy in S…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-05</div>
+        <div class="cell cell-main">
+          <div class="title">Adversarial review: Additional edge cases tested — untracked nested directories, create-then-delete,…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…s identical (LF line ending, not CRLF). Script executes successfully from copy (<mark>--help</mark> runs clean). Implication: Stage 7&#39;s copy to .supergoal/repo-state.sh will preserve LF regardless of core.autocrl…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-02</div>
+        <div class="cell cell-main">
+          <div class="title">&lt;task-notification&gt;
+&lt;task-id&gt;woevan0wj&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_01MBmiD6msG9e3tCEXbFM2rr&lt;/tool-u…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\user-prompts.jsonl</div>
+          <div class="snippet">…le biggest &#39;plugin installed but hooks won&#39;t install&#39; failure. The script&#39;s own <mark>--help</mark> (lines 53-59) documents --target= for installing from a sibling checkout, but the README never mentions cloning …</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-02</div>
+        <div class="cell cell-main">
+          <div class="title">Marketplace Hook Install Path Broken</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…the hook install command fails immediately. The install-hooks.mjs script&#39;s own <mark>--help</mark> documents a --target= parameter for installing from a sibling checkout, but the plugin README never mentions clon…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-06-02</div>
+        <div class="cell cell-main">
+          <div class="title">DASHCLAW_URL vs DASHCLAW_BASE_URL Environment Variable Split</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…variable split: the MCP server binary reads DASHCLAW_URL (as documented in its <mark>--help</mark> and config examples), while the Python hooks and SDKs read DASHCLAW_BASE_URL. This split is acknowledged in .env.…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-05-15</div>
+        <div class="cell cell-main">
+          <div class="title">Discord Bridge launcher integration deployed to main</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…nning (Gate 1 oversight, #ai-company-floor)\&quot; when bridge is active&quot;,&quot;Launch.py <mark>--help</mark> output confirmed to include --no-bridge flag&quot;,&quot;Commit 4b9555d pushed to main with 24 line insertions to launch.p…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-05-14</div>
+        <div class="cell cell-main">
+          <div class="title">Published @dashclaw/mcp-server to npm and migrated plugin configurations from local paths to npx</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\session-summaries.jsonl</div>
+          <div class="snippet">…live on npm. User has been advised to test with &quot;npx --yes @dashclaw/mcp-server <mark>--help</mark>&quot; for end-to-end verification and update local claude_desktop_config.json to use npx form with -y flag. Waiting f…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-05-14</div>
+        <div class="cell cell-main">
+          <div class="title">MCP server version and license audit findings</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…robust configuration via CLI arguments and environment variables with a helpful <mark>--help</mark> flag. License files exist at root and in the sdk/ directory with MIT licensing and 2026 copyright, but the mcp-s…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-05-14</div>
+        <div class="cell cell-main">
+          <div class="title">Bash installer for Hermes Agent plugin on Unix systems</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…MES_HOME environment variable override, defaults to $HOME/.hermes&quot;,&quot;Includes -h/<mark>--help</mark> flag that prints first 15 lines of script as inline documentation&quot;] Created a bash installation script for macOS…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-05-14</div>
+        <div class="cell cell-main">
+          <div class="title">Help text added for dashclaw install codex command</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…ation command, making it discoverable to users via `dashclaw help` or `dashclaw <mark>--help</mark>`. The help entry describes the command as &quot;Provision DashClaw governance into Codex CLI&quot; and documents two optio…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-22</div>
+        <div class="cell cell-main">
+          <div class="title">PS C:\Projects\Practical Systems&gt; npx dashclaw-demo
+DashClaw Demo
+
+Pulling DashClaw demo image...
+la…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\user-prompts.jsonl</div>
+          <div class="snippet">…39af): Bind for 0.0.0.0:3000 failed: port is already allocated Run &#39;docker run <mark>--help</mark>&#39; for more information Demo stopped.</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-18</div>
+        <div class="cell cell-main">
+          <div class="title">Added test coverage for start command</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…t_registered_in_cli_help verifies start command appears in python -m livingcode <mark>--help</mark> output&quot;,&quot;test_start_runs_pipeline_and_opens_browser mocks dependencies and validates sense → snapshot → npm run …</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-18</div>
+        <div class="cell cell-main">
+          <div class="title">User asked how to keep up with DashClaw&#39;s livingcode system - what to run daily and how to visually …</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\session-summaries.jsonl</div>
+          <div class="snippet">…ensive README.md documenting dual-layer architecture, examined CLI commands via <mark>--help</mark>, checked .organism state directory containing baselines, cycle-history, heartbeats, logs, shape-snapshots, and s…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-13</div>
+        <div class="cell cell-main">
+          <div class="title">Updated CLI help text to show shape-json target</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…json\&quot;&quot;,&quot;Makes new shape-json target discoverable via python -m livingcode emit <mark>--help</mark>&quot;] The CLI help text for the emit command was updated to reflect the newly available shape-json target. Users run…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-12</div>
+        <div class="cell cell-main">
+          <div class="title">Doctor feature completely undocumented in user-facing guides despite full implementation</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…tory to explain its usage. While inline help is accessible via `dashclaw doctor <mark>--help</mark>`, this requires already knowing the command exists. The only documentation is in auto-generated docs/api-invento…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-12</div>
+        <div class="cell cell-main">
+          <div class="title">Doctor feature lacks user-facing documentation in main README and quickstart guides</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…document doctor subcommand usage&quot;,&quot;Built-in help accessible via dashclaw doctor <mark>--help</mark> shows usage but not discoverable from main docs&quot;] The doctor diagnostic and self-healing feature is fully implem…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-11</div>
+        <div class="cell cell-main">
+          <div class="title">Successfully rebuilt giti package and verified observe command registration</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…B and dist/index.js.map at 540.78 KB&quot;,&quot;Verified giti observe command appears in <mark>--help</mark> output with description \&quot;Run field observation against configured external targets\&quot;&quot;,&quot;Command positioned betwe…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-11</div>
+        <div class="cell cell-main">
+          <div class="title">Phase 4 skill path hygiene completion - contact-finder canonical path declaration and legacy quarant…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\session-summaries.jsonl</div>
+          <div class="snippet">…e tests passing. Legacy script remains executable at new location (verified via <mark>--help</mark>). Waiting for gsd-verifier subagent (a2c80e1e531bc5e7b) to complete Phase 4 verification. Verifier will check 11…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-11</div>
+        <div class="cell cell-main">
+          <div class="title">&lt;task-notification&gt;
+&lt;task-id&gt;afbbc797c7d9dafc3&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_01Gkv5cnpV9j4pWvcn8oqvwT…</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\user-prompts.jsonl</div>
+          <div class="snippet">…s/contact-finder/legacy/find_contacts.py` exists, `HUNTER_API_BASE` preserved, `<mark>--help</mark>` runs | PASSED | | `skills/contact-finder/scripts/find_contacts.py` not in git tree | PASSED | | `git log --foll…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-07</div>
+        <div class="cell cell-main">
+          <div class="title">Livingcode CLI and Organism API committed with 2 passing tests</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…rganism public API (2 tests)&quot;,&quot;Both CLI tests passed in 0.20 seconds validating <mark>--help</mark> and status command&quot;,&quot;Three files committed: __main__.py (new), __init__.py (modified with Organism class), test_…</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="cell cell-date">2026-04-07</div>
+        <div class="cell cell-main">
+          <div class="title">Livingcode CLI and public Organism API implemented</div>
+          <div class="file">C:\Projects\archives\claude-mem-2026-08-11\data\observations.jsonl</div>
+          <div class="snippet">…ations. Two subprocess-based tests validate that the module can be invoked with <mark>--help</mark> and that the status command handles missing data gracefully without crashing. Together, these interfaces make li…</div>
+        </div>
+      </div></div>
+    </section>
+<footer>
+  Static snapshot of the last query. Re-run <code>node recall.cjs "..."</code> to refresh.
+</footer>
 </body>
 </html>

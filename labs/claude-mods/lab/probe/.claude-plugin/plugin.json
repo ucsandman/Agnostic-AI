@@ -1,0 +1,5 @@
+{
+  "name": "probe",
+  "version": "0.1.0",
+  "description": "Function-hooks probe: proves modules load and events fire headlessly"
+}

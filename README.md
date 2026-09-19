@@ -96,7 +96,7 @@ Flags: `--from claude|codex`, `--to codex,gemini`, `--check`, `--dry-run`,
 ## Also in the box
 
 - **Safety policy.** `core/safety/guards.json` is one file read by the
-  shipped guards (`secret-guard`, `dashclaw-guard`) and the dashboard
+  shipped guards (`secret-path-guard`, `secret-guard`, `dashclaw-guard`) and the dashboard
   simulator. Secret paths are always blocked; hard-stop commands need a human;
   a missing or unreachable policy fails closed. `npm run setup:default`
   installs the guards into your primary client, and the port carries them
@@ -135,7 +135,7 @@ Flags: `--from claude|codex`, `--to codex,gemini`, `--check`, `--dry-run`,
 ```
 engine/harness/   capture.cjs, apply.cjs, status.cjs, cli.cjs, bundle.cjs, toml.cjs, common.cjs
                   sources/ (claude, codex)   targets/ (codex, claude, gemini, agy, cursor, generic)
-engine/hooks/     shim.cjs (dialect translation), universal-adapter.cjs, secret-guard, dashclaw-guard,
+engine/hooks/     shim.cjs (dialect translation), universal-adapter.cjs, the guard hooks (secret-guard, secret-path-guard, rm-guard, ...), dashclaw-guard,
                   fable-delegate-guard, capability-graph-guard, correction-tracker
 engine/           sync/ (authoring mode), harvest/, distill/, ingest/, skills/, audit/, setup/, docs/, tests/
 core/             port.json (policy), templates/targets.json (registry), safety/guards.json,

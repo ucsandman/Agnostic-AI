@@ -1,0 +1,77 @@
+{
+  "_comment": "context-graph: the portable default. Roots are the trust allowlist: a module loads only from a listed root. Relative paths resolve against this file; {homeSlug} is the Claude home's project slug (C--Users-x--claude), {slug}/{cwd} the current repo's. A private copy at <claude home>/overlay/context-graph.json takes precedence (or CONTEXT_GRAPH_CONFIG). Engine: ../context (docs/context-graph.md).",
+  "version": 1,
+  "client": "claude",
+  "engine": "../context/index.cjs",
+  "roots": [
+    {
+      "id": "rules",
+      "path": "../../core/rules/modules",
+      "scope": "harness",
+      "trust": "harness"
+    },
+    {
+      "id": "harness-docs",
+      "path": "../../docs",
+      "scope": "harness",
+      "trust": "harness"
+    },
+    {
+      "id": "user-docs",
+      "path": "~/.claude/docs",
+      "scope": "user",
+      "trust": "user"
+    },
+    {
+      "id": "memory",
+      "path": "~/.claude/projects/{homeSlug}/memory",
+      "scope": "user",
+      "trust": "user",
+      "index": "MEMORY.md",
+      "include": [
+        "people/**",
+        "projects/**",
+        "decisions/**"
+      ]
+    },
+    {
+      "id": "repo-memory",
+      "path": "~/.claude/projects/{slug}/memory",
+      "perRepo": true,
+      "trust": "user",
+      "index": "MEMORY.md"
+    },
+    {
+      "id": "repo-tree",
+      "path": "{cwd}/.agents/memory",
+      "perRepo": true,
+      "trust": "repo",
+      "enabled": false,
+      "_comment": "in-tree memory arrives with the repository: repo trust (no edges out of its root, private modules never join its bundle, content bannered as data). Off until a repo opts in."
+    }
+  ],
+  "budget": {
+    "turnTokens": 2500,
+    "sessionTokens": 12000,
+    "subagentTokens": 1200,
+    "maxModulesPerTurn": 6,
+    "maxClosure": 24,
+    "maxDepth": 8,
+    "maxModuleTokens": 1500,
+    "maxFanout": 8
+  },
+  "selection": {
+    "threshold": 2,
+    "maxTargets": 4,
+    "maxCandidates": 5,
+    "minPromptChars": 12
+  },
+  "stale": {
+    "afterDays": 120
+  },
+  "eagerBaseline": [
+    "~/.claude/CLAUDE.md",
+    "~/.claude/agnostic-rules.md",
+    "~/.claude/projects/{homeSlug}/memory/MEMORY.md"
+  ]
+}

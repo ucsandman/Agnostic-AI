@@ -1,0 +1,1 @@
+{ "name": "blackbox", "version": "0.1.0", "description": "BLACK BOX RECORDER: structured per-session timeline of prompts, model steps, tool calls, subagents and denials; /blackbox prints it" }

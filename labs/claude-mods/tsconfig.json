@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "es2023", "lib": ["es2023"], "types": [],
+    "module": "esnext", "moduleResolution": "bundler",
+    "strict": false, "noImplicitAny": false, "noUncheckedIndexedAccess": false,
+    "noEmit": true, "skipLibCheck": true, "allowJs": true,
+    "jsx": "react", "jsxFactory": "h", "jsxFragmentFactory": "Fragment"
+  },
+  "include": [".claude/types/**/*.d.ts", "lab/**/*.ts", "lab/**/*.tsx", "adapter/**/*.ts", "prototypes/**/*.ts", "prototypes/**/*.tsx"]
+}

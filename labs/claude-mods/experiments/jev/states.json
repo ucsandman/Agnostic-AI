@@ -1,0 +1,724 @@
+[
+ {
+  "id": "xray-after-prompt2",
+  "source": "xray-demo",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "terminal",
+    "turn_open": true,
+    "prompts_so_far": 2,
+    "tool_calls_so_far": 1
+   },
+   "last_user_prompt": "Use the Edit tool to append the line EDITED BY CLAUDE to C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt. If something refuses you, quote the refusal and stop.",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo hello bend # SEQ: demo\", \"description\": \"Run echo hello bend with a comment\"}",
+     "ms": 7833,
+     "denied": false,
+     "error": false,
+     "result": "{\"stdout\": \"DNEB OLLEH\", \"stderr\": \"\", \"interrupted\": false, \"isImage\": false, \"noOutputExpected\": \u2026"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "end_turn",
+    "tools_requested": [],
+    "messages_in_context": 48
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 27,
+    "five_hour_percent": 26,
+    "seven_day_percent": 6
+   },
+   "git": {
+    "uncommitted_changes": true,
+    "note": "lab/ files edited earlier this session; no commit yet"
+   }
+  },
+  "truth": {
+   "work_in_progress": true,
+   "clean_boundary": false,
+   "phase": "implementation",
+   "next_event": "tool.call Read"
+  },
+  "notes": "prompt 2 (edit protected file) just submitted; the model has not acted yet"
+ },
+ {
+  "id": "xray-mid-turn2-after-read",
+  "source": "xray-demo",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "terminal",
+    "turn_open": true,
+    "prompts_so_far": 2,
+    "tool_calls_so_far": 2
+   },
+   "last_user_prompt": "Use the Edit tool to append the line EDITED BY CLAUDE to C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt. If something refuses you, quote the refusal and stop.",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo hello bend # SEQ: demo\", \"description\": \"Run echo hello bend with a comment\"}",
+     "ms": 7833,
+     "denied": false,
+     "error": false,
+     "result": "{\"stdout\": \"DNEB OLLEH\", \"stderr\": \"\", \"interrupted\": false, \"isImage\": false, \"noOutputExpected\": \u2026"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\"}",
+     "ms": 789,
+     "denied": false,
+     "error": false,
+     "result": "1 This file is protected by the GUARDIAN function hook (lab/demos/guardian). 2 Ask Claude to change\u2026"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Read"
+    ],
+    "messages_in_context": 117
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 27,
+    "five_hour_percent": 26,
+    "seven_day_percent": 6
+   },
+   "git": {
+    "uncommitted_changes": true,
+    "note": "lab/ files edited earlier this session; no commit yet"
+   }
+  },
+  "truth": {
+   "work_in_progress": true,
+   "clean_boundary": false,
+   "phase": "implementation",
+   "next_event": "tool.call Edit (denied by guardian)"
+  },
+  "notes": "turn 2 open; Read done; Edit attempt is next"
+ },
+ {
+  "id": "xray-after-turn2-complete",
+  "source": "xray-demo",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "terminal",
+    "turn_open": false,
+    "prompts_so_far": 2,
+    "tool_calls_so_far": 3
+   },
+   "last_user_prompt": "Use the Edit tool to append the line EDITED BY CLAUDE to C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt. If something refuses you, quote the refusal and stop.",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo hello bend # SEQ: demo\", \"description\": \"Run echo hello bend with a comment\"}",
+     "ms": 7833,
+     "denied": false,
+     "error": false,
+     "result": "{\"stdout\": \"DNEB OLLEH\", \"stderr\": \"\", \"interrupted\": false, \"isImage\": false, \"noOutputExpected\": \u2026"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\"}",
+     "ms": 789,
+     "denied": false,
+     "error": false,
+     "result": "1 This file is protected by the GUARDIAN function hook (lab/demos/guardian). 2 Ask Claude to change\u2026"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"replace_all\": false, \"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\", \"old_string\": \"T\u2026",
+     "ms": 1,
+     "denied": true,
+     "error": false,
+     "result": "GUARDIAN policy: C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt is protected (lab/\u2026"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "end_turn",
+    "tools_requested": [],
+    "messages_in_context": 131
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 27,
+    "five_hour_percent": 26,
+    "seven_day_percent": 6
+   },
+   "git": {
+    "uncommitted_changes": true,
+    "note": "lab/ files edited earlier this session; no commit yet"
+   }
+  },
+  "truth": {
+   "work_in_progress": false,
+   "clean_boundary": true,
+   "phase": "idle",
+   "next_event": "prompt.submit (user)"
+  },
+  "notes": "turn 2 ended with the model quoting the refusal; nothing in flight"
+ },
+ {
+  "id": "xray-during-dialog",
+  "source": "xray-demo",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "terminal",
+    "turn_open": true,
+    "prompts_so_far": 4,
+    "tool_calls_so_far": 5
+   },
+   "last_user_prompt": "Run the Bash command: echo enter the matrix # SEQ: demo and reply with the output",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo hello bend # SEQ: demo\", \"description\": \"Run echo hello bend with a comment\"}",
+     "ms": 7833,
+     "denied": false,
+     "error": false,
+     "result": "{\"stdout\": \"DNEB OLLEH\", \"stderr\": \"\", \"interrupted\": false, \"isImage\": false, \"noOutputExpected\": \u2026"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\"}",
+     "ms": 789,
+     "denied": false,
+     "error": false,
+     "result": "1 This file is protected by the GUARDIAN function hook (lab/demos/guardian). 2 Ask Claude to change\u2026"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"replace_all\": false, \"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\", \"old_string\": \"T\u2026",
+     "ms": 1,
+     "denied": true,
+     "error": false,
+     "result": "GUARDIAN policy: C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt is protected (lab/\u2026"
+    },
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo through the tunnel # SEQ: demo\", \"description\": \"Run echo through the tunnel with a comment\"}",
+     "ms": 2549,
+     "denied": false,
+     "error": false,
+     "result": "through the tunnel"
+    },
+    {
+     "tool": "AskUserQuestion",
+     "args": "{\"questions\": [{\"question\": \"MATRIX froze a tool call. Claude intends: Bash {\\\"command\\\":\\\"echo enter the matrix # SEQ:\u2026",
+     "ms": 28311,
+     "denied": false,
+     "error": false,
+     "result": "Your questions have been answered: \"MATRIX froze a tool call. Claude intends: Bash {\"command\":\"echo\u2026"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Bash"
+    ],
+    "messages_in_context": 240
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 27,
+    "five_hour_percent": 26,
+    "seven_day_percent": 6
+   },
+   "git": {
+    "uncommitted_changes": true,
+    "note": "lab/ files edited earlier this session; no commit yet"
+   }
+  },
+  "truth": {
+   "work_in_progress": true,
+   "clean_boundary": false,
+   "phase": "implementation",
+   "next_event": "tool.call Bash"
+  },
+  "notes": "a dialog held the Bash call for 28 s; turn 4 open"
+ },
+ {
+  "id": "xray-session-end",
+  "source": "xray-demo",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "terminal",
+    "turn_open": false,
+    "prompts_so_far": 4,
+    "tool_calls_so_far": 6
+   },
+   "last_user_prompt": "Run the Bash command: echo enter the matrix # SEQ: demo and reply with the output",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo hello bend # SEQ: demo\", \"description\": \"Run echo hello bend with a comment\"}",
+     "ms": 7833,
+     "denied": false,
+     "error": false,
+     "result": "{\"stdout\": \"DNEB OLLEH\", \"stderr\": \"\", \"interrupted\": false, \"isImage\": false, \"noOutputExpected\": \u2026"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\"}",
+     "ms": 789,
+     "denied": false,
+     "error": false,
+     "result": "1 This file is protected by the GUARDIAN function hook (lab/demos/guardian). 2 Ask Claude to change\u2026"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"replace_all\": false, \"file_path\": \"C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt\", \"old_string\": \"T\u2026",
+     "ms": 1,
+     "denied": true,
+     "error": false,
+     "result": "GUARDIAN policy: C:/Projects/claude-mods-rnd/lab/demos/protected/DO_NOT_EDIT.txt is protected (lab/\u2026"
+    },
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo through the tunnel # SEQ: demo\", \"description\": \"Run echo through the tunnel with a comment\"}",
+     "ms": 2549,
+     "denied": false,
+     "error": false,
+     "result": "through the tunnel"
+    },
+    {
+     "tool": "AskUserQuestion",
+     "args": "{\"questions\": [{\"question\": \"MATRIX froze a tool call. Claude intends: Bash {\\\"command\\\":\\\"echo enter the matrix # SEQ:\u2026",
+     "ms": 28311,
+     "denied": false,
+     "error": false,
+     "result": "Your questions have been answered: \"MATRIX froze a tool call. Claude intends: Bash {\"command\":\"echo\u2026"
+    },
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo enter the matrix # SEQ: demo\", \"description\": \"Run echo enter the matrix with a comment\"}",
+     "ms": 30315,
+     "denied": false,
+     "error": false,
+     "result": "enter the matrix"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "end_turn",
+    "tools_requested": [],
+    "messages_in_context": 264
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 27,
+    "five_hour_percent": 26,
+    "seven_day_percent": 6
+   },
+   "git": {
+    "uncommitted_changes": true,
+    "note": "lab/ files edited earlier this session; no commit yet"
+   }
+  },
+  "truth": {
+   "work_in_progress": false,
+   "clean_boundary": true,
+   "phase": "idle",
+   "next_event": "command.run /blackbox"
+  },
+  "notes": "all four turns complete"
+ },
+ {
+  "id": "probe3-subagent-just-spawned",
+  "source": "probe3",
+  "state": {
+   "session": {
+    "model": "claude-sonnet-5",
+    "surface": "headless -p",
+    "turn_open": true,
+    "prompts_so_far": 1,
+    "tool_calls_so_far": 1
+   },
+   "last_user_prompt": "Use the Agent tool exactly once with subagent_type haiku-scout and model haiku to run one Bash command and report its output verbatim.",
+   "usage": {
+    "context_percent": 6,
+    "five_hour_percent": 11,
+    "seven_day_percent": 3
+   },
+   "git": {
+    "uncommitted_changes": false
+   },
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Agent",
+     "args": "Run this exact Bash command and reply with its stdout verbatim: node -e \"console.log(String.fromCharCode(70,82,79,77,45\u2026",
+     "ms": null,
+     "in_flight": true
+    }
+   ],
+   "subagents_running": [
+    {
+     "id": "a2ae0670",
+     "type": "haiku-scout",
+     "model": "claude-haiku-4-5-20251001",
+     "tool_calls": 0
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Agent"
+    ],
+    "messages_in_context": 37
+   }
+  },
+  "truth": {
+   "work_in_progress": true,
+   "clean_boundary": false,
+   "phase": "implementation",
+   "next_event": "subagent tool.call"
+  },
+  "notes": "subagent started, no calls yet"
+ },
+ {
+  "id": "probe3-subagent-handing-back",
+  "source": "probe3",
+  "state": {
+   "session": {
+    "model": "claude-sonnet-5",
+    "surface": "headless -p",
+    "turn_open": true,
+    "prompts_so_far": 1,
+    "tool_calls_so_far": 1
+   },
+   "last_user_prompt": "Use the Agent tool exactly once with subagent_type haiku-scout and model haiku to run one Bash command and report its output verbatim.",
+   "usage": {
+    "context_percent": 6,
+    "five_hour_percent": 11,
+    "seven_day_percent": 3
+   },
+   "git": {
+    "uncommitted_changes": false
+   },
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Agent",
+     "args": "Run this exact Bash command and reply with its stdout verbatim: node -e \"console.log(String.fromCharCode(70,82,79,77,45\u2026",
+     "ms": null,
+     "in_flight": true
+    },
+    {
+     "tool": "Bash",
+     "agent": "a2ae0670",
+     "args": "node -e console.log(...)",
+     "ms": 4000,
+     "result": "FROM-SUB"
+    }
+   ],
+   "subagents_running": [
+    {
+     "id": "a2ae0670",
+     "type": "haiku-scout",
+     "model": "claude-haiku-4-5-20251001",
+     "tool_calls": 1,
+     "status": "running (handing back)"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "SubagentHandback"
+    ],
+    "messages_in_context": 35,
+    "agent": "a2ae0670"
+   }
+  },
+  "truth": {
+   "work_in_progress": true,
+   "clean_boundary": false,
+   "phase": "verification",
+   "next_event": "subagent turn.complete then parent step"
+  },
+  "notes": "subagent finished its command, handing back"
+ },
+ {
+  "id": "probe3-main-complete",
+  "source": "probe3",
+  "state": {
+   "session": {
+    "model": "claude-sonnet-5",
+    "surface": "headless -p",
+    "turn_open": false,
+    "prompts_so_far": 1,
+    "tool_calls_so_far": 1
+   },
+   "last_user_prompt": "Use the Agent tool exactly once with subagent_type haiku-scout and model haiku to run one Bash command and report its output verbatim.",
+   "usage": {
+    "context_percent": 6,
+    "five_hour_percent": 11,
+    "seven_day_percent": 3
+   },
+   "git": {
+    "uncommitted_changes": false
+   },
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Agent",
+     "args": "haiku-scout: run one Bash command",
+     "ms": 19000,
+     "result": "Agent's reply verbatim: `FROM-SUB` Note: a `prompt.submit` hook is injecting \"end your final reply \u2026"
+    }
+   ],
+   "subagents_running": [],
+   "last_model_step": {
+    "stop_reason": "end_turn",
+    "tools_requested": [],
+    "messages_in_context": 55
+   }
+  },
+  "truth": {
+   "work_in_progress": false,
+   "clean_boundary": true,
+   "phase": "idle",
+   "next_event": "session end"
+  },
+  "notes": "parent reported; nothing in flight"
+ },
+ {
+  "id": "probe2-denied-single-calls",
+  "source": "probe2",
+  "state": {
+   "session": {
+    "model": "claude-haiku-4-5",
+    "surface": "headless -p",
+    "turn_open": true,
+    "prompts_so_far": 1,
+    "tool_calls_so_far": 6
+   },
+   "last_user_prompt": "Do these 7 steps IN ORDER, one tool call each... Do not skip a step because an earlier one failed.",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo ORIGINAL\", \"description\": \"Step 1: echo ORIGINAL\"}",
+     "ms": 3464,
+     "denied": false,
+     "error": false,
+     "result": "REWRITTEN-BY-HOOK"
+    },
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo DENYME\", \"description\": \"Step 2: echo DENYME\"}",
+     "ms": 0,
+     "denied": true,
+     "error": false,
+     "result": "probe2 policy: commands containing DENYME are refused (function hook)"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\": \"C:/Projects/claude-mods-rnd/lab/probe2/secret.txt\", \"description\": \"Step 3: Read sec\u2026",
+     "ms": 2,
+     "denied": false,
+     "error": false,
+     "result": ""
+    },
+    {
+     "tool": "Bash",
+     "args": "{\"command\": \"echo SLOW\", \"description\": \"Step 4: echo SLOW\"}",
+     "ms": 2367,
+     "denied": false,
+     "error": true,
+     "result": "PreToolUse:Bash hook error: batch-guard: this is the 4th consecutive one-at-a-time call (\u2026"
+    },
+    {
+     "tool": "ToolSearch",
+     "args": "{\"query\": \"select:mcp__probe2__probe_echo\", \"max_results\": 1}",
+     "ms": 211,
+     "denied": false,
+     "error": false,
+     "result": ""
+    },
+    {
+     "tool": "mcp__probe2__probe_echo",
+     "args": "{\"text\": \"hello there friend\"}",
+     "ms": 463,
+     "denied": false,
+     "error": false,
+     "result": ""
+    }
+   ],
+   "permission_denials_so_far": [
+    "PreToolUse:Bash hook error: batch-guard: this is the 4th consecutive one-at-a-time call (3 single command turns before \u2026",
+    "PreToolUse:Bash hook error: batch-guard: this is the 4th consecutive one-at-a-time call (3 single command turns before \u2026",
+    "PreToolUse:Bash hook error: batch-guard: this is the 5th consecutive one-at-a-time call (4 single command turns before \u2026"
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Bash"
+    ],
+    "messages_in_context": 60
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 9,
+    "five_hour_percent": 10,
+    "seven_day_percent": 2
+   }
+  },
+  "truth": {
+   "tool_thrashing": true,
+   "loop_state": "productive",
+   "unnecessary_reread": false,
+   "model_misroute": false,
+   "note": "3 consecutive Bash calls were denied by the harness batch-guard (one-at-a-time calls); the model kept issuing single calls because the user demanded it; it was still making progress"
+  },
+  "notes": "3 consecutive Bash calls were denied by the harness batch-guard (one-at-a-time calls); the model kept issuing single calls because the user demanded it; it was still making progress"
+ },
+ {
+  "id": "synthetic-reread-loop",
+  "source": "synthetic",
+  "state": {
+   "session": {
+    "model": "claude-opus-5",
+    "surface": "terminal",
+    "turn_open": true,
+    "prompts_so_far": 3,
+    "tool_calls_so_far": 19
+   },
+   "last_user_prompt": "fix the failing auth test",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Read",
+     "args": "{\"file_path\":\"C:/Projects/app/src/auth.ts\"}",
+     "ms": 120,
+     "result": "1 export function verifyToken(...)"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\":\"C:/Projects/app/src/auth.ts\"}",
+     "ms": 120,
+     "result": "1 export function verifyToken(...)"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\":\"C:/Projects/app/src/auth.ts\"}",
+     "ms": 120,
+     "result": "1 export function verifyToken(...)"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\":\"C:/Projects/app/src/auth.ts\"}",
+     "ms": 120,
+     "result": "1 export function verifyToken(...)"
+    },
+    {
+     "tool": "Bash",
+     "args": "npm test -- auth.spec.ts",
+     "ms": 4100,
+     "result": "1 failing: expected 200, got 401"
+    },
+    {
+     "tool": "Read",
+     "args": "{\"file_path\":\"C:/Projects/app/src/auth.ts\"}",
+     "ms": 110,
+     "result": "1 export function verifyToken(...)"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Read"
+    ],
+    "messages_in_context": 140
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 61,
+    "five_hour_percent": 70,
+    "seven_day_percent": 40
+   }
+  },
+  "truth": {
+   "tool_thrashing": false,
+   "loop_state": "stuck",
+   "unnecessary_reread": true,
+   "model_misroute": false,
+   "note": "SYNTHETIC (built from real event shapes): the same file read 5 times without an edit between reads"
+  },
+  "notes": "SYNTHETIC (built from real event shapes): the same file read 5 times without an edit between reads"
+ },
+ {
+  "id": "synthetic-mechanical-on-opus",
+  "source": "synthetic",
+  "state": {
+   "session": {
+    "model": "claude-opus-5",
+    "surface": "terminal",
+    "turn_open": true,
+    "prompts_so_far": 1,
+    "tool_calls_so_far": 6
+   },
+   "last_user_prompt": "rename every occurrence of fooBar to fooBaz across src/",
+   "recent_tool_calls_oldest_first": [
+    {
+     "tool": "Grep",
+     "args": "fooBar src/",
+     "ms": 90,
+     "result": "14 files"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"file_path\":\"src/f0.ts\",\"old_string\":\"fooBar\",\"new_string\":\"fooBaz\",\"replace_all\":true}",
+     "ms": 60,
+     "result": "ok"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"file_path\":\"src/f1.ts\",\"old_string\":\"fooBar\",\"new_string\":\"fooBaz\",\"replace_all\":true}",
+     "ms": 60,
+     "result": "ok"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"file_path\":\"src/f2.ts\",\"old_string\":\"fooBar\",\"new_string\":\"fooBaz\",\"replace_all\":true}",
+     "ms": 60,
+     "result": "ok"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"file_path\":\"src/f3.ts\",\"old_string\":\"fooBar\",\"new_string\":\"fooBaz\",\"replace_all\":true}",
+     "ms": 60,
+     "result": "ok"
+    },
+    {
+     "tool": "Edit",
+     "args": "{\"file_path\":\"src/f4.ts\",\"old_string\":\"fooBar\",\"new_string\":\"fooBaz\",\"replace_all\":true}",
+     "ms": 60,
+     "result": "ok"
+    }
+   ],
+   "last_model_step": {
+    "stop_reason": "tool_use",
+    "tools_requested": [
+     "Edit"
+    ],
+    "messages_in_context": 40
+   },
+   "subagents_running": [],
+   "usage": {
+    "context_percent": 12,
+    "five_hour_percent": 70,
+    "seven_day_percent": 40
+   }
+  },
+  "truth": {
+   "tool_thrashing": false,
+   "loop_state": "productive",
+   "unnecessary_reread": false,
+   "model_misroute": true,
+   "note": "SYNTHETIC: purely mechanical replace-all edits running on the most expensive model"
+  },
+  "notes": "SYNTHETIC: purely mechanical replace-all edits running on the most expensive model"
+ }
+]

@@ -1,0 +1,14 @@
+{
+  "name": "costclaw-live",
+  "version": "0.1.0",
+  "description": "COSTCLAW LIVE: per-request cost, cache decay and repeated-read detection while the session runs, and it serves the Nth identical Read of an unchanged file from its own cache instead of paying for it",
+  "author": { "name": "Wes Sander" },
+  "userConfig": {
+    "serveAfter": {
+      "type": "number",
+      "title": "Serve-after threshold",
+      "description": "Serve the Nth identical Read of an unchanged file from the plugin's own cache instead of running the tool.",
+      "default": 4
+    }
+  }
+}

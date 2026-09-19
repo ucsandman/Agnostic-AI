@@ -1,0 +1,37 @@
+{
+ "backend": "stub",
+ "in": 0,
+ "out": 0,
+ "ms": 0,
+ "n": 11,
+ "per_question": {
+  "work_in_progress": [
+   8,
+   8
+  ],
+  "clean_boundary": [
+   8,
+   8
+  ],
+  "phase": [
+   7,
+   8
+  ],
+  "tool_thrashing": [
+   3,
+   3
+  ],
+  "loop_state": [
+   3,
+   3
+  ],
+  "unnecessary_reread": [
+   3,
+   3
+  ],
+  "model_misroute": [
+   3,
+   3
+  ]
+ }
+}

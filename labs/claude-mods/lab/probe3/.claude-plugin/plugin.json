@@ -1,0 +1,1 @@
+{ "name": "probe3", "version": "0.1.0", "description": "Permission override, subagent visibility, agent.spawn model rewrite, turn.step routing, prompt context injection" }

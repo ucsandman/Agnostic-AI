@@ -1,0 +1,12 @@
+{
+ "backend": "keyword",
+ "n_covered": 230,
+ "n_uncovered": 126,
+ "wrong_load": 0.9652,
+ "needless_load": 0.8333,
+ "wrong_load_hard_subset": 0.9868,
+ "n_hard": 152,
+ "tokens": 0,
+ "cost_usd": 0.0,
+ "seconds": 0.1
+}
