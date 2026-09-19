@@ -9,6 +9,7 @@ export const meta = {
   ],
 }
 
+// MAX_AGENTS: lenses + judgeLenses + 1 synthesizer (typical run 12 + 6 + 1 = 19); hard ceiling 30 enforced below
 const a = args || {}
 if (!a.brief || !Array.isArray(a.lenses) || !a.lenses.length) throw new Error('args.brief and args.lenses [{key, angle}] are required')
 
@@ -20,6 +21,10 @@ const JUDGE_LENSES = Array.isArray(a.judgeLenses) && a.judgeLenses.length ? a.ju
   'JUDGE AS A PRACTICING DOMAIN EXPERT: taste, coherence, whether it is distinctive versus generic, whether it holds up under real use.',
   'JUDGE AS THE IMPLEMENTING ENGINEER: can this be built well under the stated constraints? Punish concepts that only work as a mockup.',
 ]
+const MAX_AGENTS = 30
+const planned = a.lenses.length + JUDGE_LENSES.length + 1
+if (planned > MAX_AGENTS) throw new Error('tournament would spawn ' + planned + ' agents (' + a.lenses.length + ' candidates + ' + JUDGE_LENSES.length + ' judges + 1); ceiling ' + MAX_AGENTS + '. Cut lenses or judges.')
+log('agents planned: ' + a.lenses.length + ' candidates + ' + JUDGE_LENSES.length + ' judges + 1 synthesis = ' + planned + ' (ceiling ' + MAX_AGENTS + ')')
 const SYNTHESIS_TASK = a.synthesisTask || 'Produce the final, complete IMPLEMENTATION SPEC: resolve all judge feedback, mitigate the stated risks, re-read the actual source files in the brief so every instruction maps onto real code, and give a build order with what to verify after each step. One long markdown document; the implementer should never have to invent a value.'
 
 const CANDIDATE = a.schema || {
