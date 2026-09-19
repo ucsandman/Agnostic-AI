@@ -1,3 +1,5 @@
+> **Archived 2026-09-19.** This curated mirror is retired: the harness it mirrored now lives in one public repository, [ucsandman/Agnostic-AI](https://github.com/ucsandman/Agnostic-AI) (hooks in `engine/hooks`, tools, Mods, agents, workflows, rules and docs; this mirror's snapshot is `examples/installed-harness` there). Nothing syncs here any more.
+
 # claude-harness
 
 **The Claude Code setup I run every day, mirrored public.** Incident-born guard
