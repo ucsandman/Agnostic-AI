@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-09-19: claude-harness is the same repository again; README for the whole tree
+
+- `ucsandman/claude-harness` (24 stars) is a push mirror of `master` instead of
+  an archive: its history was joined as an ancestor, `git push claude-harness`
+  fast-forwards it, `npm run doctor` fails on `mirror-current` when it is
+  behind. `.github/FUNDING.yml` came along.
+- README rewritten to describe every directory, hook, module, tool, job, agent
+  and workflow from source, with a contents list and the doctor's checks. Its
+  word ceiling in `tools/gates/budgets.json` rose from 2200 to 4500 for that.
+
 ### 2026-09-19: slow sessions were process spawns, not the model
 
 - `tools/hook-latency/`: hookpar, hooktime, usage, cachetrace, memmap. Wall
