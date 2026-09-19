@@ -79,7 +79,7 @@ async function fetchJson(url) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': 'slopsquat-guard/1 (claude-harness hook)', accept: 'application/json' } });
+    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': 'slopsquat-guard/1 (agnostic-ai hook)', accept: 'application/json' } });
     if (r.status === 404) return { missing: true };
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return { json: await r.json() };

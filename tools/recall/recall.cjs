@@ -7,7 +7,7 @@
  * separate greps.
  *
  * Sources:
- *   1. memory  — C:\Users\sandm\.claude\projects\<slug>\memory\*.md
+ *   1. memory  — ~/.claude/projects\<slug>\memory\*.md
  *   2. docs    — C:\Projects\<repo>\docs\DECISIONS.md / ERRORS.md
  *   3. archive — C:\Projects\archives\claude-mem-2026-08-11\data\*.jsonl
  *

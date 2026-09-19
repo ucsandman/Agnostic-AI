@@ -24,7 +24,7 @@ Output: `recall.html` in this directory (generated — do not hand-edit, see
 
 ## Sources
 
-1. **memory** — `C:\Users\sandm\.claude\projects\<slug>\memory\*.md`, every
+1. **memory** — `~/.claude/projects\<slug>\memory\*.md`, every
    project slug. Each file's YAML frontmatter (`name`, `description`, `type`,
    `modified`) is parsed with a minimal line-based reader (not a full YAML
    parser — these files only ever use single-line frontmatter values, so a

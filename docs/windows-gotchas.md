@@ -21,8 +21,8 @@ tool failure, before improvising. Add new entries when a new one is solved.
 2. **The Bash tool rewrites `/c` → `C:/` inside command args.** `cmd /c exit` silently
    became `cmd C:/ exit` and looked like a tool bug. Suspect path mangling before
    debugging the target. (shard_023)
-3. **Native node misreads MSYS `$HOME`.** Under Git Bash, `$HOME=/c/Users/sandm` is
-   read by node as `C:\c\Users\sandm` — this silently broke the entire pre-commit
+3. **Native node misreads MSYS `$HOME`.** Under Git Bash, `$HOME=/c/Users/<you>` is
+   read by node as `C:\c\Users\<you>` — this silently broke the entire pre-commit
    chain. In node hooks, resolve the home dir from `USERPROFILE`, never `$HOME`.
    (shard_023)
 4. **PowerShell 5.1 + native exes with embedded quotes** (schtasks, taskkill, reg,
@@ -31,7 +31,7 @@ tool failure, before improvising. Add new entries when a new one is solved.
 5. **8191-char command-line limit.** Passing a 559KB JS file as a CLI eval argument
    fails. Serve large payloads over a local HTTP endpoint instead. (shard_001)
 6. **`git rev-parse --show-toplevel` returns a Windows path, `$HOME` is POSIX.**
-   `C:/Users/sandm/.claude` never equals `/c/Users/sandm/.claude`, so a hook
+   `C:/Users/<you>/.claude` never equals `/c/Users/<you>/.claude`, so a hook
    gated on that comparison exits silently and looks like it passed. Normalise
    both sides with `cd "$dir" && pwd` before comparing. (2026-08-17)
 7. **ESM cannot import a Windows absolute path.** Node 24 will run a repo's own

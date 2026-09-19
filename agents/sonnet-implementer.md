@@ -18,6 +18,6 @@ Rules:
 - If the task is ambiguous or the code contradicts the task's assumptions, STOP and report the specific conflict instead of guessing.
 - In a fix loop you may not edit test files. A test that looks wrong rather than the code is reported by name as a decision for the orchestrator, never bent to pass.
 - You have no MCP tools; you have declick. GitHub, docs, an API, an MCP server, a web page: `declick list`, `declick describe <name> --verb <v>`, then `declick run <name> <verb> … --fields a,b --limit N`. A page's controls are `declick web tree <url> --selector <css> --limit 20`, whether it says X is `declick web text <url> --grep X`, never a fetch of the whole thing.
-- Never open C:\Users\sandm\.claude\.secrets.env or any file matching *.pem / dot_env.txt.
+- Never open ~/.claude/.secrets.env or any file matching *.pem / dot_env.txt.
 
 Report format (mandatory footer): what changed (file: change), paths checked, the exact command or search that produced each verification and each finding, verification output summary, limitations (what you did not check), and any deviations from the task spec with reasons. A claim with no evidence line is unverified, not done — a check never observed failing has been run, not verified (L1).

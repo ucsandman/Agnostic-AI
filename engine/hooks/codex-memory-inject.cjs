@@ -56,7 +56,7 @@ function listMd(dir) {
 }
 
 // Claude Code's project slug: every non-alphanumeric character of the absolute
-// cwd becomes '-' (C:\Users\sandm\.codex -> C--Users-sandm--codex).
+// cwd becomes '-' (C:\Users\<you>\.codex -> C--Users-<you>--codex).
 function projectSlug(cwd) {
   return String(cwd || '').replace(/^\\\\\?\\/, '').replace(/[^A-Za-z0-9]/g, '-');
 }

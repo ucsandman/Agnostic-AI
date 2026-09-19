@@ -25,7 +25,7 @@ const CASES = [
   ['Bash', 'rm -rf node_modules dist', 'ALLOW'],
   ['Bash', 'rm -rf ./build/', 'ALLOW'],
   ['Bash', 'rm -f package-lock.json', 'ALLOW'],               // not recursive
-  ['Bash', 'rm -rf C:/Users/sandm/AppData/Local/Temp/claude/x/scratchpad/out', 'ALLOW'],
+  ['Bash', 'rm -rf C:/Users/x/AppData/Local/Temp/claude/x/scratchpad/out', 'ALLOW'],
   ['PowerShell', 'Remove-Item -Recurse -Force node_modules', 'ALLOW'],
   ['PowerShell', 'Remove-Item foo.txt', 'ALLOW'],
   ['Bash', 'echo "never run rm -rf /"', 'ALLOW'],            // prose, not command position

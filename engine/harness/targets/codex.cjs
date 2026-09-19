@@ -41,10 +41,10 @@ const TOOL_MAP = {
 
 const HANDLER_KEYS = ['type', 'command', 'timeout', 'statusMessage', 'async', 'additionalContextLimit'];
 
-// The personal predecessor of this adapter (~/.claude/tools/harness-sync/sync.cjs)
+// The personal predecessor of this adapter (a retired per-machine sync script)
 // wrote its own regions into the same file. Remove them so the two do not fight.
-const LEGACY_HOOK_REGION = /\n*# >>> harness-sync hook trust start[\s\S]*?# <<< harness-sync hook trust end\n?/g;
-const LEGACY_SKILL_REGION = /\n*# >>> harness-sync skills start[\s\S]*?# <<< harness-sync skills end\n?/g;
+const LEGACY_HOOK_REGION = /\n*# >>> harness-sync hook trust start[\s\S]*?# <<< harness-sync hook trust end\n?/g; // old-ref-ok: markers still present in installed configs
+const LEGACY_SKILL_REGION = /\n*# >>> harness-sync skills start[\s\S]*?# <<< harness-sync skills end\n?/g; // old-ref-ok: markers still present in installed configs
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -423,7 +423,7 @@ function hooks(ctx) {
     const stray = strayStateRegex(configFile);
     if (LEGACY_HOOK_REGION.test(text)) {
       LEGACY_HOOK_REGION.lastIndex = 0;
-      dropped.push({ item: 'harness-sync hook trust region', reason: 'replaced legacy harness-sync region' });
+      dropped.push({ item: 'legacy hook trust region', reason: 'replaced legacy region' });
     }
     LEGACY_HOOK_REGION.lastIndex = 0;
     const clean = (t) => t.replace(LEGACY_HOOK_REGION, '\n').replace(stray, '');
@@ -553,7 +553,7 @@ function skills(ctx) {
       const text = readText(configFile) || '';
       if (LEGACY_SKILL_REGION.test(text)) {
         LEGACY_SKILL_REGION.lastIndex = 0;
-        dropped.push({ item: 'harness-sync skills region', reason: 'replaced legacy harness-sync region' });
+        dropped.push({ item: 'legacy skills region', reason: 'replaced legacy region' });
       }
       LEGACY_SKILL_REGION.lastIndex = 0;
       const next = upsertRegion(text, common.regionMarkers('skills'), body, (t) => t.replace(LEGACY_SKILL_REGION, '\n'));

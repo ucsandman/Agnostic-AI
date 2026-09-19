@@ -6,7 +6,7 @@
  *
  * ============================================================================
  * HARD RULE: this tool NEVER opens, reads, cats, streams, or parses the
- * CONTENTS of C:\Users\sandm\.claude\.secrets.env or any other .env file.
+ * CONTENTS of ~/.claude/.secrets.env or any other .env file.
  * Existence, size, and mtime come from fs.stat ONLY. The one exception is
  * .env.example files, which are placeholders (no real secrets) and may be
  * read to extract variable NAMES only. No env var VALUE is ever printed,

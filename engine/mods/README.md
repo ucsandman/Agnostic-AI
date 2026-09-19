@@ -1,7 +1,7 @@
 # ~/.claude/mods — the harness's Function Hooks (Mods) layer
 
 Two installed plugins from the local marketplace in this directory, one mode config, one state dir.
-Promoted from `C:\Projects\claude-mods-rnd` on 2026-09-16 against Claude Code 2.1.273.
+Promoted from the claude-mods research record (now `labs/claude-mods`) on 2026-09-16 against Claude Code 2.1.273.
 
 ```
 mods/
@@ -66,7 +66,7 @@ claude plugin validate ~/.claude/mods/harness-mods --json    the loader's static
 - one guard, every session: set it to `"classic"` in `mods-config.json`
 - one session: `HARNESS_MOD_ROUTING=classic` (`_CONTEXT_NUDGE`, `_SECRET_REDACTION`, `_SUBAGENT_ACCOUNTING`, `_READ_CACHE`) or `HARNESS_MODS=off`
 - the layer: `claude plugin disable harness-mods@harness-mods` (`claude-runtime@harness-mods` may stay; it only observes)
-- a Claude update: a **minor/major** change (2.1.x to 2.2.x) fails `version` until you re-run `C:\Projects\claude-mods-rnd\lab\probe*` and repin, because event shapes can move. A **patch** change (2.1.273 to 2.1.274) is a warning, not a failure, provided the in-session capability probe is clean on the installed build: all 9 of `EXPECTED_SUPPORTS` answering true is direct evidence the API the Mod depends on is intact, where the version string is only a proxy for it. Clear a stale pin with `node ~/.claude/mods/canary.cjs --repin`, which refuses unless both the canary and the probe are clean and updates `canary.cjs` and `canary.mjs` together. Changed 2026-09-17: the old exact-match pin went red on every patch release, and a canary that cries wolf gets ignored.
+- a Claude update: a **minor/major** change (2.1.x to 2.2.x) fails `version` until you re-run `labs/claude-mods/lab/probe*` and repin, because event shapes can move. A **patch** change (2.1.273 to 2.1.274) is a warning, not a failure, provided the in-session capability probe is clean on the installed build: all 9 of `EXPECTED_SUPPORTS` answering true is direct evidence the API the Mod depends on is intact, where the version string is only a proxy for it. Clear a stale pin with `node ~/.claude/mods/canary.cjs --repin`, which refuses unless both the canary and the probe are clean and updates `canary.cjs` and `canary.mjs` together. Changed 2026-09-17: the old exact-match pin went red on every patch release, and a canary that cries wolf gets ignored.
 
 ## Invariants (checked by tests)
 

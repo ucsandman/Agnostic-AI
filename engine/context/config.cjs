@@ -33,6 +33,11 @@ function expand(p, vars = {}) {
 /** Claude Code's project slug: every path separator, colon or dot becomes `-` (C:\Users\x\.claude -> C--Users-x--claude). */
 function slugOf(cwd) { return String(cwd || '').replace(/[:\\/.]/g, '-'); }
 
+function realDir(file) {
+  const dir = path.dirname(file);
+  try { return fs.realpathSync.native(dir); } catch (_) { return dir; }
+}
+
 function load(file) {
   let raw = {};
   if (file && fs.existsSync(file)) raw = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -44,7 +49,9 @@ function load(file) {
     // A relative root path is relative to the config file, so a default config shipped inside a
     // repository works from any checkout location; `~`, `{slug}`, `{cwd}` and `{homeSlug}` stay
     // placeholders until concreteRoots().
-    roots: (Array.isArray(raw.roots) ? raw.roots : []).map((r) => (r && typeof r.path === 'string' && file && !/^(~|\{|[\/]|[A-Za-z]:)/.test(r.path)) ? { ...r, path: path.resolve(path.dirname(file), r.path) } : r),
+    // A relative root is relative to the config file's REAL directory: read through a link
+    // (~/.claude/hooks -> <repo>/engine/hooks) the link's parent has no core/ or docs/.
+    roots: (Array.isArray(raw.roots) ? raw.roots : []).map((r) => (r && typeof r.path === 'string' && file && !/^(~|\{|[\/]|[A-Za-z]:)/.test(r.path)) ? { ...r, path: path.resolve(realDir(file), r.path) } : r),
     file: file || null,
   };
   return cfg;

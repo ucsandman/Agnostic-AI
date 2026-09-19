@@ -1,6 +1,6 @@
 // secret-patterns.mjs — GENERATED COPY of ~/.claude/hooks/lib/secret-patterns.cjs (a hooks module may
 // import only its own files). tests/redact.test.mjs fails when the two drift; regenerate with:
-//   node C:/Users/sandm/.claude/mods/harness-mods/tests/gen-patterns.cjs
+//   node engine/mods/harness-mods/tests/gen-patterns.cjs
 export const PATTERNS = [
   ["anthropic", /\bsk-ant-[A-Za-z0-9_-]{24,}/g],
   ["openai", /\bsk-(?:proj-)?[A-Za-z0-9]{32,}/g],

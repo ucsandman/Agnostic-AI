@@ -10,4 +10,4 @@ context:
 ---
 # Parallel agents and the inbox (loaded on demand)
 
-Applies when another agent shares this repo or `~\clawd\agent-comms\inbox\` holds a file addressed to you. Check the inbox at the start of any session touching a shared repo. Claim a task before touching it (`[IN PROGRESS] - Claimed by <Agent>`). Arm `scope-lock <dir>` in shared repos. Pull before reading/editing, push after writing; commit format `AgentName: [TYPE] brief description`. Max 3 active messages per inbox. The full protocol: `C:/Users/sandm/clawd/agent-comms/TEAM_PROTOCOL.md`.
+Applies when another agent shares this repo or `~\clawd\agent-comms\inbox\` holds a file addressed to you. Check the inbox at the start of any session touching a shared repo. Claim a task before touching it (`[IN PROGRESS] - Claimed by <Agent>`). Arm `scope-lock <dir>` in shared repos. Pull before reading/editing, push after writing; commit format `AgentName: [TYPE] brief description`. Max 3 active messages per inbox. The full protocol: `~/clawd/agent-comms/TEAM_PROTOCOL.md`.

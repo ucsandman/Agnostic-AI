@@ -15,7 +15,7 @@ Check wiring with `node ~/.claude/tools/gates/gates.cjs hook-wiring`.
 
 ## Global git pre-commit
 
-`core.hooksPath` = `C:/Users/sandm/.claude/git-hooks`.
+`core.hooksPath` = `~/.claude/git-hooks`.
 
 Order:
 

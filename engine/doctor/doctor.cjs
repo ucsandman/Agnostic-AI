@@ -43,7 +43,9 @@ const trackedFiles = () => {
 const isText = (f) => /\.(cjs|mjs|js|ts|tsx|json|md|ps1|sh|py|vbs|yml|yaml|toml|txt|html)$/i.test(f);
 
 const RETIRED = ['claude-harness', 'claude-mods-rnd', 'mirror-sync', 'mirror-sweep', 'harness-sync', 'markdown-agent-memory/scripts', 'claude-commands'];
-const RETIRED_EXEMPT = /^(docs\/PROVENANCE\.md|docs\/migration|CHANGELOG\.md|labs\/|examples\/|storage\/|engine\/doctor\/)/;
+const RETIRED_EXEMPT = /^(docs\/PROVENANCE\.md|docs\/DECISIONS\.md|docs\/decisions\/|docs\/migration|CHANGELOG\.md|labs\/|examples\/|storage\/|engine\/doctor\/)/;
+// A line that must keep a retired name (a legacy marker the engine still strips) says so: `old-ref-ok: <why>`.
+const OLD_REF_OK = /old-ref-ok/;
 
 function settingsHooks() {
   const s = readJSON(path.join(CHOME, 'settings.json')) || {};
@@ -72,6 +74,7 @@ check('hook-wiring', 'settings.json hook commands resolve into this repository',
   for (const h of hooks) {
     const s = scriptOf(h.command);
     if (RETIRED.some((r) => h.command.includes(r))) { retired++; lines.push(`RETIRED ${h.event} ${h.command.slice(0, 90)}`); }
+    if (/(?:^|\s)-(?:Command|c|e)(?:\s|$)/.test(h.command)) continue; // an inline script (`powershell -Command ...`), not a file
     if (!s || !/[\\/]/.test(s)) continue; // `rtk hook claude`, `py -m module`: not a file path
     if (!fs.existsSync(s)) { missing++; lines.push(`MISSING ${h.event} ${norm(s)}`); continue; }
     const real = norm(realOr(s));
@@ -114,14 +117,17 @@ check('old-refs', 'no tracked code or config names a retired repository', () => 
   const hits = [];
   for (const f of files) {
     let t; try { t = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (_) { continue; }
-    for (const r of RETIRED) if (t.includes(r)) hits.push(`${f}: ${r}`);
+    const kept = t.split('\n').filter((l) => !OLD_REF_OK.test(l)).join('\n');
+    for (const r of RETIRED) if (kept.includes(r)) hits.push(`${f}: ${r}`);
   }
   return { ok: hits.length === 0, count: files.length, lines: hits.length ? hits.slice(0, 25) : [`${files.length} tracked files scanned, 0 retired references`] };
 });
 
 check('private-boundary', 'no tracked file outside labs/ carries a machine-absolute home path', () => {
   const files = trackedFiles().filter((f) => isText(f) && !/^(labs\/|docs\/PROVENANCE\.md|CHANGELOG\.md|examples\/|storage\/)/.test(f));
-  const re = /(?:[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"']+|\/(?:home|Users)\/[^\\/\s"']+)[\\/]/g;
+  // Only this machine's real account name is a leak; `C:\Users\<you>` and `/home/x` are placeholders.
+  const me = path.basename(os.homedir()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?:[A-Za-z]:[\\\\/]+Users[\\\\/]+${me}|/(?:home|Users)/${me})[\\\\/]`, 'g');
   const hits = [];
   for (const f of files) {
     let t; try { t = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (_) { continue; }
@@ -169,7 +175,9 @@ check('context-graph', 'the context module graph lints clean', () => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'engine', 'context', 'cli.cjs'), 'graph'], { cwd: ROOT, encoding: 'utf8' });
   const out = (r.stdout + r.stderr).trim().split('\n');
   const modules = (/(\d+) module/.exec(out.join('\n')) || [0, '?'])[1];
-  return { ok: r.status === 0, count: Number(modules) || 0, lines: [out.slice(-3).join(' | ').slice(0, 200) || `graph exit ${r.status}`] };
+  const errors = out.filter((l) => /^s*(error|✗|FAIL)/.test(l)), warns = out.filter((l) => /^s*warn/.test(l));
+  const ok = errors.length === 0 && (r.status === 0 || warns.length > 0);
+  return { ok, warn: ok && warns.length > 0, count: Number(modules) || 0, lines: errors.length ? errors.slice(0, 5) : warns.length ? [`${warns.length} lint warning(s): ` + warns.map((w) => w.trim().slice(0, 90)).join(' | ').slice(0, 300)] : [out.slice(-1).join('').slice(0, 200) || `graph exit ${r.status}`] };
 });
 
 check('deps', 'node >= 18, git, and the interpreters hooks need', () => {
@@ -181,8 +189,12 @@ check('deps', 'node >= 18, git, and the interpreters hooks need', () => {
   const cmds = settingsHooks().map((h) => h.command);
   const need = new Set();
   for (const c of cmds) { const m = /^(node|python|py|pwsh|powershell|rtk)\b/.exec(c); if (m) need.add(m[1]); }
-  for (const c of need) if (c !== 'node' && !has(c, c === 'py' ? ['-3', '--version'] : c === 'rtk' ? ['--version'] : ['--version'])) { lines.push(`${c} is registered in settings.json hooks but not on PATH`); ok = false; }
-  if (cmds.some((c) => c.includes('context_handoff_bundle')) && spawnSync('py', ['-3.12', '-c', 'import context_handoff_bundle'], { encoding: 'utf8', shell: true }).status !== 0) { lines.push('context_handoff_bundle hooks registered but the package does not import (pip install context-handoff-bundle)'); ok = false; }
+  // Windows PowerShell 5.1 has no --version flag; `-Command exit 0` proves the shell runs.
+  const probeArgs = (c) => c === 'py' ? ['-3', '--version'] : /^(pwsh|powershell)$/.test(c) ? ['-NoProfile', '-Command', 'exit 0'] : ['--version'];
+  for (const c of need) if (c !== 'node' && !has(c, probeArgs(c))) { lines.push(`${c} is registered in settings.json hooks but not on PATH`); ok = false; }
+  // The handoff hook names its own interpreter (`py -3.12 -m context_handoff_bundle...`); probe that one, quoted for the shell.
+  const handoff = cmds.map((c) => /^((?:py\s+-\S+|python\S*))\s+-m\s+context_handoff_bundle/.exec(c)).find(Boolean);
+  if (handoff && spawnSync(`${handoff[1]} -c "import context_handoff_bundle"`, { encoding: 'utf8', shell: true }).status !== 0) { lines.push(`context_handoff_bundle hooks registered but ${handoff[1]} cannot import it (pip install context-handoff-bundle)`); ok = false; }
   if (!lines.length) lines.push(`node ${process.versions.node}, git, ${[...need].join(', ') || 'no other interpreters'}`);
   return { ok, count: need.size + 2, lines };
 });

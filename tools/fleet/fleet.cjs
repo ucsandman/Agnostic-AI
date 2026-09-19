@@ -4,7 +4,7 @@
 /*
  * fleet.cjs — Claude Code session monitor.
  *
- * Scans C:\Users\sandm\.claude\projects\<slug>\<session-uuid>.jsonl transcripts,
+ * Scans ~/.claude/projects\<slug>\<session-uuid>.jsonl transcripts,
  * finds sessions active in the last 24h, and renders fleet.html showing which
  * sessions are live, what each is doing, and how heavy each is.
  *

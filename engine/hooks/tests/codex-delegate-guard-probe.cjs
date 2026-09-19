@@ -39,7 +39,7 @@ check('astra ASTRA_OK override allowed', decision(run(pre(ASTRA, 'Bash', { comma
 check('terra child shell redirect allowed', decision(run(pre(TERRA, 'Bash', { command: 'echo hi > src/a.ts' }))), 'allow');
 check('astra small patch allowed', decision(run(pre(ASTRA, 'apply_patch', { command: patch('src/a.ts', 5) }))), 'allow');
 check('astra 200-line patch denied', decision(run(pre(ASTRA, 'apply_patch', { command: patch('src/b.ts', 200) }))), 'deny');
-check('astra big patch under ~/.claude allowed', decision(run(pre(ASTRA, 'apply_patch', { command: patch('C:/Users/sandm/.claude/x.md', 200) }))), 'allow');
+check('astra big patch under ~/.claude allowed', decision(run(pre(ASTRA, 'apply_patch', { command: patch(`${os.homedir().replace(/\\/g, '/')}/.claude/x.md`, 200) }))), 'allow');
 check('terra 200-line patch allowed', decision(run(pre(TERRA, 'apply_patch', { command: patch('src/b.ts', 200) }))), 'allow');
 for (let i = 0; i < 12; i++) run(pre(ASTRA, 'apply_patch', { command: patch('src/a.ts', 1) }, 't2'));
 check('astra 13th patch in a turn denied', decision(run(pre(ASTRA, 'apply_patch', { command: patch('src/a.ts', 1) }, 't2'))), 'deny');

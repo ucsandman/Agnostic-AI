@@ -4,7 +4,7 @@
 /*
  * spend.cjs — Claude Code token/dollar spend ledger.
  *
- * Scans C:\Users\sandm\.claude\projects\<slug>\<session-uuid>.jsonl transcripts
+ * Scans ~/.claude/projects/<slug>/<session-uuid>.jsonl transcripts
  * for assistant `message.usage` records and renders spend.html + a terminal
  * summary showing tokens and estimated dollars per day, per model, per
  * session. Built after two billing incidents (claude-mem $227,

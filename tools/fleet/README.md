@@ -32,7 +32,7 @@ Slugs containing `Temp` (scratchpad/temp working dirs) are marked with a
 
 ## Data source and the tail-read design constraint
 
-Transcripts live at `C:\Users\sandm\.claude\projects\<project-slug>\<session-uuid>.jsonl`.
+Transcripts live at `~/.claude/projects\<project-slug>\<session-uuid>.jsonl`.
 There are 488+ of these files, most old, some over 100 MB. To keep `fleet.cjs`
 fast and cheap:
 

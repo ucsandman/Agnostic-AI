@@ -107,4 +107,4 @@ sabotages the chain fixture so the first check fails: a green run under
 `--break` means the suite stopped looking.
 
 Claude Code wiring, budgets and the ledger: `~/.claude/docs/context-graph.md`
-in the harness (mirrored at github.com/ucsandman/claude-harness).
+in the harness (`docs/context-graph.md` in this repository).

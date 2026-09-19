@@ -59,7 +59,7 @@ started a week ago can still surface an older day in the per-day table.
 
 ## Data source and the usage-record shape
 
-Transcripts live at `C:\Users\sandm\.claude\projects\<project-slug>\<session-uuid>.jsonl`.
+Transcripts live at `~/.claude/projects/<project-slug>/<session-uuid>.jsonl`.
 Each line is a JSON record; assistant records carry `message.model` (e.g.
 `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`) and `message.usage`:
 

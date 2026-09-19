@@ -31,7 +31,7 @@ it. Exit `1` only if the scan itself cannot run at all.
 ## What gets scanned
 
 Every immediate subdirectory of `C:\Projects\` that contains a `.git`, plus
-`C:\Users\sandm\.claude` itself.
+`~/.claude` itself.
 
 ## Per repo
 

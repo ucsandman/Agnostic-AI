@@ -5,7 +5,7 @@
  * gitradar.cjs — status board of every git repo on this machine.
  *
  * Scans every immediate subdirectory of C:\Projects\ that contains a .git,
- * plus C:\Users\sandm\.claude itself, and reports per repo: branch, dirty
+ * plus ~/.claude itself, and reports per repo: branch, dirty
  * count, unpushed commits, gone branches, last-commit age.
  *
  * Founding bug: a six-repo sweep once reported "0 commits in 24h" across
@@ -22,7 +22,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const PROJECTS_DIR = 'C:\\Projects';
-const EXTRA_REPOS = ['C:\\Users\\sandm\\.claude'];
+const EXTRA_REPOS = [process.env.CLAUDE_CONFIG_DIR || path.join(require('os').homedir(), '.claude')];
 const OUT_HTML = path.join(__dirname, 'gitradar.html');
 
 function htmlEscape(s) {

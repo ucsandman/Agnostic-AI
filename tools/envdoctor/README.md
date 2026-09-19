@@ -20,7 +20,7 @@ because of that gap:
 ## The hard rule
 
 envdoctor never opens, reads, cats, streams, or parses the **contents** of
-`C:\Users\sandm\.claude\.secrets.env` or any other `.env` file. Existence,
+`~/.claude/.secrets.env` or any other `.env` file. Existence,
 size, and mtime come from `fs.stat` only. `.env.example` files are the one
 exception — they're placeholders, not secrets, so their variable **names**
 may be read. No env var **value** is ever printed, logged, or written
@@ -41,7 +41,7 @@ see `.gitignore`).
 ## Checks
 
 1. **`.secrets.env` presence** — `fs.stat` on
-   `C:\Users\sandm\.claude\.secrets.env`: present, size > 0, mtime shown.
+   `~/.claude/.secrets.env`: present, size > 0, mtime shown.
    WARN if missing or empty.
 2. **`BASH_ENV` wiring** — reads `settings.json` / `settings.local.json`
    (config files, not `.env`) to find how `BASH_ENV` is set, resolves the
