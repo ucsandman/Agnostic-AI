@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Context graph: command signals, suggest, dynamic-recall absorbed** (2026-09-19).
+  `triggers.commands` makes a shell command a selection signal (substring, +3), so the
+  three tips the Claude Code hook `dynamic-recall.cjs` used to inject are now modules
+  (`core/rules/modules/seo-floor.md`, `secrets-non-negotiable.md`, `harness-integrity.md`)
+  and that hook is retired. `cli.cjs suggest --days N` reads the ledger and prints the exact
+  `suggests:` line for module pairs co-loaded 3+ times across 2+ sessions with no edge yet
+  (the recurrence gate; signals over 30 days count half). 42 checks.
 - **Semantic context graph** (`engine/context/`, 2026-09-19). Durable context
   as modules with declared dependencies: `context:` frontmatter (`requires`,
   `suggests`, `triggers`, `scope`, `clients`, `priority`, `stale_after`,
