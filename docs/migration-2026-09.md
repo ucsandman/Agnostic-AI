@@ -8,7 +8,7 @@ On 2026-09-19 the harness went from five repositories partially owning one syste
 |---|---|---|
 | `claude-config` (`~/.claude`, private) | hooks, tools, Mods, agents, workflows, jobs, docs, rules profile, memory, settings | stays private; now the overlay only (`overlay/`, memory, meditations, commands, settings, generated `CLAUDE.md`) |
 | `agnostic-ai` (public) | the port engine, the rules compiler, two engine guards, the context graph | the canonical repository: everything portable moved in |
-| `claude-harness` (public mirror) | a curated copy of `~/.claude`, refreshed by a sync script 36 times | retired; its snapshot is `examples/installed-harness`; ready to archive |
+| `claude-harness` (public mirror) | a curated copy of `~/.claude`, refreshed by a sync script 36 times | its last curated snapshot is `examples/installed-harness`; since 2026-09-19 it is a push mirror of this repository (same commits, the name it was starred under), kept current by `git push claude-harness` on every ship and checked by the doctor |
 | `claude-mods-rnd` (private) | the Mods research record, prototypes, lab, experiments | code and record moved to `labs/claude-mods`; the two production Mods to `engine/mods`; experiment data stays private there; ready to archive |
 | `markdown-agent-memory` (public) | memory policy, templates, install prompt, the linter | `packages/markdown-agent-memory` and `tools/memory-lint`; ready to archive |
 | `claude-commands` (public) | slash commands, as a submodule of `~/.claude` | absorbed into the overlay as plain files; ready to archive |

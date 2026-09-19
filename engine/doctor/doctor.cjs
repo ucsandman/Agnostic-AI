@@ -20,6 +20,7 @@
  *   context-graph    the module graph lints clean (no cycles, no broken required edges)
  *   deps             node >= 18, git, and the interpreters settings.json hooks need
  *   jobs             (win32) scheduled tasks pointing at retired paths
+ *   mirror-current   the starred public mirror (claude-harness/main) is at origin/master
  */
 'use strict';
 const fs = require('fs');
@@ -42,7 +43,8 @@ const trackedFiles = () => {
 };
 const isText = (f) => /\.(cjs|mjs|js|ts|tsx|json|md|ps1|sh|py|vbs|yml|yaml|toml|txt|html)$/i.test(f);
 
-const RETIRED = ['claude-harness', 'claude-mods-rnd', 'mirror-sync', 'mirror-sweep', 'harness-sync', 'markdown-agent-memory/scripts', 'claude-commands'];
+// claude-harness is not retired: since 2026-09-19 it is the push mirror of this repository (see mirror-current).
+const RETIRED = ['claude-mods-rnd', 'mirror-sync', 'mirror-sweep', 'harness-sync', 'markdown-agent-memory/scripts', 'claude-commands'];
 const RETIRED_EXEMPT = /^(docs\/PROVENANCE\.md|docs\/DECISIONS\.md|docs\/decisions\/|docs\/migration|CHANGELOG\.md|labs\/|examples\/|storage\/|engine\/doctor\/)/;
 // A line that must keep a retired name (a legacy marker the engine still strips) says so: `old-ref-ok: <why>`.
 const OLD_REF_OK = /old-ref-ok/;
@@ -214,6 +216,19 @@ check('jobs', 'scheduled tasks do not point at retired paths (win32)', () => {
   const dead = rows.filter((l) => { const m = /"([^"]+\.(?:cjs|ps1|sh|vbs|py))"/.exec(l) || /(\S+\.(?:cjs|ps1|sh|vbs|py))/.exec(l); return m && /[\\/]/.test(m[1]) && !fs.existsSync(m[1]); });
   const lines = [...bad.map((l) => `RETIRED ${l.slice(0, 110)}`), ...dead.map((l) => `MISSING ${l.slice(0, 110)}`)];
   return { ok: true, warn: lines.length > 0, count: rows.length, lines: lines.length ? lines : [`${rows.length} root tasks, none retired or missing`] };
+});
+
+check('mirror-current', 'the starred public mirror (claude-harness/main) is at origin/master', () => {
+  const git = (args, timeout) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', timeout });
+  const url = git(['config', '--get', 'remote.claude-harness.url']);
+  if (url.status !== 0 || !url.stdout.trim()) return { ok: false, count: 0, lines: ['no claude-harness remote: git remote add claude-harness https://github.com/ucsandman/claude-harness.git && git config remote.claude-harness.push refs/heads/master:refs/heads/main'] };
+  const head = (remote, ref) => { const r = git(['ls-remote', remote, ref], 20000); return r.status === 0 ? (r.stdout.split(/\s/)[0] || '') : ''; };
+  const o = head('origin', 'refs/heads/master'), m = head('claude-harness', 'refs/heads/main');
+  if (!o || !m) return { ok: true, warn: true, count: (o ? 1 : 0) + (m ? 1 : 0), lines: [`${(o ? 1 : 0) + (m ? 1 : 0)} of 2 remote heads read (offline?); not checked`] };
+  if (o === m) return { ok: true, count: 2, lines: [`origin/master and claude-harness/main both at ${o.slice(0, 7)}`] };
+  const behind = git(['rev-list', '--count', `${m}..${o}`]);
+  const n = behind.status === 0 ? behind.stdout.trim() : '?';
+  return { ok: false, count: 2, lines: [`claude-harness/main ${m.slice(0, 7)} is ${n} commit(s) behind origin/master ${o.slice(0, 7)}: git push claude-harness`] };
 });
 
 function run() {
