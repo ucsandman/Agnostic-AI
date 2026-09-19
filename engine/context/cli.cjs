@@ -144,7 +144,7 @@ function report(file, args, cfg, graph) {
   let rows = [];
   try { rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((r) => r && Date.parse(r.ts) >= since); } catch { rows = []; }
   const sessions = new Set(rows.map((r) => r.session));
-  const agg = { rows: rows.length, sessions: sessions.size, loaded: 0, loadedTokens: 0, deduped: 0, dedupedTokens: 0, rejected: 0, rejectedTokens: 0, turnsWithLoad: 0, turnsTotal: rows.filter((r) => r.event === 'prompt').length, byModule: {}, byReason: {} };
+  const agg = { rows: rows.length, sessions: sessions.size, loaded: 0, loadedTokens: 0, deduped: 0, dedupedTokens: 0, rejected: 0, rejectedTokens: 0, turnsWithLoad: 0, turnsTotal: rows.filter((r) => r.packed).length, byModule: {}, byReason: {} };
   for (const r of rows) {
     if (!r.packed) continue;
     agg.loaded += r.packed.loaded.length; agg.loadedTokens += r.packed.tokens.loaded;
@@ -160,7 +160,7 @@ function report(file, args, cfg, graph) {
   const out = { days, file, ...agg, neverLoaded: never, eagerBaseline: { files: eager, tokensPerSession: eagerTokens } };
   if (args.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
   console.log(`context-graph ledger, last ${days} days (${file})`);
-  console.log(`  ${agg.rows} rows across ${agg.sessions} sessions; ${agg.turnsWithLoad} of ${agg.turnsTotal} prompts loaded something`);
+  console.log(`  ${agg.rows} rows across ${agg.sessions} sessions; ${agg.turnsWithLoad} of ${agg.turnsTotal} resolved events (prompt, edit, subagent, compact) loaded something`);
   console.log(`  loaded ${agg.loaded} modules / ${agg.loadedTokens.toLocaleString()} tok; deduped ${agg.deduped} / ${agg.dedupedTokens.toLocaleString()} tok (duplicate context avoided); rejected ${agg.rejected} / ${agg.rejectedTokens.toLocaleString()} tok`);
   if (Object.keys(agg.byReason).length) console.log(`  rejections by reason: ${Object.entries(agg.byReason).map(([k, v]) => k + ' ' + v).join(', ')}`);
   const top = Object.entries(agg.byModule).sort((a, b) => b[1].loads - a[1].loads).slice(0, 10);

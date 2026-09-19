@@ -382,7 +382,7 @@ console.log('reg-context' + (BREAK ? ' (--break: the chain check must fail)' : '
     assert.ok(ctx.lint(g).warnings.some((w) => w.check === 'orphan' && w.name === 'plain'));
   });
   check('shape: [[wikilinks]] are implicit suggests and appear in explain', () => {
-    const r = root('wl', { 'a.md': mod('a', 'see [[b]] and [[b]] and [[a]]'), 'b.md': mod('b', 'b') });
+    const r = root('wl', { 'a.md': mod('a', 'see [[b]] and [[b]] and [[a]]; prose about `[[links]]` and\n```\n[[fenced]]\n```\nis not a link'), 'b.md': mod('b', 'b') });
     const g = ctx.loadGraph([r]);
     assert.deepStrictEqual(g.modules.get('a').edges, [{ to: 'b', kind: 'wikilink' }]);
     assert.ok(ctx.explain(g, 'a').some((l) => l.includes('linked [[..]] by a')));

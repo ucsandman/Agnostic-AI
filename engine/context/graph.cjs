@@ -109,9 +109,11 @@ function section(body, heading) {
 
 function wikilinks(body) {
   const out = new Set();
+  // a [[name]] inside a code span or fenced block is prose about links, not a link
+  const prose = String(body).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
   const re = /\[\[([A-Za-z0-9][A-Za-z0-9._-]*)\]\]/g;
   let m;
-  while ((m = re.exec(body))) out.add(m[1]);
+  while ((m = re.exec(prose))) out.add(m[1]);
   return [...out];
 }
 
