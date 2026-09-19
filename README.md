@@ -6,22 +6,65 @@
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
 [![Clients](https://img.shields.io/badge/clients-20-blue.svg)](docs/targets.md)
 
-**Your AI coding harness, ported to every client you use.**
+**One harness. Every client. One repository.**
 
-You spent months tuning Claude Code: a working agreement in `CLAUDE.md`, guard
-hooks that block secrets and destructive commands, skills, custom subagents,
-slash commands, MCP servers. Then you open Codex, or Cursor, or Gemini CLI, and
-none of it is there. Agnostic AI captures that harness once and applies it,
-identically, to every other client on the machine. Switch models and tools
-without switching how the agent behaves.
+Agnostic AI is the operating system for an AI coding harness: the guard hooks
+that block secrets and destructive commands, the working agreement (rules),
+the on-demand context modules, subagents, saved workflows, Mods (function-hook
+plugins), operator tools and scheduled jobs. It is installed into the client
+you use (Claude Code) as links, and ported from there into every other client
+on the machine (Codex, Gemini CLI, Cursor and sixteen more) in each one's
+dialect. Your identity, private rules, memory and machine config stay in a
+small private overlay of your own.
+
+## Install
 
 ```sh
 git clone https://github.com/ucsandman/Agnostic-AI.git && cd Agnostic-AI
-npm run port
+npm run setup      # wire the core guards, link the surfaces, assemble CLAUDE.md, port, doctor
 ```
 
-That is the whole install. No npm dependencies, no Python, nothing phones
-home. Node 18 or newer.
+Node 18+ and git, nothing else. `setup` compiles `core/rules` into
+`~/.claude/agnostic-rules.md`, generates a `CLAUDE.md` that imports it, wires
+the core guards into `settings.json`, links `~/.claude/{hooks,tools,mods,agents,workflows}`
+into this checkout (a real directory there is moved aside, never deleted),
+ports the harness to every other installed client and runs the doctor
+(`CLAUDE_CONFIG_DIR` moves the home). The three commands you keep using:
+
+```sh
+npm run sync       # rules changed, or a link is missing: recompile, relink, reassemble CLAUDE.md
+npm run port       # push the harness to every other installed client
+npm run doctor     # drift, a second writer, a broken link, an old path, a private path in public code
+```
+
+## What is shared, what stays private
+
+This repository holds everything portable: rules and modules, guards, Mods,
+agents, workflows, tools, jobs, docs. Your overlay (`~/.claude/overlay/`, in a
+repository of your own) holds `profile.md` (the private section of
+`CLAUDE.md`), `context-graph.json` (your context roots) and `gates.json`
+(extra frozen files); memory, meditations and `settings.json` stay in the
+Claude home. `CLAUDE.md` has one writer, `npm run sync`. The doctor fails when
+a tracked file here carries your account's home path.
+[docs/private-overlay.md](docs/private-overlay.md).
+
+## Context on demand
+
+Situational text is a module, not standing prompt: a markdown file with a
+`context:` block (keyword, path and command triggers; `requires` and
+`suggests` edges) loads when the prompt, the edited file or the command says
+it applies, in dependency order, under a budget, with the reason attached.
+[docs/context-graph.md](docs/context-graph.md).
+
+## Customize
+
+A rule for every client: `core/rules/global-rules.md`, `npm run sync`,
+`npm run port`. A rule for you only: `overlay/profile.md`, `npm run sync`. A
+guard: `engine/hooks/<name>.cjs` plus a probe that fails once, a line in
+[docs/guards.md](docs/guards.md), a `settings.json` registration, a relock. A
+client: one entry in `core/templates/targets.json`
+([engine/harness/README.md](engine/harness/README.md)). Every other "where
+do I put..." is answered in [docs/where-things-go.md](docs/where-things-go.md).
 
 ## What gets ported
 
@@ -54,25 +97,17 @@ capture  ~/.claude  ──▶  harness/  ──▶  apply  ~/.codex  ~/.gemini  
           you use)           bundle)                same guard scripts, same skills)
 ```
 
-1. **Capture** reads the client you use into a client-neutral bundle:
-   markdown rules with every `@import` inlined, hooks in one canonical dialect,
-   the list of skills, agents, commands, MCP servers and permissions. A
-   credential never enters the bundle: an env value that looks like a token is
-   replaced with `${NAME}` and you are told which variable to export.
-2. **Apply** renders the bundle into every other installed client, in that
-   client's dialect. Hooks are not copied; each client is pointed at the same
-   scripts, wrapped in a [shim](docs/porting.md#hooks-one-dialect-one-shim)
-   where the client speaks another payload format. Codex gets its hook trust
-   hashes pre-computed so nothing asks for a `/hooks` review. Skills are
-   linked, not copied, so an edit is live everywhere at once.
-3. **Nothing is destroyed.** Generated files carry a header that marks them
-   as the port's; user-owned files (`config.toml`, `settings.json`, `mcp.json`)
-   get a marked region or per-key ownership and are otherwise preserved byte
-   for byte. Every overwrite is backed up first. `--check` exits 1 on drift.
-4. **Every drop is explained.** A hook that only makes sense in one client, a
-   skill that needs a tool only one client has, an MCP server bound to one
-   OAuth grant: each is listed by `npm run explain` with its reason, and the
-   list lives in `core/port.json` where you can change it.
+1. **Capture** reads the client you use into a client-neutral bundle: rules
+   with every `@import` inlined, hooks in one dialect, skills, agents,
+   commands, MCP servers, permissions. A value that looks like a token becomes
+   `${NAME}` and you are told what to export.
+2. **Apply** renders the bundle into each other client's dialect. Hooks are
+   not copied: every client is pointed at the same scripts through a
+   [shim](docs/porting.md#hooks-one-dialect-one-shim); skills are linked.
+3. **Nothing is destroyed.** Generated files carry the port's header;
+   user-owned files get a marked region and are otherwise preserved. Every
+   overwrite is backed up. `--check` exits 1 on drift.
+4. **Every drop is explained** by `npm run explain`, from `core/port.json`.
 
 Details, dialect tables and the not-ported list: [docs/porting.md](docs/porting.md).
 
@@ -80,14 +115,14 @@ Details, dialect tables and the not-ported list: [docs/porting.md](docs/porting.
 
 | Command | What |
 |---|---|
-| `npm run port` | Capture the source client and apply to every other installed client. The everyday command. |
-| `npm run port:check` | Same, writes nothing; exit 1 if anything drifted. Put it in a nightly job. |
+| `npm run setup` | First install: wire the core guards, link the surfaces, assemble `CLAUDE.md`, port, doctor. |
+| `npm run sync` / `npm run sync:check` | Compile the rules for the primary client, bind the links, assemble `CLAUDE.md`. Idempotent. |
+| `npm run port` / `npm run port:check` | Capture the primary client and apply to every other installed client; `check` writes nothing, exit 1 on drift. |
+| `npm run doctor` | Thirteen checks with counts: links, hook wiring, generated drift, second writers, retired references, private paths, data files, orphans, context graph, deps, scheduled jobs. |
 | `npm run status` / `npm run status:open` | Per-client, per-component matrix, in the terminal or as a page. |
 | `npm run explain` | Everything that was not ported, with reasons. |
-| `npm run parity` | The status page as a local server with a "Port now" button (`127.0.0.1` only). |
-| `npm run capture` / `npm run apply` | The two halves separately. |
-| `npm run setup:default` | First-run onboarding: harvest past lessons, consolidate skills, port, install the shipped guards into your primary client. |
-| `npm run launch` | Setup check, port check, engine tests, then the command center. |
+| `node jobs/install.cjs --apply` | Re-point the scheduled jobs (Windows Task Scheduler) at this checkout. |
+| `npm test` | Engine suite plus sync, hook, wire-protocol, port, capability and context regressions. |
 
 Flags: `--from claude|codex`, `--to codex,gemini`, `--check`, `--dry-run`,
 `--force`, `--home <dir>`, `--json`. Full list:
@@ -95,56 +130,51 @@ Flags: `--from claude|codex`, `--to codex,gemini`, `--check`, `--dry-run`,
 
 ## Also in the box
 
-- **Safety policy.** `core/safety/guards.json` is one file read by the
-  shipped guards (`secret-path-guard`, `secret-guard`, `dashclaw-guard`) and the dashboard
-  simulator. Secret paths are always blocked; hard-stop commands need a human;
-  a missing or unreachable policy fails closed. `npm run setup:default`
-  installs the guards into your primary client, and the port carries them
-  everywhere else.
-- **A learning loop.** `npm run harvest` collects errors and corrections from
-  local agent logs into candidate rules; `npm run distill` runs a promotion
-  ladder (observation, fact, rule) and writes a proposal; you approve from the
-  dashboard and the rule lands in your working agreement.
-- **Authoring mode.** Prefer to keep the working agreement in this repo?
-  Write `core/rules/global-rules.md`, run `npm run sync` to compile it into
-  your primary client, then `npm run port`.
-- **Human surfaces.** `npm run dashboard` (command center: candidates, rules,
-  skills matrix, project recommendations, DashClaw settings, guard simulator),
-  `npm run recall` (search rules and memory), `npm run parity` (port status).
-  All bind `127.0.0.1`; mutating routes need a per-process token and a loopback
-  origin.
+- **Safety policy.** `core/safety/guards.json` is one file read by the shipped
+  guards (`secret-path-guard`, `secret-guard`, `dashclaw-guard`). Secret paths
+  are always blocked; hard-stop commands need a human; a missing policy fails
+  closed. The full guard roster, each with its override marker:
+  [docs/guards.md](docs/guards.md).
+- **Mods.** `engine/mods/` holds the function-hook plugins (`claude-runtime`,
+  `harness-mods`): routing, context nudges, secret redaction, subagent
+  accounting, a read cache, with a heartbeat a classic hook can verify.
 - **Governed autonomy (optional).** Point `DASHCLAW_BASE_URL` at a
   [DashClaw](https://github.com/ucsandman/DashClaw) instance and risky calls
   are held for remote approval.
+- **Experimental**: `labs/` and the harvest, distill and ingest ladder. Nothing in `engine/` depends on `labs/`.
 
 ## Documentation
 
 | | |
 |---|---|
-| [docs/porting.md](docs/porting.md) | What each component is, how it maps per client, the hook shim, what is deliberately not ported, ownership and secrets. |
-| [docs/targets.md](docs/targets.md) | The generated per-client table: home, rules file, hook config, skills, agents, commands, MCP. |
-| [docs/architecture.md](docs/architecture.md) | How capture, apply, the shim, harvest and distill fit together; storage layout. |
+| [docs/where-things-go.md](docs/where-things-go.md) | One implementation per capability, one writer per generated file: where every kind of change goes. |
+| [docs/architecture.md](docs/architecture.md) | The three places, the dependency direction, capture and apply, storage. |
+| [docs/ownership.md](docs/ownership.md) | The ownership matrix: every capability, its one implementation, its writer, what generates from it. |
+| [docs/private-overlay.md](docs/private-overlay.md) | What the engine reads from your overlay and what stays private. |
+| [docs/guards.md](docs/guards.md) | Every guard hook and its override marker. |
+| [docs/context-graph.md](docs/context-graph.md) | Context modules: triggers, edges, budgets, the ledger. |
+| [docs/porting.md](docs/porting.md), [docs/parity.md](docs/parity.md), [docs/targets.md](docs/targets.md) | How each component maps per client, verification, the generated per-client table. |
 | [docs/configuration.md](docs/configuration.md) | `core/port.json`, every command and flag, env vars, scheduled jobs, uninstall. |
+| [docs/migration-2026-09.md](docs/migration-2026-09.md), [docs/PROVENANCE.md](docs/PROVENANCE.md) | The 2026-09 consolidation and where every moved file came from. |
 | [engine/harness/README.md](engine/harness/README.md) | The adapter contract: add a client in one file. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, tests, where things live, rules for a change. |
-| [SECURITY.md](SECURITY.md) | Scope, reporting, what the guard is not. |
-| [CHANGELOG.md](CHANGELOG.md) | Release notes. |
+| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md) | Setup and rules for a change; scope and reporting; release notes. |
 
 ## Repository layout
 
 ```
-engine/harness/   capture.cjs, apply.cjs, status.cjs, cli.cjs, bundle.cjs, toml.cjs, common.cjs
-                  sources/ (claude, codex)   targets/ (codex, claude, gemini, agy, cursor, generic)
-engine/hooks/     shim.cjs (dialect translation), universal-adapter.cjs, the guard hooks (secret-guard, secret-path-guard, rm-guard, ...), dashclaw-guard,
-                  fable-delegate-guard, capability-graph-guard, correction-tracker
-engine/           sync/ (authoring mode), harvest/, distill/, ingest/, skills/, audit/, setup/, docs/, tests/
-core/             port.json (policy), templates/targets.json (registry), safety/guards.json,
-                  rules/ + traits/ (authoring mode), examples/
-tools/            Local web UIs: sync/ (port status), dashboard/, recall/
-harness/          Your captured bundle (gitignored; holds machine paths, never secrets)
-storage/          Runtime state (gitignored): ownership, reports, backups of every overwritten file
-jobs/             PowerShell wrappers for a scheduled port and the nightly distill
+core/       rules/ (global-rules.md + modules/), templates/targets.json (the client registry), safety/guards.json, port.json
+engine/     harness/ (capture, apply, status, cli; sources/, targets/)   context/ (the module graph)
+            sync/ (rules compiler, link binder, CLAUDE.md assembly: npm run sync)   setup/ (first-run, link)
+            doctor/   hooks/ (the guards, lib/, tests/, adapters/)   mods/ (function-hook plugins)   tests/
+agents/     subagent definitions        workflows/   saved Workflow scripts
+tools/      operator CLIs and pages      jobs/        scheduled jobs + install.cjs
+packages/   markdown-agent-memory        labs/        experiments (may depend on engine; never the reverse)
+docs/       this documentation           examples/    an installed harness, for reference
+harness/    your captured bundle (gitignored)    storage/  runtime state, backups, reports (gitignored)
 ```
+
+Installed surfaces: `~/.claude/{hooks,tools,mods,agents,workflows}` are links
+into `engine/hooks`, `tools`, `engine/mods`, `agents`, `workflows`.
 
 ## Development
 
@@ -159,11 +189,9 @@ yours. CI runs on Ubuntu (Node 18 and 22) and Windows (Node 22). See
 
 ## Using this repository as a template
 
-Click **Use this template** on GitHub, clone your copy, run `npm run port`.
-Edit `core/port.json` to change the source client, restrict the targets, or
-exclude a hook, skill or MCP server with a reason. To version your harness,
-remove the `harness/` line from `.gitignore`; the bundle is plain markdown and
-JSON and the save refuses anything that looks like a secret.
+Click **Use this template**, clone, `npm run setup`. `core/port.json` chooses
+the source client, restricts targets, or excludes a hook, skill or MCP server
+with a reason.
 
 ## Related
 

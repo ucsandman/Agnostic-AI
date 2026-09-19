@@ -1,5 +1,16 @@
 # Architecture
 
+## The three places (since 2026-09-19)
+
+| Place | Role | Repository |
+|---|---|---|
+| this repository | the operating system: `core/` (rules, registry, policy), `engine/` (harness port, context graph, sync, setup, doctor, hooks, Mods), `agents/`, `workflows/`, `tools/`, `jobs/`, `docs/` | public |
+| the overlay (`~/.claude/overlay/` and the rest of the Claude home you track) | the user profile: `profile.md` (private section of `CLAUDE.md`), `context-graph.json` (context roots), `gates.json` (extra frozen files), memory, meditations, private jobs, `settings.json` | private, yours |
+| the installed runtime (`~/.claude` as the client sees it) | links into this repository for hooks, tools, mods, agents and workflows; generated `agnostic-rules.md` and `CLAUDE.md`; state under `logs/`, `state/`, `mods/state/` | not a codebase |
+
+Dependency direction is one way: `core` → `engine` → the installed surfaces → the client homes. The overlay is read only through three files the engine names ([private-overlay.md](private-overlay.md)); `labs/` may depend on `engine/`, never the reverse. Every generated file has one writer ([ownership.md](ownership.md)), and `npm run doctor` fails on a second one, on a retired path, on the author's home path in public code, and on transcript-derived data in the tree.
+
+
 One harness, captured from the client you use, applied to every other client.
 Zero-dependency Node; every engine runs on the standard library.
 

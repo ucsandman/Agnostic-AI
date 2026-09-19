@@ -1,5 +1,5 @@
 {
-  "_comment": "Word ceilings for standing docs — prose an agent is expected to trust in every session. Append-only logs (docs/ERRORS.md), audits, and working material are deliberately unbudgeted. See docs/doc-standard.md.",
+  "_comment": "Word ceilings for standing docs \u2014 prose an agent is expected to trust in every session. Append-only logs (docs/ERRORS.md), audits, and working material are deliberately unbudgeted. See docs/doc-standard.md.",
   "_purpose": "These are anti-growth ratchets, not reduction targets. There is no goal word count. A ceiling exists so a doc cannot grow without someone noticing; when one goes red the answer is to move a section into its own file and leave an index line behind, never to delete a rule or drop a pointer. Raising a ceiling with a reason in the commit is a legitimate outcome.",
   "docs/doc-standard.md": 900,
   "docs/decision-notes.md": 900,
@@ -18,5 +18,8 @@
   "docs/architecture.md": 1800,
   "docs/where-things-go.md": 900,
   "docs/private-overlay.md": 700,
-  "README.md": 2200
+  "README.md": 2200,
+  "docs/ownership.md": 1000,
+  "docs/migration-2026-09.md": 900,
+  "docs/parity.md": 600
 }

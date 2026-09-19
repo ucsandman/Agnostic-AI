@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-09-19: one repository for the harness
+
+- The harness that lived across `claude-config`, the `claude-harness` mirror, `claude-mods-rnd`, `markdown-agent-memory` and `claude-commands` now has one public home here and one private overlay: `engine/hooks` (the guard hooks, their probes and Codex adapters), `engine/mods` (the function-hook plugins), `agents/`, `workflows/`, `tools/` (19 operator tools), `jobs/` (with `install.cjs` for Task Scheduler), `packages/markdown-agent-memory`, `labs/` (claude-mods research, tokflow, procledger, detached-builder), `examples/installed-harness`, 16 docs. Every moved file: `docs/PROVENANCE.md`; the record: `docs/migration-2026-09.md`; the matrix: `docs/ownership.md`.
+- `npm run sync` now compiles the rules, binds `~/.claude/{hooks,tools,mods,agents,workflows}` as links into this checkout (`engine/setup/link.cjs`, originals moved aside) and assembles `CLAUDE.md` from the rules import plus `overlay/profile.md` (`engine/sync/claude-md.cjs`, the file's one writer). `npm run setup` ends with `port` and `doctor`; a clean clone against an empty home ends green.
+- `npm run doctor` (`engine/doctor/doctor.cjs`): thirteen checks, each with the count it processed.
+- `engine/context/config.cjs` resolves relative roots against the config file's real directory (through a link the rules root loaded nothing).
+- Mods resolve the Claude home through `$.env` on their first event; the hooks worker has no Node globals.
+- `sync` is primary-client-only; `port` is the single writer of every other client's rules file. `docs/parity.md` rewritten for the engine port; the retired Gemini shim, `harness-sync`, `mirror-sync` and `sync-targets.ps1` are gone.
+- No tracked file carries the author's home path; transcript-derived experiment data is untracked and ignored.
+
 - **Context graph: command signals, suggest, dynamic-recall absorbed** (2026-09-19).
   `triggers.commands` makes a shell command a selection signal (substring, +3), so the
   three tips the Claude Code hook `dynamic-recall.cjs` used to inject are now modules

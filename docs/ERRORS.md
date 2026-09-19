@@ -112,4 +112,5 @@ Full entries (symptom, root cause, fix) when it took more than one attempt.
 - **`tools/errorlog --selftest` could not fail** (printed a check mark next to
   a literal `false`, exited 0). Fixed at the time; the tool has since been
   deleted — the command center is the only error surface.
-
+- 2026-09-19 — Consolidation stage A replaced the Mods' hardcoded home paths with an environment read at module load; the hooks worker has no Node globals, so both Mods failed to load ("process is not defined") until a headless session after the fix proved the heartbeat. Lesson: a change to code that runs in another runtime is verified in that runtime before it ships, not by the unit tests beside it. A wrapper around `on()` was then refused by the validator (`$` only to top-level functions); each hook resolves the home itself.
+- 2026-09-19 — The same stage copied a private research repository into `labs/` wholesale and published 32 transcript-derived data files for a day. Lesson: a directory copy from a private repository is scanned for data before the first push; the doctor's `data-files` check now blocks a recurrence. History still holds the blobs until the owner decides on a rewrite.
