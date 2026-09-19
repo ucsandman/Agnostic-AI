@@ -143,7 +143,8 @@ function loadGraph(roots, opts = {}) {
       if (text === null) continue;
       const { meta, body } = fm.parse(text);
       const idx = index.get(path.resolve(file));
-      const ctx = (meta && typeof meta.context === 'object' && meta.context) || null;
+      // Claude Code's memory writer re-serialises unknown top-level keys under `metadata:`, so both homes count
+      const ctx = (meta && typeof meta.context === 'object' && meta.context) || (meta && meta.metadata && typeof meta.metadata.context === 'object' && meta.metadata.context) || null;
       if (!ctx && !(meta && meta.name) && !idx) continue; // plain markdown, not a module
       const name = String((meta && meta.name) || (idx && idx.name && /^[a-z0-9][a-z0-9._-]*$/i.test(idx.name) ? idx.name : slugOf(file))).trim();
       if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) { errors.push({ name, file, reason: 'invalid-name' }); continue; }

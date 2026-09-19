@@ -423,6 +423,12 @@ console.log('reg-context' + (BREAK ? ' (--break: the chain check must fail)' : '
     assert.deepStrictEqual(y.context.triggers.keywords, ['price hike', 'secrets']);
     assert.strictEqual(y.context.stale_after, '90d');
   });
+  check('shape: a context block nested under metadata (Claude Code re-serialises memory frontmatter that way) is honoured', () => {
+    const r = root('nested', { 'n.md': '---\nname: n\ndescription: n\nmetadata: \n  node_type: memory\n  context: \n    triggers: \n      keywords: \n        - nested trigger\n    requires: \n      - base\n  type: project\n---\nbody\n', 'base.md': mod('base', 'b') });
+    const g = ctx.loadGraph([r]);
+    assert.deepStrictEqual(g.modules.get('n').requires, ['base']);
+    assert.deepStrictEqual(ctx.select(g, { prompt: 'a nested trigger here' }).targets.map((t) => t.name), ['n']);
+  });
   check('parser: a memory file with "metadata: " (trailing space) and a quoted description parses', () => {
     const p = fm.parse('---\nname: n\ndescription: "How shared API credentials (Google, Stripe, etc.) are wired"\nmetadata: \n  node_type: memory\n  type: project\n---\nbody\n');
     assert.strictEqual(p.meta.metadata.type, 'project');
