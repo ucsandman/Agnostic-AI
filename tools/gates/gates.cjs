@@ -557,11 +557,12 @@ function checkHookWiring() {
   // Orphans are advisory: a script may legitimately be launched by Task
   // Scheduler, a .vbs shim, or another repo's settings. Match on basename so a
   // `$HOME`- or `%USERPROFILE%`-relative caller still counts as a reference.
-  const haystack = commands.join('\n');
-  const orphans = walk(path.join(ROOT, 'hooks'))
-    .filter((p) => /\.(cjs|js|py|ps1)$/.test(p) && !rel(p).includes('/tests/'))
-    .filter((p) => !haystack.includes(path.basename(p)));
-  for (const o of orphans) lines.push(`ORPHAN  ${rel(o)} — nothing in settings.json, git-hooks/, or scripts/ references it`);
+  // A hook required by another hook (hooks/lib/*.cjs) is wired through its caller.
+  const hookFiles = walk(path.join(ROOT, 'hooks')).filter((p) => /\.(cjs|js|py|ps1)$/.test(p) && !rel(p).includes('/tests/') && !rel(p).includes('/archive/'));
+  const requires = hookFiles.map((p) => { try { return (fs.readFileSync(p, 'utf8').match(/require\(([^)]+)\)/g) || []).join('\n'); } catch { return ''; } }).join('\n');
+  const haystack = commands.join('\n') + '\n' + requires;
+  const orphans = hookFiles.filter((p) => !haystack.includes(path.basename(p)));
+  for (const o of orphans) lines.push(`ORPHAN  ${rel(o)} — nothing in settings.json, git-hooks/, scripts/ or another hook's require() references it`);
   if (ok) lines.push(`ok   ${targets} hook targets exist${orphans.length ? '' : ', no orphans'}`);
   return { ok, lines };
 }

@@ -343,18 +343,7 @@
         ]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:/Users/sandm/.claude/hooks/dynamic-recall.cjs\"",
-            "timeout": 5,
-            "statusMessage": "Recalling contextual patterns..."
-          }
-        ]
-      },
-      {
-        "matcher": "Agent|Task|Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "Agent|Task|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
         "hooks": [
           {
             "type": "command",

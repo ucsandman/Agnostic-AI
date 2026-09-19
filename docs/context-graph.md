@@ -21,6 +21,7 @@ Engine and contract: `C:/Projects/agnostic-ai/engine/context/README.md`.
 |---|---|---|---|
 | `UserPromptSubmit` (source user/sdk only) | prompt text, cwd, files touched this session (transcript tail) | `turnTokens` 2,500, `sessionTokens` 12,000 | inject, remember what is in context |
 | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit | the file path only | same session cap | a module whose `triggers.paths` matches loads before the write, once per session |
+| `PreToolUse` Bash/PowerShell | the command text only | same session cap | a module whose `triggers.commands` substring-matches loads before the call (this replaced `dynamic-recall.cjs` on 2026-09-19: its three tips are the modules `seo-floor`, `secrets-non-negotiable`, `harness-integrity`) |
 | `PreToolUse` Agent/Task | the brief (type + prompt) | none | stashed for the child |
 | `SubagentStart` | agent type + the stashed brief | `subagentTokens` 1,200 | the child gets its own bundle |
 | `SessionStart` compact | the session's loaded set | `turnTokens` | required modules re-injected after the summary pass |
@@ -62,7 +63,13 @@ rejected with reason, tokens, wall time). `node hooks/context-graph.cjs --report
 summarises a window: loads per module, duplicate context avoided, rejections
 by reason, modules never loaded, and the eager baseline every session pays
 regardless (`eagerBaseline` in the config). Replay real prompts without side
-effects: `node tools/tokflow/context-graph-bench.cjs --days 14`.
+effects: `node tools/tokflow/context-graph-bench.cjs --days 14`. Edges the ledger
+argues for: `node C:/Projects/agnostic-ai/engine/context/cli.cjs suggest --days 30`
+prints the exact `suggests:` line for two modules co-loaded 3+ times across 2+
+sessions with no edge yet (writes nothing). Ladder input for a meditation:
+`node meditations/workbench/context-usage.mjs --days 14` lists modules loaded
+in most sessions (promote or narrow), rejected over budget more than loaded
+(split), and never loaded with no dependents (dead).
 
 ## Adding, tuning, debugging
 
@@ -79,7 +86,7 @@ effects: `node tools/tokflow/context-graph-bench.cjs --days 14`.
 - Off for one session: remove the entries from `settings.json`, or point
   `CONTEXT_GRAPH_CONFIG` at a config with no roots. The hook is fail-open:
   any error exits 0 with no output and one ledger row.
-- Probe: `node hooks/tests/context-graph-probe.cjs` (16 cases, every event,
+- Probe: `node hooks/tests/context-graph-probe.cjs` (18 cases, every event,
   negative controls included).
 
 ## Other clients

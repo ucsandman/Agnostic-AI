@@ -97,9 +97,10 @@ never carries, so it had never written a line. It now reads the tail of
 
 ## context-graph.cjs (2026-09-19)
 
-`UserPromptSubmit`, `PreToolUse` (Edit/Write and Agent), `SubagentStart`,
+`UserPromptSubmit`, `PreToolUse` (Edit/Write, Bash/PowerShell and Agent), `SubagentStart`,
 `SessionStart` (compact, clear). Advisory: injects context, never blocks.
-Selects context modules from the prompt, the cwd and the file being edited,
+Selects context modules from the prompt, the cwd, the file being edited or the
+command about to run (it absorbed `dynamic-recall.cjs` on 2026-09-19),
 resolves their dependency closure and injects it under a hard budget, each
 module naming why it loaded. Ledger `logs/context-graph.jsonl` (`--report`).
 Probe: `hooks/tests/context-graph-probe.cjs`. Contract, roots, budgets:

@@ -124,16 +124,18 @@ function main() {
       writeState(evt, st);
       return;
     }
-    // Edit/Write: the file being changed is the signal (a module with a matching
-    // triggers.paths loads before the write, the way dynamic-recall's tips did).
+    // Edit/Write: the file being changed is the signal; Bash/PowerShell: the command text
+    // (triggers.commands). Either way a matching module loads before the call, once per session.
     const file = input.file_path || input.notebook_path;
-    if (!file) return;
-    const r = engine.bundle({ cfg, signals: { cwd, client, files: [String(file)], tools: [evt.tool_name], pathsFromCwd: false }, already: st.loaded, sessionUsed: st.used, findSecrets, cli, tag: 'context-graph' });
+    const command = evt.tool_name === 'Bash' || evt.tool_name === 'PowerShell' ? String(input.command || '') : '';
+    if (!file && !command) return;
+    // required closure only: a tool call is one narrow signal, so associations (suggests, wikilinks) wait for a prompt
+    const r = engine.bundle({ cfg, signals: { cwd, client, files: file ? [String(file)] : [], command, tools: [evt.tool_name], pathsFromCwd: false }, optional: false, already: st.loaded, sessionUsed: st.used, findSecrets, cli, tag: 'context-graph' });
     if (!r.targets.length) return;
     for (const l of r.packed.loaded) st.loaded[l.name] = l.hash;
     st.used = (st.used || 0) + r.packed.tokens.loaded;
     writeState(evt, st);
-    ledger({ ...base, event: 'pretool', tool: evt.tool_name, file: String(file), targets: r.targets, packed: summarise(r.packed), chars: r.text.length, sessionUsed: st.used, ms: Date.now() - t0 });
+    ledger({ ...base, event: 'pretool', tool: evt.tool_name, file: file ? String(file) : undefined, command: command ? command.slice(0, 120) : undefined, targets: r.targets, packed: summarise(r.packed), chars: r.text.length, sessionUsed: st.used, ms: Date.now() - t0 });
     if (r.text) emit('PreToolUse', r.text);
     return;
   }

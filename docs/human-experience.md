@@ -3,7 +3,7 @@ name: human-experience
 description: "The six tests every shipped surface passes before it counts as done for a human"
 context:
   triggers:
-    keywords: ["ship", "definition of done", "human surface", "stranger test", "dashboard", "buttons", "render proof", "before launch"]
+    keywords: ["ship it", "definition of done", "human surface", "stranger test", "human-operable", "render proof", "before launch", "ready to ship", "is it done"]
   priority: 50
 ---
 # The Human Experience Contract (global)

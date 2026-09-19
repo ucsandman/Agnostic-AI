@@ -15,7 +15,7 @@ const HOOK = path.join(__dirname, '..', 'context-graph.cjs');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'context-graph-probe-'));
 const mods = path.join(dir, 'mods'); fs.mkdirSync(mods);
 const w = (f, t) => fs.writeFileSync(path.join(mods, f), t);
-w('creds.md', '---\nname: creds\ndescription: creds\ncontext:\n  triggers:\n    keywords: [secrets, BASH_ENV]\n    paths: ["**/hooks/**"]\n  requires: [shell-model]\n---\nCreds load through BASH_ENV.\n');
+w('creds.md', '---\nname: creds\ndescription: creds\ncontext:\n  triggers:\n    keywords: [secrets, BASH_ENV]\n    paths: ["**/hooks/**"]\n    commands: [load-secrets]\n  requires: [shell-model]\n---\nCreds load through BASH_ENV.\n');
 w('shell-model.md', '---\nname: shell-model\ndescription: shell\n---\nBash is non-login; PowerShell is -NoProfile.\n');
 w('scout.md', '---\nname: scout\ndescription: scout brief rules\ncontext:\n  triggers:\n    agents: [haiku-scout]\n---\nReport paths, never opinions.\n');
 w('leak.md', '---\nname: leak\ndescription: has a secret\ncontext:\n  triggers:\n    keywords: [leaky]\n---\nkey sk-ant-' + 'a'.repeat(40) + '\n');
@@ -52,6 +52,8 @@ run('SessionStart clear resets; the next hit injects again', { ...base, hook_eve
 run('after clear the same prompt injects again', { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'where do secrets get loaded via BASH_ENV' }, (t) => t.includes('▸ creds'));
 run('PreToolUse Edit on a matching path injects by path (once)', { ...base, session_id: 'probe-s2', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: 'C:\\Users\\x\\.claude\\hooks\\thing.cjs' } }, (t) => t.includes('▸ creds') && t.includes('why: path'));
 run('the same Edit again injects nothing', { ...base, session_id: 'probe-s2', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: 'C:\\Users\\x\\.claude\\hooks\\thing.cjs' } }, (t) => t === '');
+run('PreToolUse Bash on a matching command injects by command (the retired dynamic-recall path)', { ...base, session_id: 'probe-s3', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'cat ~/.claude/LOAD-SECRETS.sh | wc -l' } }, (t) => t.includes('▸ creds') && t.includes('why: command "load-secrets"'));
+run('a Bash command with no trigger injects nothing', { ...base, session_id: 'probe-s3', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git status' } }, (t) => t === '');
 run('bad JSON exits 0 with no output', '{not json', (_t, r) => r.status === 0 && r.stdout === '');
 run('missing engine exits 0 with no output', { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'secrets BASH_ENV please' }, (_t, r) => r.status === 0 && r.stdout === '', { CONTEXT_GRAPH_ENGINE: path.join(dir, 'nope.cjs') });
 
