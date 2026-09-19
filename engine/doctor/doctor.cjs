@@ -87,6 +87,22 @@ check('hook-wiring', 'settings.json hook commands resolve into this repository',
   return { ok: missing === 0 && outside === 0 && retired === 0, count: hooks.length, lines };
 });
 
+check('prompt-hooks', 'UserPromptSubmit is one dispatcher process with a budget that survives a loaded machine', () => {
+  // 2026-09-19: eight spawns per prompt at 5 s each timed out on every prompt (node startup alone was 2.6 s
+  // under load) and every machine wake-up repeated the set. One process, one 30 s budget, hooks in-process.
+  const groups = (readJSON(path.join(CHOME, 'settings.json')) || {}).hooks || {};
+  const entries = (groups.UserPromptSubmit || []).flatMap((g) => g.hooks || []);
+  const lines = []; let ok = true;
+  if (entries.length !== 1) { ok = false; lines.push(`${entries.length} UserPromptSubmit commands registered; exactly one is allowed: node ~/.claude/hooks/prompt-dispatch.cjs (fold the rest into its CHAIN)`); }
+  const d = entries.find((h) => /prompt-dispatch\.cjs/.test(h.command || ''));
+  if (!d) { ok = false; lines.push('prompt-dispatch.cjs is not the UserPromptSubmit command'); }
+  else if (!(Number(d.timeout) >= 20)) { ok = false; lines.push(`prompt-dispatch timeout is ${d.timeout ?? 'default 60'}; it must be >= 20 s (a bare node spawn measured 2.6 s under load)`); }
+  const short = Object.entries(groups).flatMap(([ev, gs]) => gs.flatMap((g) => (g.hooks || []).filter((h) => h.type === 'command' && Number(h.timeout) > 0 && Number(h.timeout) < 10).map((h) => `${ev} ${(h.command || '').replace(/^\S+\s+"?[^"\s]*[\\/]/, '').slice(0, 40)} (${h.timeout}s)`)));
+  if (short.length) lines.push(`${short.length} other command hook(s) still carry a timeout under 10 s: ${short.slice(0, 6).join(', ')}${short.length > 6 ? ', ...' : ''}`);
+  if (!lines.length) lines.push(`1 UserPromptSubmit command (prompt-dispatch, ${d.timeout} s), 0 hooks under 10 s`);
+  return { ok, warn: ok && short.length > 0, count: entries.length, lines };
+});
+
 check('rules-drift', 'generated client files match their sources (sync --check for the primary client, port --check for the rest)', () => {
   // sync owns the primary client's rules file; port owns the composite files of every other client
   // (see docs/architecture.md). Each is checked by its own writer, never by the other's.

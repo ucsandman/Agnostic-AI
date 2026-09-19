@@ -161,6 +161,11 @@ will NOT exclude `npx vitest run`. Dry-run with `rtk hook check "<cmd>"`.
 
 **Verify test runs by exit code, never the count.**
 
+## prompt-dispatch.cjs and wakeup-guard.cjs (2026-09-19)
+
+UserPromptSubmit is one process; a third machine wake-up in a row is told to
+stop saying "Waiting.": [prompt-dispatch.md](prompt-dispatch.md).
+
 ## Hook latency pass (2026-09-06)
 
 Timings, ports, removals: [hook-latency.md](hook-latency.md).

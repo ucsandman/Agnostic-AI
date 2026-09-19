@@ -12,6 +12,7 @@ green run proves the guard works, not that it blocks everything.
     node hooks/tests/slopsquat-guard-probe.cjs  # package names verified on npm/PyPI/crates (33 checks, live registries)
     node hooks/tests/repeat-guard-probe.cjs     # identical-call streaks, failing vs repeating text, the fire log (15 checks)
     node hooks/tests/post-edit-diagnostics-probe.cjs  # ruff / node --check / JSON after an edit, both directions per language (12 checks)
+    node hooks/tests/prompt-dispatch-probe.cjs  # the one-process UserPromptSubmit chain + wakeup-guard streaks (12 checks)
 
 Both exit nonzero on failure.
 

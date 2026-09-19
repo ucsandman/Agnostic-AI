@@ -184,6 +184,7 @@ function main() {
   if (event !== 'UserPromptSubmit') return;
   if (evt.source && !['user', 'sdk'].includes(evt.source)) return; // wakeups and machine turns repeat; the human's turn is the signal
   const prompt = String(evt.prompt || '');
+  if (/^\s*<task-notification>/.test(prompt)) return; // a Monitor / task wake-up carries no source field; its text is the tell (2026-09-19: 17 wake-ups each loaded modules)
   if (prompt.trim().startsWith('/') || prompt.length < (cfg.selection.minPromptChars || 12)) return;
   const files = filesTouched(evt.transcript_path);
   const r = engine.bundle({ cfg, signals: { prompt, cwd, client, files }, already: st.loaded, sessionUsed: st.used, findSecrets, cli, tag: 'context-graph' });

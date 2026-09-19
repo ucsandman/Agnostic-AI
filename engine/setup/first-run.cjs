@@ -155,7 +155,16 @@ function wireAgentHooks(home = HOME) {
         });
         installed.push('fable-delegate-guard.cjs');
       }
-      for (const event of ['UserPromptSubmit', 'SessionStart']) {
+      // UserPromptSubmit runs ONE process, prompt-dispatch.cjs, whose CHAIN already carries the
+      // delegate guard; a second spawn there is what timed out on every prompt (2026-09-19).
+      const hasDispatch = (groups) =>
+        (groups || []).some(g => (g.hooks || []).some(h => /prompt-dispatch/i.test(h.command || '')));
+      if (!Array.isArray(cfg.hooks.UserPromptSubmit)) cfg.hooks.UserPromptSubmit = [];
+      if (!hasDispatch(cfg.hooks.UserPromptSubmit) && !hasDelegate(cfg.hooks.UserPromptSubmit)) {
+        cfg.hooks.UserPromptSubmit.push({ hooks: [{ type: 'command', command: hookCommand('prompt-dispatch.cjs'), timeout: 30, statusMessage: 'Prompt hooks...' }] });
+        installed.push('prompt-dispatch.cjs');
+      }
+      for (const event of ['SessionStart']) {
         if (!Array.isArray(cfg.hooks[event])) cfg.hooks[event] = [];
         if (!hasDelegate(cfg.hooks[event])) {
           cfg.hooks[event].push({ hooks: [{ type: 'command', command: delegateCommand, timeout: 10 }] });

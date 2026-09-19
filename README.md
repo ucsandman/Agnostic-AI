@@ -127,7 +127,7 @@ The three places in full, with the storage layout and the adapter contract:
 
 ## Guards
 
-`engine/hooks/` holds 39 hooks: 35 Node, 3 Python, 1 PowerShell. They run on
+`engine/hooks/` holds 41 hooks: 38 Node, 2 Python, 1 PowerShell. They run on
 Claude Code's events (PreToolUse, PostToolUse, UserPromptSubmit, Stop,
 SessionStart, SubagentStart, PreCompact) and, through `engine/hooks/shim.cjs`,
 on every other client that has hooks. One file, `core/safety/guards.json`, is
@@ -140,7 +140,8 @@ commands need a human, a missing policy fails closed.
 | Destructive commands | `rm-guard`, `process-kill-guard`, `git-tree-guard`, `dev-server-guard`, `slow-command-guard`, `slopsquat-guard`, `security-tier-check` | Recursive deletes outside scratch need a marker, kills are by PID not by name, no recursive search from a drive root, package names that look hallucinated are refused |
 | Model routing and cost | `agent-model-guard`, `capability-graph-guard`, `subagent-budget-guard`, `fable-delegate-guard`, `batch-guard`, `repeat-tool-guard` | Every spawn names a model and flows down the capability graph; fan-outs declare a ceiling; a run of single-statement calls or an identical repeated call is denied |
 | Scope and integrity | `scope-lock`, `gate-freeze`, `guard-canary.ps1`, `mods-liveness`, `forced-verify-stop-gate` | Edits stay inside the claimed scope, frozen guard files match their lock, the guards are proven alive at session start, the Mods heartbeat is checked, a turn cannot end without its verification |
-| Context | `context-graph`, `declick-nudge`, `opus-handoff-inject`, `context-nudge.py`, `codex-memory-inject` | Load the modules the prompt, file or command calls for, under a token budget, with the reason attached |
+| Prompt chain | `prompt-dispatch`, `wakeup-guard` | The ONE UserPromptSubmit process: runs every prompt hook in-process and merges their answers (eight spawns per prompt timed out on a loaded machine); a session woken three times in a row by a Monitor or task notification is told to stop answering "Waiting." and stop the stalled task |
+| Context | `context-graph`, `declick-nudge`, `opus-handoff-inject`, `context-nudge`, `codex-memory-inject` | Load the modules the prompt, file or command calls for, under a token budget, with the reason attached |
 | Session state | `session-count`, `creds-resolve`, `correction-tracker`, `precompact-extract`, `compaction-ledger`, `post-edit-diagnostics`, `skill-telemetry.py`, `sync-main-checkout.py` | Count live sessions, fill `.env` from the local vault, record corrections, carry state across compaction, syntax-check edited files, record skill use |
 | Governance | `dashclaw-guard`, `dashclaw-setup` | Optional: hold risky calls for remote approval in [DashClaw](https://github.com/ucsandman/DashClaw) |
 | Client adapters | `adapters/codex-rewrite`, `adapters/codex-delegate-guard`, `universal-adapter` | Translate Codex payloads to the Claude dialect and back; declare what each client's runtime can do |

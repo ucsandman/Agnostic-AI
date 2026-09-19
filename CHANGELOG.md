@@ -12,6 +12,20 @@
   and workflow from source, with a contents list and the doctor's checks. Its
   word ceiling in `tools/gates/budgets.json` rose from 2200 to 4500 for that.
 
+### 2026-09-19: one process for the prompt hooks; wake-up streaks stopped
+
+- `engine/hooks/prompt-dispatch.cjs` is the only UserPromptSubmit command: it
+  runs the nine prompt hooks in-process (118 ms for the chain, one node start
+  instead of eight) and merges their answers. Eight spawns at 5 s each had
+  timed out on every prompt with node startup at 2.6 s under load.
+- `engine/hooks/wakeup-guard.cjs`: from the third consecutive Monitor /
+  ScheduleWakeup / task-notification turn with no human prompt between, the
+  model is told to answer nothing, stop the stalled task, re-arm at >= 1200 s.
+  `context-graph.cjs` no longer loads modules for a `<task-notification>`.
+- `context-nudge.py` ported to `context-nudge.cjs` (the python start alone was
+  the 5 s). Doctor check `prompt-hooks`; `first-run.cjs` installs the
+  dispatcher; probe `engine/hooks/tests/prompt-dispatch-probe.cjs` (12 checks).
+
 ### 2026-09-19: slow sessions were process spawns, not the model
 
 - `tools/hook-latency/`: hookpar, hooktime, usage, cachetrace, memmap. Wall
