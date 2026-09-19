@@ -819,10 +819,10 @@
       "effortLevel": "high"
     },
     "claude-fable-5-1": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     },
     "claude-opus-5": {
-      "effortLevel": "xhigh"
+      "effortLevel": "high"
     }
   },
   "autoCompactWindow": 500000,
@@ -830,12 +830,12 @@
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
+  "switchModelsOnFlag": true,
   "remoteControlAtStartup": true,
   "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "disabledMcpServers": [
     "claude.ai DashClaw"
-  ],
-  "switchModelsOnFlag": true
+  ]
 }

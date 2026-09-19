@@ -5,6 +5,12 @@ underlying changes usually landed over the preceding days.
 
 ## 2026-09-18 (thirty-fifth sync)
 
+- **Heartbeat follows `/clear`.** `/clear` rotates the session id without a second
+  `session.start`, so `harness-mods` kept writing its heartbeat under the old id and the classic
+  witness (`hooks/mods-liveness.cjs`) plus the statusline reported MODS LAYER NOT HEALTHY / MOD
+  none on a layer that was loaded and enforcing. `writeHeartbeat` and `prompt.submit` now
+  re-read `$.session.id()` and re-key. Proven on a fresh haiku session: heartbeat written, 0
+  hook errors.
 - **Subagent prior split.** `mods/harness-mods/hooks/lib/budget.mjs` learned one median per
   agent type (the whole run) and `routing.mjs` priced it as spawn overhead, so a type with a
   2M-token history needed ~53 declared calls to clear break-even and was denied on first attempt.

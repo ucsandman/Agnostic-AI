@@ -59,7 +59,18 @@ async function appendLine($, path, obj) {
   try { if (await $.fs.exists(path)) prev = await $.fs.read(path); } catch (err) { prev = ""; }
   try { await $.fs.write(path, prev + JSON.stringify(obj) + "\n"); } catch (err) {}
 }
+// /clear rotates the session id without a second session.start (observed 2026-09-18, session
+// b3802eef: heartbeat kept landing under the pre-clear id 962fcf8c, the classic witness and the
+// statusline looked up the new id and reported "did not load"). Re-read the id before every write.
+async function syncSessionId($) {
+  let sid = ""; try { sid = String((await $.session.id()) || ""); } catch (err) { return false; }
+  if (!sid || sid === state.sessionId) return false;
+  log($, "session id rotated " + state.sessionId.slice(0, 8) + " -> " + sid.slice(0, 8) + " (/clear); heartbeat re-keyed");
+  state.sessionId = sid; return true;
+}
+
 async function writeHeartbeat($, extra) {
+  await syncSessionId($);
   const verdict = judge(state.status, state.modes, state.status.toolCalls > 0 ? "live" : "start");
   const row = {
     sessionId: state.sessionId, ts: Date.now(), plugin: "harness-mods", version: VERSION, pin: RUNTIME_PIN,
@@ -289,6 +300,7 @@ export const register = (on, options) => {
 
   // ---------------------------------------------------------------- prompt.submit: the native context nudge
   on("prompt.submit", async ($, e, next) => {
+    if (await syncSessionId($)) await writeHeartbeat($, {});
     if (state.pendingNudge && enforcing("contextNudge")) {
       const note = state.pendingNudge; state.pendingNudge = null;
       log($, "context nudge attached (" + state.nudge.lastPercent + "%)");
