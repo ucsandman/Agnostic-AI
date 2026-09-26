@@ -34,7 +34,6 @@ const SLOW_MS = 1500;
 // { file, argv?: extra process.argv entries, exportedMain?: call module.exports.main(payload) instead of loading top-level }
 const CHAIN = [
   { file: 'wakeup-guard.cjs', exportedMain: true },
-  { file: 'context-nudge.cjs', exportedMain: true },
   { file: 'scope-lock.cjs' },
   { file: 'opus-handoff-inject.cjs' },
   { file: 'correction-tracker.cjs' },

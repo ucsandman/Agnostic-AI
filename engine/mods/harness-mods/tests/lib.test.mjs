@@ -13,16 +13,16 @@ import { redactText, redactToolResult, PATTERNS } from "../hooks/lib/redact.mjs"
 import { decideGraph, decideBudget, decide, parseEst, signatureOf, EXIT_TOOLS } from "../hooks/lib/routing.mjs";
 import * as budget from "../hooks/lib/budget.mjs";
 import { row, pair, report } from "../hooks/lib/shadow.mjs";
-import { newNudgeState, onUsage, summary } from "../hooks/lib/usage.mjs";
+import { summary } from "../hooks/lib/usage.mjs";
 import { newStatus, judge } from "../hooks/lib/canary.mjs";
 
 const require = createRequire(import.meta.url);
 
 // ---------------------------------------------------------------- modes
 test("modes: config, env override, broken file → classic, stand-down needs mode+heartbeat+arm+fresh", () => {
-  const cfg = parseConfig(JSON.stringify({ version: 1, guards: { routing: "mod", contextNudge: "classic" } }));
+  const cfg = parseConfig(JSON.stringify({ version: 1, guards: { routing: "mod", readCache: "classic" } }));
   assert.equal(modeFor("routing", cfg, {}), "mod");
-  assert.equal(modeFor("contextNudge", cfg, {}), "classic");
+  assert.equal(modeFor("readCache", cfg, {}), "classic");
   assert.equal(modeFor("secretRedaction", cfg, {}), DEFAULT_CONFIG.guards.secretRedaction, "unset guard takes the default");
   assert.equal(modeFor("routing", cfg, { HARNESS_MOD_ROUTING: "classic" }), "classic", "env override wins");
   assert.equal(modeFor("routing", cfg, { HARNESS_MODS: "off" }), "classic", "HARNESS_MODS=off forces classic");
@@ -30,14 +30,14 @@ test("modes: config, env override, broken file → classic, stand-down needs mod
   const broken = parseConfig("{not json");
   assert.equal(broken.broken, true);
   assert.equal(modeFor("routing", broken, {}), DEFAULT_CONFIG.guards.routing);
-  assert.deepEqual(Object.keys(allModes(cfg, {})).sort(), ["contextNudge", "readCache", "routing", "secretRedaction", "subagentAccounting"]);
+  assert.deepEqual(Object.keys(allModes(cfg, {})).sort(), ["readCache", "routing", "secretRedaction", "subagentAccounting"]);
   const now = Date.now();
   const hb = { ts: now - 1000, armed: { routing: true } };
   assert.equal(classicStandsDown("routing", cfg, {}, hb, now).standDown, true);
   assert.equal(classicStandsDown("routing", cfg, {}, null, now).standDown, false, "L1: no heartbeat → classic enforces");
   assert.equal(classicStandsDown("routing", cfg, {}, { ts: now, armed: { routing: false } }, now).standDown, false, "not armed → classic enforces");
   assert.equal(classicStandsDown("routing", cfg, {}, { ts: now - 7 * 3600 * 1000, armed: { routing: true } }, now).standDown, false, "stale → classic enforces");
-  assert.equal(classicStandsDown("contextNudge", cfg, {}, hb, now).standDown, false, "mode classic → classic enforces");
+  assert.equal(classicStandsDown("readCache", cfg, {}, hb, now).standDown, false, "mode classic → classic enforces");
   assert.equal(classicStandsDown("routing", cfg, { HARNESS_MODS: "off" }, hb, now).standDown, false, "off switch → classic enforces");
 });
 
@@ -221,43 +221,10 @@ test("shadow: rows pair by key; deny vs rewrite count as agreement on the violat
 });
 
 // ---------------------------------------------------------------- usage
-test("usage: nudge fires once per crossing of 80%, re-arms below, /clear wording at 92%", () => {
-  const s = newNudgeState();
+test("usage: one-line summary for the band", () => {
   const u = (pct) => ({ context: { percent: pct, tokens: pct * 10000, window: 1000000 }, rateLimits: [{ kind: "five_hour", percentUsed: 77.4 }], cost: { usd: 0.209 } });
-  assert.equal(onUsage(s, u(50)), null);
-  assert.match(onUsage(s, u(81)), /~81% .* \/compact/);
-  assert.equal(onUsage(s, u(85)), null, "no second nudge while armed");
-  assert.equal(onUsage(s, u(40)), null); assert.equal(s.armed, false, "re-armed below the threshold");
-  assert.match(onUsage(s, u(93)), /use \/clear/);
-  assert.equal(s.fired, 2);
-  assert.equal(onUsage(s, { context: {} }), null, "no percent → no nudge, no crash");
   assert.equal(summary(u(6)), "ctx 6% · 5h 77% · 7d ? · $0.21");
-});
-
-test("usage: the ceiling is the auto-compact window when one is set, the raw window otherwise", () => {
-  const u = (tokens, window = 1_000_000) => ({ context: { tokens, window, percent: Math.round((tokens / window) * 100) } });
-  // 420k of a 1M window is 42% natively, but 84% of a 500k auto-compact window: the nudge fires
-  const s = newNudgeState();
-  const note = onUsage(s, u(420_000), { autoCompactWindow: 500_000 });
-  assert.match(note, /~84% of the auto-compact window/);
-  assert.match(note, /compaction runs at 500,000 of a 1,000,000 window/);
-  assert.match(note, /\/clear is free/);
-  assert.equal(s.ceiling, 500_000);
-  // L1 twin: the same snapshot without the option is 42% and silent
-  const s2 = newNudgeState();
-  assert.equal(onUsage(s2, u(420_000)), null, "no auto-compact window → raw window → 42% → silent");
-  assert.equal(s2.ceiling, 1_000_000);
-  // an auto-compact window larger than the model window never raises the ceiling
-  const s3 = newNudgeState();
-  assert.equal(onUsage(s3, u(420_000), { autoCompactWindow: 5_000_000 }), null);
-  assert.equal(s3.ceiling, 1_000_000);
-  // re-arms below the threshold measured against the same ceiling
-  assert.equal(onUsage(s, u(300_000), { autoCompactWindow: 500_000 }), null);
-  assert.equal(s.armed, false);
-  assert.match(onUsage(s, u(470_000), { autoCompactWindow: 500_000 }), /use \/clear/);
-  // no tokens reported → falls back to the native percent
-  const s4 = newNudgeState();
-  assert.match(onUsage(s4, { context: { percent: 85 } }, { autoCompactWindow: 500_000 }), /~85% of the context window/);
+  assert.equal(summary(null), "usage n/a");
 });
 
 // ---------------------------------------------------------------- canary
@@ -271,7 +238,7 @@ test("canary: a healthy status is ok; each failure class is named; mod mode on a
   assert.match(judge({ ...good(), order: ["other-plugin"] }, {}).failures.join(), /middleware-order/);
   assert.match(judge({ ...good(), enforcementReached: { toolCall: false } }, {}).failures.join(), /enforcement-unreachable/);
   assert.match(judge({ ...good(), hookErrors: 2, lastError: "tool.call" }, {}).failures.join(), /hook-failures: 2/);
-  const v = judge({ ...good(), usageProbe: false }, { contextNudge: "mod" });
-  assert.equal(v.ok, false); assert.match(v.failures.join(), /mod-mode-with-failures: contextNudge/);
+  const v = judge({ ...good(), usageProbe: false }, { readCache: "mod" });
+  assert.equal(v.ok, false); assert.match(v.failures.join(), /mod-mode-with-failures: readCache/);
   assert.equal(judge({ ...good(), toolCalls: 0, busEvents: 0 }, {}, "start").ok, true, "at session start no events is not a failure");
 });

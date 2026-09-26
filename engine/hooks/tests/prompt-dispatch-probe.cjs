@@ -67,7 +67,7 @@ try {
   });
   check('the real CHAIN lists every UserPromptSubmit hook and each file exists', () => {
     const names = dispatch.CHAIN.map((e) => e.file);
-    for (const want of ['wakeup-guard.cjs', 'context-nudge.cjs', 'scope-lock.cjs', 'fable-delegate-guard.cjs', 'mods-liveness.cjs', 'context-graph.cjs', 'repeat-tool-guard.cjs', 'correction-tracker.cjs', 'opus-handoff-inject.cjs']) assert.ok(names.includes(want), want + ' not in CHAIN');
+    for (const want of ['wakeup-guard.cjs', 'scope-lock.cjs', 'fable-delegate-guard.cjs', 'mods-liveness.cjs', 'context-graph.cjs', 'repeat-tool-guard.cjs', 'correction-tracker.cjs', 'opus-handoff-inject.cjs']) assert.ok(names.includes(want), want + ' not in CHAIN');
     for (const f of names) assert.ok(fs.existsSync(path.join(HOOKS, f)), f + ' missing on disk');
   });
   check('the real chain runs end to end on a human prompt without a hook error', () => {

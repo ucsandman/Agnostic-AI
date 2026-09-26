@@ -4,7 +4,6 @@
   "_rollback": "set a guard to \"classic\" (all sessions) or export HARNESS_MOD_<GUARD>=classic / HARNESS_MODS=off (one session); classic hooks are installed and enforce the moment the Mod's heartbeat stops arming a guard",
   "guards": {
     "routing": "mod",
-    "contextNudge": "mod",
     "secretRedaction": "mod",
     "subagentAccounting": "mod",
     "readCache": "mod"

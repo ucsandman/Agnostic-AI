@@ -9,7 +9,7 @@ export function row(fields) {
     ts: fields.ts || new Date().toISOString(),
     session: fields.session || null,
     side: fields.side,                       // "classic" | "mod"
-    subsystem: fields.subsystem,             // "routing" | "secretRedaction" | "contextNudge" | "readCache" | "subagentAccounting"
+    subsystem: fields.subsystem,             // "routing" | "secretRedaction" | "readCache" | "subagentAccounting"
     action: fields.action,                   // what was decided on ("Agent haiku-scout", "Bash …", "context 82%")
     key: fields.key || null,                 // join key (signature / tool_use_id / path)
     mode: fields.mode || null,               // effective mode when the row was written

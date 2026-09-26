@@ -29,7 +29,7 @@ const CONFIG = path.join(MODS, 'mods-config.json');
 const SESSIONS = path.join(MODS, 'state', 'sessions');
 const SHADOW = path.join(MODS, 'state', 'shadow');
 const MODES = ['classic', 'shadow_mod', 'mod'];
-const DEFAULTS = { routing: 'shadow_mod', contextNudge: 'shadow_mod', secretRedaction: 'shadow_mod', subagentAccounting: 'shadow_mod', readCache: 'shadow_mod' };
+const DEFAULTS = { routing: 'shadow_mod', secretRedaction: 'shadow_mod', subagentAccounting: 'shadow_mod', readCache: 'shadow_mod' };
 const MAX_AGE_MS = 6 * 3600 * 1000;
 
 function normalizeMode(v, fallback) {

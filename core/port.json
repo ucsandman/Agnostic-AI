@@ -49,10 +49,6 @@
         "reason": "housekeeping; one client runs the git sync"
       },
       {
-        "match": "context-nudge",
-        "reason": "reads the Claude Code statusline context percentage"
-      },
-      {
         "match": "dashclaw_pretool|dashclaw_posttool|dashclaw_stop|enforcement_liveness_probe",
         "reason": "DashClaw installs its own per-client handlers (dashclaw install <client>)"
       },

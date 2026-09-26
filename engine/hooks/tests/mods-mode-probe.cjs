@@ -42,7 +42,7 @@ check('mod, armed but stale (7h) → ENFORCE', mm.standsDown('routing', SID, opt
 hb(SID, { ts: now, armed: { routing: true } });
 check('mod, armed, fresh → STAND DOWN', mm.standsDown('routing', SID, opts()).standDown, true);
 check('shadow_mod, armed, fresh → ENFORCE (shadow never yields)', mm.standsDown('secretRedaction', SID, opts()).standDown, false);
-check('unset guard → default shadow_mod → ENFORCE', mm.standsDown('contextNudge', SID, opts()).standDown, false);
+check('unset guard → default shadow_mod → ENFORCE', mm.standsDown('readCache', SID, opts()).standDown, false);
 check('HARNESS_MODS=off → ENFORCE', mm.standsDown('routing', SID, opts({ HARNESS_MODS: 'off' })).standDown, false);
 check('HARNESS_MOD_ROUTING=classic → ENFORCE', mm.standsDown('routing', SID, opts({ HARNESS_MOD_ROUTING: 'classic' })).standDown, false);
 write({ version: 1, guards: { routing: 'classic' } });

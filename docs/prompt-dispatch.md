@@ -10,7 +10,7 @@ context:
 
 UserPromptSubmit is ONE registered command, `prompt-dispatch.cjs`, timeout 30 s.
 It reads the payload once and runs every prompt hook in-process (its `CHAIN`:
-wakeup-guard, context-nudge, scope-lock, opus-handoff-inject, correction-tracker,
+wakeup-guard, scope-lock, opus-handoff-inject, correction-tracker,
 repeat-tool-guard --reset, fable-delegate-guard, mods-liveness, context-graph),
 intercepting fd 0, stdout and `process.exit` around each require, then merges
 the answers: additionalContext joined in chain order, the first `decision: block`
@@ -22,7 +22,7 @@ per prompt at 5 s each timed out on every prompt once a bare node start cost
 by adding it to `CHAIN`, never as a second settings.json entry: the doctor's
 `prompt-hooks` check fails on more than one command or a timeout under 20 s,
 and `first-run.cjs` installs the dispatcher, not the individual guards.
-`context-nudge.py` is retired; `context-nudge.cjs` is the same nudge in Node.
+`context-nudge` (the 80 % context reminder) was removed on 2026-09-26.
 
 `wakeup-guard.cjs` counts consecutive machine wake-ups per session (a prompt
 starting with `<task-notification>`, or any `source` outside user/sdk; a human

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 2026-09-26: the context-budget nudge is gone
+
+- `engine/hooks/context-nudge.cjs` and the `contextNudge` Mod guard removed
+  (Wes). Its percent was measured against the auto-compact window while the
+  statusline shows the model window, so "81%" and "42%" described the same
+  session. Out of the prompt chain, `mods-config.json`, the canary, the
+  modes table, `HARNESS_MOD_CONTEXT_NUDGE` and `core/port.json`.
+
 ### 2026-09-19: claude-harness is the same repository again; README for the whole tree
 
 - `ucsandman/claude-harness` (24 stars) is a push mirror of `master` instead of

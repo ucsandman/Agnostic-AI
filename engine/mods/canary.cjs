@@ -30,7 +30,7 @@ const PIN_VERSION = '2.1.274';
 // Mirrors harness-mods/hooks/lib/canary.mjs EXPECTED_SUPPORTS; used only to report probe breadth (L2).
 const EXPECTED_SUPPORTS = ['toolInterception', 'toolResultMutation', 'runtimeEvents', 'subagentEvents',
   'dynamicPermissions', 'usageSignals', 'contextSignals', 'middleware', 'runtimeMemory'];
-const GUARDS = ['routing', 'contextNudge', 'secretRedaction', 'subagentAccounting', 'readCache'];
+const GUARDS = ['routing', 'secretRedaction', 'subagentAccounting', 'readCache'];
 const args = process.argv.slice(2);
 const QUICK = args.includes('--quick');
 const AS_JSON = args.includes('--json');

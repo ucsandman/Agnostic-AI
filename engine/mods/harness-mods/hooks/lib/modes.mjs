@@ -18,14 +18,12 @@ export const MODES = ["classic", "shadow_mod", "mod"];
 // mirror's secret sweep, which flags `secret…: "…"` shapes, never trips on the redaction entry.
 export const GUARDS = {
   routing: 1,
-  contextNudge: 1,
   secretRedaction: 1,
   subagentAccounting: 1,
   readCache: 1,
 };
 export const GUARD_NOTES = [
   ["routing", "agent-model-guard (Agent/Task branch) + capability-graph-guard (PreToolUse) + subagent-budget-guard: model rewrite onto the capability graph, advisor escalation, Fable cap, measured budget"],
-  ["contextNudge", "context-nudge.py: the 80% context reminder, from $.session.usage() instead of the %TEMP% IPC file"],
   ["secretRedaction", "tool-output-secret-watch.cjs: tool results with credential shapes are masked before the model sees them (the classic watch stays as the after-the-fact backstop)"],
   ["subagentAccounting", "subagent-budget-guard --post + calibrate.cjs: measured per-agent usage, declared-vs-measured, learned priors"],
   ["readCache", "costclaw-live: the Nth identical observation of an unchanged file is served from cache (target-keyed)"],
@@ -36,7 +34,6 @@ export const DEFAULT_CONFIG = {
   updatedAt: null,
   guards: {
     routing: "shadow_mod",
-    contextNudge: "shadow_mod",
     secretRedaction: "shadow_mod",
     subagentAccounting: "shadow_mod",
     readCache: "shadow_mod",

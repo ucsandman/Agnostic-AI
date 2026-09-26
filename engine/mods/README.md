@@ -41,7 +41,6 @@ with `claude plugin list`.
 | Guard | Mod behaviour | Classic hook that stands down | Kept classic |
 |---|---|---|---|
 | `routing` | `agent.spawn`: rewrites the model onto the capability graph (Fable→Opus/Sonnet/Haiku, downward only, advisor one rung up, Fable cap 3), prices the spawn against a learned prior with the `# EST:` break-even rule + anti-thrash, denies only a Haiku parent or an undeclared scope on its first attempt, and explains every rewrite to the parent on the Agent tool result | `agent-model-guard` (Agent/Task branch), `capability-graph-guard` (PreToolUse), `subagent-budget-guard` (pre-spawn) | the Workflow script lint in `agent-model-guard`; `subagent-budget-guard --post`; SubagentStart/Stop registry |
-| `contextNudge` | attaches the 80 % context reminder from `$.session.usage()` on the next prompt, once per crossing. Since 2026-09-18 the 80 % is measured against the AUTO-COMPACT window (`autoCompactWindow`, or `CLAUDE_CODE_AUTO_COMPACT_WINDOW`) when one is set: with 500k on a 1M model the old 80 %-of-window point (800k) was unreachable and the nudge never fired before the summarisation pass | `context-nudge.cjs` | the statusline (host-fed) and its `%TEMP%` file (unused by the Mod) |
 
 The Mod draws no band of its own (removed 2026-09-18: the AbovePrompt tree and `$.ui.status` were the
 same line the statusline already shows from the heartbeat, three times). `/mods` prints the band; the
@@ -64,7 +63,7 @@ claude plugin validate ~/.claude/mods/harness-mods --json    the loader's static
 ## Rollback (classic hooks are still installed; they take over the moment the Mod stops arming a guard)
 
 - one guard, every session: set it to `"classic"` in `mods-config.json`
-- one session: `HARNESS_MOD_ROUTING=classic` (`_CONTEXT_NUDGE`, `_SECRET_REDACTION`, `_SUBAGENT_ACCOUNTING`, `_READ_CACHE`) or `HARNESS_MODS=off`
+- one session: `HARNESS_MOD_ROUTING=classic` (`_SECRET_REDACTION`, `_SUBAGENT_ACCOUNTING`, `_READ_CACHE`) or `HARNESS_MODS=off`
 - the layer: `claude plugin disable harness-mods@harness-mods` (`claude-runtime@harness-mods` may stay; it only observes)
 - a Claude update: a **minor/major** change (2.1.x to 2.2.x) fails `version` until you re-run `labs/claude-mods/lab/probe*` and repin, because event shapes can move. A **patch** change (2.1.273 to 2.1.274) is a warning, not a failure, provided the in-session capability probe is clean on the installed build: all 9 of `EXPECTED_SUPPORTS` answering true is direct evidence the API the Mod depends on is intact, where the version string is only a proxy for it. Clear a stale pin with `node ~/.claude/mods/canary.cjs --repin`, which refuses unless both the canary and the probe are clean and updates `canary.cjs` and `canary.mjs` together. Changed 2026-09-17: the old exact-match pin went red on every patch release, and a canary that cries wolf gets ignored.
 

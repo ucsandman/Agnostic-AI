@@ -16,7 +16,7 @@ import { redactToolResult, summarize } from "./lib/redact.mjs";
 import { decide, signatureOf, EXIT_TOOLS } from "./lib/routing.mjs";
 import * as budget from "./lib/budget.mjs";
 import { row as shadowRow, report as shadowReport } from "./lib/shadow.mjs";
-import { newNudgeState, onUsage, summary as usageSummary } from "./lib/usage.mjs";
+import { summary as usageSummary } from "./lib/usage.mjs";
 import { newStatus, judge, RUNTIME_PIN } from "./lib/canary.mjs";
 
 const VERSION = "0.1.0";
@@ -25,7 +25,7 @@ const VERSION = "0.1.0";
 // has no Node globals; the home is read through `$.env` on the first event and cached (2026-09-19, after
 // a top-level environment read kept the whole module from loading).
 let CLAUDE_HOME = "";
-let STATE_DIR = "", CONFIG_PATH = "", SETTINGS_PATH = "", CLASSIC_BUDGET_LOG = "";
+let STATE_DIR = "", CONFIG_PATH = "", CLASSIC_BUDGET_LOG = "";
 async function resolveHome($) {
   if (CLAUDE_HOME) return;
   let home = "";
@@ -40,7 +40,6 @@ async function resolveHome($) {
   CLAUDE_HOME = String(home).replace(/\\/g, "/").replace(/\/$/, "");
   STATE_DIR = CLAUDE_HOME + "/mods/state/";
   CONFIG_PATH = CLAUDE_HOME + "/mods/mods-config.json";
-  SETTINGS_PATH = CLAUDE_HOME + "/settings.json";
   CLASSIC_BUDGET_LOG = CLAUDE_HOME + "/hooks/.subagent-budget-log.jsonl";
 }
 const STORE_KEY = "harness-mods.ledger";
@@ -48,8 +47,7 @@ const SERVE_AFTER = 3; // the Nth exact identical observation of an unchanged fi
 
 const state = {
   sessionId: "", cfg: null, modes: {}, armed: {}, status: newStatus(), ledger: budget.newLedger(),
-  nudge: newNudgeState(), pendingNudge: null, usage: null, model: "",
-  autoCompactWindow: 0,  // settings.autoCompactWindow (or the env override): the nudge's ceiling when set
+  usage: null, model: "",
   routes: {},            // tool_use_id -> route (for the Agent tool.call explanation)
   fableUsed: 0, denied: {},
   readCache: {},         // "tool|path|args" -> { result, chars, size, mtimeMs, n, firstAt }
@@ -66,7 +64,6 @@ async function readEnv($) {
   const env = {};
   try { env.HARNESS_MODS = await $.env.get("HARNESS_MODS"); } catch (err) {}
   try { env.HARNESS_MOD_ROUTING = await $.env.get("HARNESS_MOD_ROUTING"); } catch (err) {}
-  try { env.HARNESS_MOD_CONTEXT_NUDGE = await $.env.get("HARNESS_MOD_CONTEXT_NUDGE"); } catch (err) {}
   try { env.HARNESS_MOD_SECRET_REDACTION = await $.env.get("HARNESS_MOD_SECRET_REDACTION"); } catch (err) {}
   try { env.HARNESS_MOD_SUBAGENT_ACCOUNTING = await $.env.get("HARNESS_MOD_SUBAGENT_ACCOUNTING"); } catch (err) {}
   try { env.HARNESS_MOD_READ_CACHE = await $.env.get("HARNESS_MOD_READ_CACHE"); } catch (err) {}
@@ -112,17 +109,7 @@ async function probeAll($, e) {
   try { const u = await $.session.usage(); state.usage = u; state.status.usageProbe = !!(u && u.context && typeof u.context.window === "number"); } catch (err) { state.status.usageProbe = false; }
   try { const stored = await $.store.get(STORE_KEY); if (stored && stored.priors) state.ledger.priors = stored.priors; await $.store.set(STORE_KEY + ".probe", Date.now()); state.status.storeProbe = true; } catch (err) { state.status.storeProbe = false; }
   try { state.model = await $.session.model(); } catch (err) { state.model = ""; }
-  state.autoCompactWindow = await readAutoCompactWindow($);
   state.status.version = RUNTIME_PIN.claudeVersion;
-}
-// The auto-compact window, in the engine's own precedence: env override, then settings.
-// A missing or unparsable value is 0 (the nudge then measures against the raw window, as before).
-async function readAutoCompactWindow($) {
-  const num = (v) => { const n = typeof v === "number" ? v : parseInt(String(v || "").replace(/[^0-9]/g, ""), 10); return Number.isFinite(n) && n > 0 ? n : 0; };
-  try { const env = await $.env.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW"); if (num(env)) return num(env); } catch (err) {}
-  try { const s = await $.settings.read(); const v = s && (s.autoCompactWindow !== undefined ? s.autoCompactWindow : s.settings && s.settings.autoCompactWindow); if (num(v)) return num(v); } catch (err) {}
-  try { const j = JSON.parse(await $.fs.read(SETTINGS_PATH)); if (num(j.autoCompactWindow)) return num(j.autoCompactWindow); } catch (err) {}
-  return 0;
 }
 async function persistPriors($) { try { await $.store.set(STORE_KEY, { priors: state.ledger.priors, updatedAt: Date.now(), sessionId: state.sessionId }); } catch (err) {} }
 async function refreshUsage($) { try { state.usage = await $.session.usage(); return state.usage; } catch (err) { return null; } }
@@ -142,7 +129,6 @@ function shadow(fields) {
 function armedFor(modes, st) {
   return {
     routing: modes.routing === "mod",
-    contextNudge: modes.contextNudge === "mod" && st.usageProbe,
     secretRedaction: modes.secretRedaction === "mod",
     subagentAccounting: modes.subagentAccounting === "mod" && st.runtimeNoun,
     readCache: modes.readCache === "mod",
@@ -151,7 +137,7 @@ function armedFor(modes, st) {
 function bandText() {
   const m = state.modes;
   const short = { classic: "c", shadow_mod: "s", mod: "M" };
-  const abbr = { routing: "rou", contextNudge: "ctx", secretRedaction: "sec", subagentAccounting: "sub", readCache: "rea" };
+  const abbr = { routing: "rou", secretRedaction: "sec", subagentAccounting: "sub", readCache: "rea" };
   const guards = Object.keys(GUARDS).map((g) => (abbr[g] || g.slice(0, 3)) + ":" + (short[m[g]] || "?") + (m[g] === "mod" && !state.armed[g] ? "!" : "")).join(" ");
   const c = state.status.runtimeNoun ? (judge(state.status, state.modes, state.status.toolCalls > 0 ? "live" : "start").ok ? "✓" : "✗") : "✗";
   const t = budget.totals(state.ledger);
@@ -197,11 +183,6 @@ export const register = (on, options) => {
       }
     } else if (e.kind === "UsageChanged") {
       state.usage = d;
-      const note = onUsage(state.nudge, d, { autoCompactWindow: state.autoCompactWindow });
-      if (note) {
-        shadow({ subsystem: "contextNudge", action: "context " + state.nudge.lastPercent + "%", key: "crossing-" + state.nudge.fired, mode: mode("contextNudge"), decision: "nudge", resolvedValue: state.nudge.lastPercent, enforced: enforcing("contextNudge") });
-        if (enforcing("contextNudge")) state.pendingNudge = note;
-      }
     } else if (e.kind === "ToolCompleted" && !state.status.order && Array.isArray(d.trace)) {
       state.status.order = d.trace.filter((t) => t.tier === "user").map((t) => t.plugin);
     }
@@ -321,15 +302,10 @@ export const register = (on, options) => {
     return r;
   }).catch(($, e, next) => { state.status.hookErrors++; state.status.lastError = "tool.call"; return next(e); });
 
-  // ---------------------------------------------------------------- prompt.submit: the native context nudge
+  // ---------------------------------------------------------------- prompt.submit: session heartbeat
   on("prompt.submit", async ($, e, next) => {
     await resolveHome($); // the validator wants $ handed only to top-level functions, so each hook resolves the home itself
     if (await syncSessionId($)) await writeHeartbeat($, {});
-    if (state.pendingNudge && enforcing("contextNudge")) {
-      const note = state.pendingNudge; state.pendingNudge = null;
-      log($, "context nudge attached (" + state.nudge.lastPercent + "%)");
-      return next({ ...e, context: [...(e.context || []), note] });
-    }
     return next(e);
   }).catch(($, e, next) => { state.status.hookErrors++; state.status.lastError = "prompt.submit"; return next(e); });
 
