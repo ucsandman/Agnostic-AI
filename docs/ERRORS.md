@@ -1,5 +1,26 @@
 # Errors and lessons
 
+## 2026-09-29 - The routing Mod never captured a spawn's overhead and priced the whole run instead
+
+- **Symptom:** the Mod denied two Sonnet figure workers at "~487,680 overhead
+  (learned overhead n=14)" when a lean spawn arrives at about 17k. Its ledger
+  had `overhead` 0 in 34 of 34 measured rows since the 2026-09-18 split, and
+  learned overheads of 2.17M (opus-owner), 487k (sonnet-implementer) and 102k
+  (haiku-scout). 31 of 56 Fable spawns that week went through on `SPAWN_OK`.
+- **Root cause:** `budget.step()` captured overhead only while `!a.calls`, but
+  on a live run `tool.call` counts the call before the `ModelStep` that paid
+  for it arrives, so the capture never fired. `settle()` then fell back to
+  `a.measured`, storing the whole run as overhead, which is exactly what the
+  09-18 split was written to stop. Its tests stepped before counting the call,
+  the one order that never happens live.
+- **Fix:** the first step is always overhead (`a.steps === 1 || !a.calls`),
+  settle never uses the total as an overhead sample, and `OVERHEAD_VERSION = 2`
+  discards stored overhead samples from before the fix. New test replays the
+  live order; it failed first, then passed (12/12). A fresh `claude -p` on
+  Sonnet priced the same one-call haiku-scout dispatch at ~17,000 (prior lean),
+  down from 25,580. Lesson: a test that feeds events in the order you assumed
+  proves the assumption, not the code; replay the order the log shows.
+
 ## 2026-09-16 - Secret scanning covered two map keys and the docs promised the whole bundle
 
 - **Symptom:** an independent security review of the engine embedded in Leg

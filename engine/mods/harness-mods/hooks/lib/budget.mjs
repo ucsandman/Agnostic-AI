@@ -17,6 +17,9 @@ export const FULL_PRIOR = 60000;
 export const CACHE_DISCOUNT = 0.1;
 export const MAX_SAMPLES = 20;
 export const WARM_WINDOW_MS = 5 * 60 * 1000;
+// Bumped 2026-09-29: before it, the first step's usage was never captured (tool.call counts the call
+// before its ModelStep arrives), so every stored overhead sample was a whole-run total.
+export const OVERHEAD_VERSION = 2;
 export const LEAN_TYPES = ["haiku-scout", "sonnet-implementer", "opus-owner", "advisor", "e2e-verifier", "explore", "plan", "statusline-setup", "security-reviewer", "fork"];
 
 export function isLean(type) { return LEAN_TYPES.indexOf(String(type || "").toLowerCase()) >= 0; }
@@ -41,12 +44,13 @@ export function newLedger() {
  * `tokens`/`source`: the spawn OVERHEAD prior (tokens before the first tool call) for the break-even
  * rule; `total`/`totalSource`: the whole-run prior the ledger reserves. A stored prior that only has
  * total samples (pre-split sessions) prices overhead from the classic constant, never from the total.
+ * So does one whose overhead samples predate OVERHEAD_VERSION: those were whole-run totals.
  */
 export function priorFor(ledger, type) {
   const p = ledger.priors[type];
   const classic = isLean(type) ? LEAN_PRIOR : FULL_PRIOR;
   const classicSource = isLean(type) ? "prior lean" : "prior full";
-  const hasOverhead = !!(p && p.overhead > 0 && Array.isArray(p.overheads));
+  const hasOverhead = !!(p && p.overheadV === OVERHEAD_VERSION && p.overhead > 0 && Array.isArray(p.overheads));
   const hasTotal = !!(p && p.median > 0 && Array.isArray(p.samples));
   return {
     tokens: hasOverhead ? p.overhead : classic,
@@ -75,7 +79,9 @@ export function step(ledger, agentId, usage, nowMs) {
   if (!a) return null;
   a.steps++;
   a.tokens += weigh(usage);
-  if (!a.calls) a.overhead = a.tokens; // everything spent before the first tool call is overhead
+  // Everything spent before the first tool call is overhead. The first step always is: its tool call can be
+  // counted before this event arrives, so `!a.calls` alone never fired on a live run.
+  if (a.steps === 1 || !a.calls) a.overhead = a.tokens;
   ledger.lastActivityMs = nowMs;
   return a;
 }
@@ -91,12 +97,13 @@ export function settle(ledger, agentId, ev, nowMs) {
   a.reason = ev.reason || "";
   a.endedMs = nowMs;
   const p = ledger.priors[a.type] || { samples: [], median: 0 };
-  if (!Array.isArray(p.overheads)) { p.overheads = []; p.overhead = 0; } // pre-split stored prior
+  // A pre-split prior has no overhead samples; a pre-OVERHEAD_VERSION one has totals posing as overhead.
+  if (!Array.isArray(p.overheads) || p.overheadV !== OVERHEAD_VERSION) { p.overheads = []; p.overhead = 0; p.overheadV = OVERHEAD_VERSION; }
   p.samples.push(a.measured);
   if (p.samples.length > MAX_SAMPLES) p.samples.shift();
   p.median = medianOf(p.samples);
-  // A run that never called a tool is all overhead; one without a step row (no ModelStep seen) has no overhead sample.
-  const overhead = a.overhead > 0 ? a.overhead : a.calls === 0 && a.steps === 0 ? 0 : a.measured;
+  // Only a captured step is an overhead sample. A run with no ModelStep seen contributes none, never its total.
+  const overhead = a.overhead > 0 ? a.overhead : 0;
   if (overhead > 0) {
     p.overheads.push(overhead);
     if (p.overheads.length > MAX_SAMPLES) p.overheads.shift();

@@ -202,6 +202,34 @@ test("budget prior split: a learned TOTAL never prices the break-even rule (the 
   assert.equal(budget.medianOf([3, 1, 2]), 2); assert.equal(budget.medianOf([1, 2, 3, 4]), 3); assert.equal(budget.medianOf([]), 0);
 });
 
+test("budget overhead capture: the first ModelStep is the overhead even when the tool call is counted first (0 of 34 captured, 2026-09-29)", () => {
+  // Live order: tool.call increments calls BEFORE the ModelStep that paid for it arrives, so `!a.calls` never
+  // held, overhead stayed 0, and settle stored the whole run as overhead (sonnet-implementer priced at 487,680).
+  const L = budget.newLedger();
+  budget.open(L, { agentId: "s1", type: "sonnet-implementer", model: "sonnet", declared: null, reserved: 17000, reservedFrom: "prior lean" }, 1);
+  L.agents.s1.calls = 1; // first tool call lands before its step
+  budget.step(L, "s1", { input_tokens: 17000, output_tokens: 300 }, 2);
+  L.agents.s1.calls = 2;
+  budget.step(L, "s1", { input_tokens: 25000, output_tokens: 300 }, 3);
+  const s = budget.settle(L, "s1", { usage: { input_tokens: 480000, output_tokens: 9000 }, durationMs: 1, reason: "answer" }, 4);
+  assert.equal(s.overhead, 17300, "the first step, not the whole run");
+  assert.equal(budget.priorFor(L, "sonnet-implementer").tokens, 17300);
+  // Steps never seen but tool calls counted: no overhead sample, never the total.
+  budget.open(L, { agentId: "s2", type: "sonnet-implementer", model: "sonnet", declared: null, reserved: 17000, reservedFrom: "prior lean" }, 5);
+  L.agents.s2.calls = 40;
+  budget.settle(L, "s2", { usage: { input_tokens: 500000 }, durationMs: 1, reason: "answer" }, 6);
+  assert.equal(L.priors["sonnet-implementer"].overheads.length, 1, "a total is never an overhead sample");
+  // A prior stored before this fix holds totals in `overheads`; it must price from the classic constant.
+  const P = budget.newLedger();
+  P.priors["sonnet-implementer"] = { samples: [482374, 493723], median: 488049, overheads: [482374, 493723], overhead: 487680 };
+  assert.equal(budget.priorFor(P, "sonnet-implementer").tokens, 17000, "polluted overhead samples are discarded");
+  budget.open(P, { agentId: "s3", type: "sonnet-implementer", model: "sonnet", declared: null, reserved: 488049, reservedFrom: "learned total n=2" }, 7);
+  budget.step(P, "s3", { input_tokens: 18000 }, 8);
+  budget.settle(P, "s3", { usage: { input_tokens: 300000 }, durationMs: 1, reason: "answer" }, 9);
+  assert.deepEqual(P.priors["sonnet-implementer"].overheads, [18000], "the refit starts clean");
+  assert.equal(budget.priorFor(P, "sonnet-implementer").total, 482374, "totals are kept");
+});
+
 // ---------------------------------------------------------------- shadow
 test("shadow: rows pair by key; deny vs rewrite count as agreement on the violation; report per subsystem", () => {
   const rows = [

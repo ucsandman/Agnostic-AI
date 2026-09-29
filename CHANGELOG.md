@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### 2026-09-29: the routing Mod prices a spawn's arrival, not its whole run
+
+- `engine/mods/harness-mods/hooks/lib/budget.mjs`: the first `ModelStep` is
+  always the spawn's overhead. `tool.call` counts the call before its step
+  arrives, so the old `!a.calls` capture never fired and `settle()` stored the
+  whole run as overhead (0 of 34 runs captured; sonnet-implementer priced at
+  487,680 to arrive, opus-owner at ~2.2M). `settle()` no longer falls back to
+  the total, and `OVERHEAD_VERSION = 2` discards stored overhead samples from
+  before the fix, so priors refit from the lean/full constants.
+- New test replays the live event order (`tests/lib.test.mjs`, 12/12). Record
+  in `docs/ERRORS.md`.
+
 ### 2026-09-26: the context-budget nudge is gone
 
 - `engine/hooks/context-nudge.cjs` and the `contextNudge` Mod guard removed
